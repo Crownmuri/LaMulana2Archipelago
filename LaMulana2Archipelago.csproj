@@ -87,19 +87,19 @@
 
     <ItemGroup>
       <Reference Include="Assembly-CSharp">
-        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
+        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
         <Private>False</Private>
       </Reference>
       <Reference Include="LaMulana2RandomizerShared">
-        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\LaMulana2RandomizerShared.dll</HintPath>
+        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\LaMulana2RandomizerShared.dll</HintPath>
         <Private>False</Private>
       </Reference>
       <Reference Include="TextMeshPro">
-        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\TextMeshPro.dll</HintPath>
+        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\TextMeshPro.dll</HintPath>
         <Private>False</Private>
       </Reference>
       <Reference Include="UnityEngine.UI">
-        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\UnityEngine.UI.dll</HintPath>
+        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\UnityEngine.UI.dll</HintPath>
         <Private>False</Private>
       </Reference>
     </ItemGroup>
