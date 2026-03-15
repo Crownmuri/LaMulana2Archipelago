@@ -54,7 +54,7 @@ However, some adaptations are made to accommodate AP features.
 ## Issues
 - Upon player control (starting the game or loading a save), La-Mulana 2 will always dequeue all previously obtained AP items regardless of whether your save already has them. 
 - Related: there is no save tracking other than the grail auto-save; i.e. only on death the mod will try to regrant the AP items missing since last auto-save.
-- AP Item label patching for shops may fire too early, causing AP shop labels to return as `DATA Err SheetNo=0 IDNo=-1 RetuNo=3`
+- Currently, ShopDialogPatch only works if AP is connected before the L2ShopDatabase is constructed. Otherwise, NPCs will still just say the vanilla item on purchase prompt. 
 - Some text does not wrap nicely after patching in AP label names.
 - Death Link sometimes not sending out to other players
 - Fake items are currently overwritten as the new filler, so there are no actual traps at this point in development.
