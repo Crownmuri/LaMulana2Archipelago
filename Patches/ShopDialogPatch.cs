@@ -1,0 +1,160 @@
+using HarmonyLib;
+using L2Base;
+using L2Word;
+using LaMulana2Archipelago.Archipelago;
+using LaMulana2Archipelago.Managers;
+using System.Collections.Generic;
+using TMPro;
+
+namespace LaMulana2Archipelago.Patches
+{
+    [HarmonyPatch]
+    public static class ShopDialogPatch
+    {
+        private static L2ShopDataBase _cachedInstance;
+
+        // "shopId:slotIndex" → AP display name
+        private static readonly Dictionary<string, string> _slotDisplayNames = new Dictionary<string, string>();
+
+        private class ShopSlotEntry
+        {
+            public int PageId;
+            public ShopCell Cell;
+            public string DisplayName;
+        }
+
+        // ── Constructor: cache instance, apply if already connected ──────────
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(L2ShopDataBase), MethodType.Constructor)]
+        static void ShopDB_Ctor_Postfix(L2ShopDataBase __instance)
+        {
+            _cachedInstance = __instance;
+
+            if (ArchipelagoClient.Authenticated)
+                Apply(__instance);
+        }
+
+        // ── Called by Plugin.Update once the scout cache is populated ────────
+
+        public static void Reapply()
+        {
+            if (_cachedInstance == null)
+            {
+                Plugin.Log.LogWarning("[ShopPatch] Reapply called but no cached L2ShopDataBase instance.");
+                return;
+            }
+            Apply(_cachedInstance);
+        }
+
+        // ── Core apply ───────────────────────────────────────────────────────
+
+        private static void Apply(L2ShopDataBase instance)
+        {
+            _slotDisplayNames.Clear();
+
+            var client = ArchipelagoClientProvider.Client;
+            if (client == null) return;
+
+            // Group entries by ShopId, sorted by PageId to determine UI slot order (0,1,2).
+            var byShop = new Dictionary<int, List<ShopSlotEntry>>();
+
+            foreach (var kvp in ShopCellMap.CellToLocation)
+            {
+                string apText = GetApItemText(client, kvp.Value);
+                if (apText == null) continue;
+
+                int shopId = kvp.Key.ShopId;
+                if (!byShop.ContainsKey(shopId))
+                    byShop[shopId] = new List<ShopSlotEntry>();
+
+                byShop[shopId].Add(new ShopSlotEntry
+                {
+                    PageId = kvp.Key.PageId,
+                    Cell = kvp.Key,
+                    DisplayName = apText
+                });
+            }
+
+            foreach (var kvp in byShop)
+            {
+                // Sort by PageId so slot 0/1/2 match the order itemCallBack registers them.
+                kvp.Value.Sort((a, b) => a.PageId.CompareTo(b.PageId));
+
+                for (int slot = 0; slot < kvp.Value.Count; slot++)
+                {
+                    var entry = kvp.Value[slot];
+
+                    // Patch cellData for the NPC confirmation dialog.
+                    try
+                    {
+                        instance.cellData[entry.Cell.ShopId][entry.Cell.PageId][entry.Cell.CellId][entry.Cell.TokenIndex] = entry.DisplayName;
+                    }
+                    catch
+                    {
+                        Plugin.Log.LogWarning("[ShopPatch] Out-of-range for ("
+                            + entry.Cell.ShopId + ","
+                            + entry.Cell.PageId + ","
+                            + entry.Cell.CellId + ","
+                            + entry.Cell.TokenIndex + ")");
+                    }
+
+                    // Cache for item listing UI patch.
+                    _slotDisplayNames[kvp.Key + ":" + slot] = entry.DisplayName;
+                }
+            }
+
+            Plugin.Log.LogInfo("[ShopPatch] Applied " + _slotDisplayNames.Count + " shop slot overrides.");
+        }
+
+        // ── itemCallBack postfix: override item name in shop listing UI ───────
+
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(ShopScript), "itemCallBack")]
+        static void ItemCallBack_Postfix(ShopScript __instance)
+        {
+            if (_slotDisplayNames.Count == 0) return;
+
+            var t = Traverse.Create(__instance);
+
+            int slot = t.Field("item_copunter").GetValue<int>() - 1;
+            if (slot < 0 || slot > 2) return;
+
+            var sys = t.Field("sys").GetValue<L2System>();
+            string sheetName = t.Field("sheet_name").GetValue<string>();
+            if (sys == null || string.IsNullOrEmpty(sheetName)) return;
+
+            // Resolve shopId via the same lookup the shop system uses internally.
+            var shopDb = sys.getMojiScript(mojiScriptType.shop);
+            if (shopDb == null) return;
+
+            int shopId = sys.mojiSheetNameToNo(sheetName, shopDb);
+            string cacheKey = shopId + ":" + slot;
+
+            string apName;
+            if (!_slotDisplayNames.TryGetValue(cacheKey, out apName)) return;
+
+            var itemNames = t.Field("item_name").GetValue<TextMeshProUGUI[]>();
+            if (itemNames == null || slot >= itemNames.Length || itemNames[slot] == null) return;
+
+            itemNames[slot].text = apName;
+            Plugin.Log.LogInfo("[ShopPatch] Slot " + slot + " (shopId=" + shopId + ") name -> \"" + apName + "\"");
+        }
+
+        // ── Helper ───────────────────────────────────────────────────────────
+
+        private static string GetApItemText(ArchipelagoClient client, string locationName)
+        {
+            long? locationId = client.GetLocationIdByName(locationName);
+            if (locationId == null) return null;
+
+            var itemInfo = client.GetItemAtLocation(locationId.Value);
+            if (itemInfo == null) return null;
+
+            if (itemInfo.PlayerName != ArchipelagoClient.ServerData.SlotName)
+                return itemInfo.ItemName + " (" + itemInfo.PlayerName + ")";
+
+            return itemInfo.ItemName;
+        }
+    }
+}

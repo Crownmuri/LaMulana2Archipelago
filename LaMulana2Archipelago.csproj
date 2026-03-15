@@ -1,0 +1,153 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net35</TargetFramework>
+        <AssemblyName>LaMulana2Archipelago</AssemblyName>
+        <Description>LaMulana 2 Archipelago Plugin</Description>
+        <Version>0.1.0.0</Version>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+        <!-- you may need this for getting the multiclient dll to output for .net 6 and netstandard 2.0 -->
+        <!--        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>-->
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <RootNamespace>LaMulana2Archipelago</RootNamespace>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+        <OutputPath>D:\Games\Steam\steamapps\common\La-Mulana 2\BepInEx\plugins\$(AssemblyName)</OutputPath>
+        <DefineConstants>DEBUG;TRACE</DefineConstants>
+        <ErrorReport>prompt</ErrorReport>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+        <DebugType>none</DebugType>
+        <Optimize>true</Optimize>
+        <OutputPath>bin\Release\$(AssemblyName)</OutputPath>
+        <DefineConstants>TRACE</DefineConstants>
+        <ErrorReport>prompt</ErrorReport>
+    </PropertyGroup>
+
+    <Target Name="ZipMod" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+        <ZipDirectory SourceDirectory="bin\Release\$(AssemblyName)" DestinationFile="bin\Release\$(AssemblyName)-$(Version).zip" Overwrite="true" />
+    </Target>
+
+    <ItemGroup>
+      <Compile Remove="Trackers\**" />
+      <Compile Remove="Utils\**" />
+      <EmbeddedResource Remove="Trackers\**" />
+      <EmbeddedResource Remove="Utils\**" />
+      <None Remove="Trackers\**" />
+      <None Remove="Utils\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Archipelago\ArchipelagoClient - old.cs" />
+      <Compile Remove="Archipelago\ArchipelagoData - Copy.cs" />
+      <Compile Remove="Archipelago\ItemTable.cs" />
+      <Compile Remove="Managers\CheckManagerDeferred.cs" />
+      <Compile Remove="Managers\FlagQueueDeferred.cs" />
+      <Compile Remove="Managers\LocationReporter.cs" />
+      <Compile Remove="Managers\LocationTable.cs" />
+      <Compile Remove="Patches\ChestItemsRevertForAP.cs" />
+      <Compile Remove="Patches\EventItemFiller.cs" />
+      <Compile Remove="Patches\EventItemPatch.cs" />
+      <Compile Remove="Patches\FakeItemPatch.cs" />
+      <Compile Remove="Patches\ItemObjectDumper.cs" />
+      <Compile Remove="Patches\KataribeScriptFinalPatch.cs" />
+      <Compile Remove="Patches\KataribeScriptFinalPatchDebug.cs" />
+      <Compile Remove="Patches\SaveLoadPatch.cs" />
+      <Compile Remove="Patches\SetSystemDataToClothFlagPatch.cs" />
+      <Compile Remove="Patches\test.cs" />
+      <Compile Remove="SaveData.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Include="Utils\ArchipelagoConsole.cs" />
+      <Compile Include="Utils\ChestFillerSetup.cs" />
+      <Compile Include="Utils\LocationResolver.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Archipelago.MultiClient.Net" Version="6.7.0" />
+        <PackageReference Include="Archipelago.MultiClient.Net.Analyzers" Version="2.0.1">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
+        <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+        <PackageReference Include="UnityEngine.Modules" Version="2017.2.2" IncludeAssets="compile" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="Assembly-CSharp">
+        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
+        <Private>False</Private>
+      </Reference>
+      <Reference Include="LaMulana2RandomizerShared">
+        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\LaMulana2RandomizerShared.dll</HintPath>
+        <Private>False</Private>
+      </Reference>
+      <Reference Include="TextMeshPro">
+        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\TextMeshPro.dll</HintPath>
+        <Private>False</Private>
+      </Reference>
+      <Reference Include="UnityEngine.UI">
+        <HintPath>..\..\..\..\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\UnityEngine.UI.dll</HintPath>
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Update="mscorlib">
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Update="System.Core">
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Update="System.Data">
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Update="System.Drawing">
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Update="System.Runtime.Serialization">
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Update="System.Xml">
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Update="System.Xml.Linq">
+        <Private>False</Private>
+      </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Trackers\" />
+    </ItemGroup>
+
+</Project>
