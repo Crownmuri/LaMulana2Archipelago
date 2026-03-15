@@ -168,16 +168,20 @@ namespace LaMulana2Archipelago.Archipelago
                 Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = guardianAnkhs;
                 Plugin.Log.LogInfo($"[AP] guardian_specific_ankhs = {guardianAnkhs}");
 
+                bool deathLinkEnabled = ServerData.GetSlotBool("death_link", false);
+
                 DeathLinkHandler = new DeathLinkHandler(
                     session.CreateDeathLinkService(),
                     ServerData.SlotName,
-                    true
+                    deathLinkEnabled
                 );
 
                 Plugin.Log.LogInfo("[AP] DeathLink service initialized");
 
                 Authenticated = true;
                 GoalReported = false;
+
+                Patches.ShopDialogPatch.Reapply();
 
                 outText = $"Successfully connected to {ServerData.NormalizedUri} as {ServerData.SlotName}!";
                 ArchipelagoConsole.LogMessage(outText);

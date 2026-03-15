@@ -4,7 +4,7 @@
         <TargetFramework>net35</TargetFramework>
         <AssemblyName>LaMulana2Archipelago</AssemblyName>
         <Description>LaMulana 2 Archipelago Plugin</Description>
-        <Version>0.1.0.0</Version>
+        <Version>0.1.1.0</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
         <!-- you may need this for getting the multiclient dll to output for .net 6 and netstandard 2.0 -->
@@ -35,10 +35,13 @@
     </Target>
 
     <ItemGroup>
+      <Compile Remove="dev\**" />
       <Compile Remove="Trackers\**" />
       <Compile Remove="Utils\**" />
+      <EmbeddedResource Remove="dev\**" />
       <EmbeddedResource Remove="Trackers\**" />
       <EmbeddedResource Remove="Utils\**" />
+      <None Remove="dev\**" />
       <None Remove="Trackers\**" />
       <None Remove="Utils\**" />
     </ItemGroup>

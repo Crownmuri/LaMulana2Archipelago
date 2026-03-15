@@ -77,8 +77,8 @@ namespace LaMulana2Archipelago.Archipelago
 
         public ArchipelagoData()
         {
-            Uri = "localhost:30485";
-            SlotName = "CrownLumisa";
+            Uri = "localhost:38281"; // 38281
+            SlotName = "Lumisa";
             Password = "";
             Index = 0;
             CheckedLocations = new();

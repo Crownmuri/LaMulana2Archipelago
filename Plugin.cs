@@ -15,7 +15,7 @@ namespace LaMulana2Archipelago
     {
         public const string PluginGUID = "com.Crownmuri.Archipelago.LaMulana2";
         public const string PluginName = "LaMulana2Archipelago";
-        public const string PluginVersion = "0.1.0.0";
+        public const string PluginVersion = "0.1.1.0";
 
         public const string ModDisplayInfo = $"{PluginName} v{PluginVersion}";
         private const string APDisplayInfo = $"Archipelago v{ArchipelagoClient.APVersion}";
@@ -100,10 +100,6 @@ namespace LaMulana2Archipelago
             return core.SceaneNo == 44;
         }
 
-        /// <summary>
-        /// Compute and latch gameplayActive based on "DevUI signal":
-        /// player exists + not in Title context. This is robust to starting in any field.
-        /// </summary>
         private bool UpdateGameplayActive(L2System sys)
         {
             bool nowActive = sys != null && sys.getPlayer() != null && !IsTitleContext(sys);

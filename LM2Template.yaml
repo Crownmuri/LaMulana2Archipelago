@@ -1,0 +1,170 @@
+name: Lumisa{NUMBER}
+game: La-Mulana 2
+
+La-Mulana 2:
+  # Progression Balancing: 50 is standard. {'disabled': 0, 'normal': 50, 'extreme': 99}
+  # Higher means the randomizer tries to move progression items earlier.
+  progression_balancing: 50
+  
+  # Accessibility defines how much of the world must be reachable.
+  # 'full' - Every single location must be reachable (strictest)
+  # 'items' - Every progression item must be obtainable (standard)
+  # 'minimal' - Only the goal must be beatable (most lenient)
+  accessibility: items
+  
+  # --- Item Placement Strategy ---
+  # 0: Placed directly in your inventory at the start.
+  # 1: Shuffled into the general pool.
+  # 2: Guaranteed to be in an early-accessible location. -- NOT IMPLEMENTED 
+  # Note: FDC/Scanner/Codices/Map Reader are vanilla shop items.
+  random_grail: 0
+  random_fdc: 1
+  random_scanner: 1
+  random_shell_horn: 1
+  random_codices: 1
+  random_ring: 1
+  random_maps_software: 1
+
+  # --- Mantra Placement ---
+  # 0: Mantras stay in their vanilla mural locations.
+  # 1: Mantras are restricted to mural locations.
+  # 2: Mantras can be anywhere.
+  mantra_placement: 2
+
+  # --- Shop Settings ---
+  # 0: Shops keep vanilla items. 
+  # 1: Each shop is guaranteed at least one non-ammo/weight item.
+  # 2: All shop items are shuffled.
+  # NOTE: If 'original' is selected, FDC, Codices, and Hand Scanner will NOT be randomized.
+  shop_placement: 2
+ 
+  # --- Starting Location Pool ---
+  # Set any of these to true. If multiple are true, the randomizer picks one at random.
+  # If nothing is chosen, defaults to Village of Departure
+  start_village_of_departure: true
+  start_roots_of_yggdrasil: false
+  start_annwfn: false
+  start_immortal_battlefield: false
+  # Below REQUIRES vertical_entrances: TRUE
+  start_icefire_treetop: false
+  # Below REQUIRES gate_entrances: TRUE
+  start_divine_fortress: false
+  start_shrine_of_the_frost_giants: false
+  start_takamagahara_shrine: false
+  start_valhalla: false
+  start_dark_star_lords_mausoleum: false
+  start_ancient_chaos: false
+  start_hall_of_malice: false
+
+  # --- Starting Weapon Pool ---
+  # Set any of these to true. If multiple are true, the randomizer picks one at random.
+  # If a projectile is chosen, logic ensures an accessible shop with ammo refills.
+  # If nothing is chosen, defaults to Leather Whip.
+  start_leather_whip: true
+  start_knife: false
+  start_rapier: false
+  start_axe: false
+  start_katana: false
+  start_shuriken: false
+  start_rolling_shuriken: false
+  start_earth_spear: false
+  start_flare: false
+  start_caltrops: false
+  start_chakram: false
+  start_bomb: false
+  start_pistol: false
+  start_claydoll_suit: false
+  
+  # --- Logic Difficulty ---
+  # Forces Ankh Jewels to be restricted to their designated guardian. 
+  # Strongly recommended for AP to avoid multiworld out-of-logic softlocks.
+  guardian_specific_ankhs: true
+  # standard - standard logic
+  # hard - hard logic - Removes logic for certain weapons and Sacred Orbs for stronger enemies
+  logic_difficulty: standard 
+  # The Boss Echidna (Hall of Malice) becomes stronger depending on gameplay time, but it can be fixed to a certain state.
+  # Phase true (Child):        false - 3 hours
+  # Phase 2 (Teenager):     3 - 15 hours
+  # Phase 3 (Young Adult)   15 - 35 hours
+  # Phase 4 (Adult)         35+ hours
+  # Options: child, teenager, youngadult, adult, random, normal
+  # [not tested but it should work as it's just a flag in the seed binary]
+  echidna_difficulty: normal
+  # Include Glitched logic to be included
+  costume_clip: false
+  
+  # --- Item Pool Adjustment ---
+  # Randomized Research
+  # true: research shuffled into the AP item pool
+  # false: research always at their original location
+  random_research: true
+  # Remove filler items in favor of AP filler (coins and weights)
+  remove_research: false
+  remove_maps: false
+  # Randomized Dissonance
+  # true: Adds 6 Progressive Beherit into the item pool, places chests at dissonance locations
+  # false: Dissonance works as usual. All dissonance required for sealing the Corridor.
+  random_dissonance: true
+  # If random_dissonance is true, the randomizer will check Guardian Kills for sealing the Corridor.
+  required_guardians: 5
+  # Adjust the amount of Crystal Skulls required for Nibiru Dissonance
+  required_skulls: 6
+  remove_excess_skulls: false
+  # Randomize Cursed Chests
+  random_cursed_chests: true
+  # Amount of Cursed Chests (default: 4)
+  # Only works when Randomize Cursed Chests is set to true.
+  cursed_chests: 4
+   
+  # --- Entrance Randomizer ---
+  horizontal_entrances: false
+  vertical_entrances: false
+  gate_entrances: false
+  soul_gate_entrances: false
+  include_nine_soul_gates: false
+  random_soul_gate_value: false
+  full_random_entrances: false
+  include_unique_transitions: false
+  
+  # --- Quality of Life ---
+  # Remove Icefire Treetop Statue for more accessibility.
+  remove_icefire_treetop_statue: true
+  # Require Life Sigil to Awaken Hall of Malice.
+  life_sigil_to_awaken_hom: true
+  # Require Future Development Company for backsides.
+  require_fdc: true
+  # Considers the DLC Item for accessibility. The DLC Reward has a property that unlocks checks.
+  # *This does not add the DLC Reward Location*
+  dlc_item_logic: false
+  # Auto-Scan Holy Tablets
+  auto_scan: true
+  # Auto-Place Crystal Skulls in Nibiru
+  auto_skulls: true
+  # Starting Money
+  starting_money: 100
+  # Starting Weights:
+  starting_weights: 10
+  # Item Chest Color
+  # 0: blue
+  # 1: turquoise
+  # 2: red
+  # 3: pink
+  # 4: yellow
+  item_chest_color: 0
+  # Filler Chest Color
+  # 0: blue
+  # 1: turquoise
+  # 2: red
+  # 3: pink
+  # 4: yellow
+  filler_chest_color: 4
+  # AP Chest Color
+  # 0: blue
+  # 1: turquoise
+  # 2: red
+  # 3: pink
+  # 4: yellow
+  ap_chest_color: 1
+
+  # --- Archipelago Standard ---
+  death_link: false
