@@ -1,7 +1,7 @@
 # La-Mulana 2 Archipelago v.0.1.0.0
 Archipelago mod using BepInEx 5 for the **La-Mulana 2 Randomizer** by **Coookie93** (https://github.com/Coookie93/LaMulana2Randomizer).
 
-In its current alpha state, you will require to install the original randomizer prior to modding in Archipelago.
+In its current alpha state, you will require to monomod the game with the original randomizer prior to applying AP patches.
 
 ## Installing the La-Mulana 2 Randomizer with AP mod
 ### (Original instructions from the La-Mulana 2 Randomizer)
@@ -44,7 +44,7 @@ However, some adaptations are made to accommodate AP features.
   - FreeStanding: will show as a Shell Horn, picking it up acts like a regular item grant and will update your resources.
   - NPC: acts like a regular item grant and will update your resources.
   - Mural: acts like a regular item grant and will update your resources.
-  - Shop: instead of falling back to Weights, will act as a regular item purchase. Currently I have set the price multiplier to 0 -- balancing might be required.
+  - Shop: instead of falling back to Weights, will act as a regular item purchase showing as Codices (Annoyingly, the Weight sprite comes with the +5). Currently I have set the price multiplier to 0 -- balancing might be required.
 - **AP item sprite.** Currently AP items appear as Holy Grail (custom AP sprite to be implemented)
 - **Shops will tell what AP item is for sale.** So that you don't end up wasting money on another world's filler.
 - **Three-way Chest Colors.** Regular items, filler items and AP items.
@@ -54,9 +54,16 @@ However, some adaptations are made to accommodate AP features.
 ## Issues
 - Upon player control (starting the game or loading a save), La-Mulana 2 will always dequeue all previously obtained AP items regardless of whether your save already has them. 
 - Related: there is no save tracking other than the grail auto-save; i.e. only on death the mod will try to regrant the AP items missing since last auto-save.
-- AP Item label patching for shops may fire too early, causing AP shop labels to return as `DATA Err SheetNo=0 IDNo=-1 RetuNo=3`
+- Currently, ShopDialogPatch only works if AP is connected before the L2ShopDatabase is constructed. Otherwise, NPCs will still just say the vanilla item on purchase prompt. 
 - Some text does not wrap nicely after patching in AP label names.
 - Death Link sometimes not sending out to other players
 - Fake items are currently overwritten as the new filler, so there are no actual traps at this point in development.
 - Note: You could generate a non-multiworld solo seed to have Guardian Specific Ankh Jewel logic -- but you will need to be connected to the AP server running the seed to have Ankh react accordingly, as that setting is currently only passed through the server, not in the seed.
 - There could be some issues not listed here, feel free to share on Discord or on GitHub.
+
+## Food for thought
+- Potsanity: Add all static reward pots to the location pool (would also require ammo to be grantable without having the weapon)
+- Chipsanity: Add all static bestiary chips to the location pool 
+- Work on Poptracker / Universal Tracker 
+- Work on inserting AP sprite
+- Consolidating into a single randomizer
