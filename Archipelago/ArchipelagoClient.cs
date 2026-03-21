@@ -168,6 +168,9 @@ namespace LaMulana2Archipelago.Archipelago
                 Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = guardianAnkhs;
                 Plugin.Log.LogInfo($"[AP] guardian_specific_ankhs = {guardianAnkhs}");
 
+                int APChestColor = ServerData.GetSlotInt("ap_chest_color");
+                Plugin.Log.LogInfo($"[AP] ap_chest_color = {APChestColor}");
+
                 bool deathLinkEnabled = ServerData.GetSlotBool("death_link", false);
 
                 DeathLinkHandler = new DeathLinkHandler(

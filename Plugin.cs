@@ -15,7 +15,7 @@ namespace LaMulana2Archipelago
     {
         public const string PluginGUID = "com.Crownmuri.Archipelago.LaMulana2";
         public const string PluginName = "LaMulana2Archipelago";
-        public const string PluginVersion = "0.1.1.0";
+        public const string PluginVersion = "0.5.0.0";
 
         public const string ModDisplayInfo = $"{PluginName} v{PluginVersion}";
         private const string APDisplayInfo = $"Archipelago v{ArchipelagoClient.APVersion}";
@@ -96,7 +96,7 @@ namespace LaMulana2Archipelago
             var core = sys.getL2SystemCore();
             if (core == null) return true;
 
-            // In your monomodded L2System.getNowSceneName mapping, Title is 44.
+            // L2System.getNowSceneName
             return core.SceaneNo == 44;
         }
 
@@ -214,7 +214,7 @@ namespace LaMulana2Archipelago
 
             if (ArchipelagoClient.Authenticated)
             {
-                GUI.Label(new Rect(150, 522, 400, 20), APDisplayInfo + " Status: Connected", guiStyle);
+                GUI.Label(new Rect(150, 522, 400, 20), "Status: Connected", guiStyle); // APDisplayInfo + " Status: Connected"
                 Rect disconnectRect = new Rect(16, 510, 100, 20);
 
                 if (GUI.Button(disconnectRect, "Disconnect"))
@@ -245,7 +245,7 @@ namespace LaMulana2Archipelago
             }
             else
             {
-                GUI.Label(new Rect(150, 522, 400, 20), APDisplayInfo + " Status: Disconnected", guiStyle);
+                GUI.Label(new Rect(150, 522, 400, 20), "Status: Disconnected", guiStyle); // APDisplayInfo + " Status: Disconnected"
 
                 GUI.Label(new Rect(16, 450, 150, 20), "Host:", guiStyle);
                 GUI.Label(new Rect(16, 470, 150, 20), "Player Name:", guiStyle);
