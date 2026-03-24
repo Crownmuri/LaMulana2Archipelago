@@ -44,7 +44,13 @@ namespace LaMulana2Archipelago.Patches
                 Plugin.Log.LogWarning("[ShopPatch] Reapply called but no cached L2ShopDataBase instance.");
                 return;
             }
+            // Clear the old (empty) data
+            _slotDisplayNames.Clear();
+
+            // Re-run the logic now that the ScoutedLocationsCache is full
             Apply(_cachedInstance);
+
+            Plugin.Log.LogInfo($"[ShopPatch] Re-applied overrides. New count: {_slotDisplayNames.Count}");
         }
 
         // ── Core apply ───────────────────────────────────────────────────────

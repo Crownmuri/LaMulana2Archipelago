@@ -56,6 +56,25 @@ namespace LaMulana2Archipelago
         private const string GoalSceneName = "Ending1";
         private const int GoalSceneBuildIndex = 48;
 
+        private bool _isConnecting = false;
+
+        private void Start()
+        {
+            // Start the delayed connection process to avoid the infinite load bug
+            StartCoroutine(DelayedConnect());
+        }
+
+        private System.Collections.IEnumerator DelayedConnect()
+        {
+            _isConnecting = true;
+            // Wait for the game systems to initialize (3 seconds is usually plenty)
+            yield return new WaitForSeconds(3.0f);
+
+            // Trigger the connection
+            ArchipelagoClient.Connect();
+            _isConnecting = false;
+        }
+
         private void Awake()
         {
             Log = Logger;
@@ -77,8 +96,6 @@ namespace LaMulana2Archipelago
             LocationFlagMap.InitializeFromSeed();
 
             SceneManager.sceneLoaded += OnSceneLoaded;
-
-            ArchipelagoClient.Connect();
         }
 
         private void OnDestroy()
@@ -125,6 +142,23 @@ namespace LaMulana2Archipelago
         {
             if (!ArchipelagoClient.Authenticated)
                 return;
+
+            if (Patches.GuardianSpecificAnkhPatch.SlotRefresh)
+            {
+                Patches.GuardianSpecificAnkhPatch.SlotRefresh = false;
+
+                var ankhScripts = UnityEngine.Object.FindObjectsOfType<AnchScript>();
+                if (ankhScripts != null)
+                {
+                    foreach (var ankh in ankhScripts)
+                    {
+                        // Pass true to force a full state reset and inventory re-check
+                        try { ankh.resetActionCharacter(true); }
+                        catch { /* Ignore if a specific script fails to reset */ }
+                    }
+                }
+                Log.LogInfo("[AP] Guardian Specific Ankhs setting received. Refreshed active Ankh scripts.");
+            }
 
             // Re-scan only if cache is stale (scene transitions null it out).
             if (_cachedSys == null)

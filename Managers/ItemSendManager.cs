@@ -81,14 +81,14 @@ namespace LaMulana2Archipelago.Managers
 
             if (type == 0) // 40-item distribution
             {
-                if (idx < 2) coinAmount = 1;
-                else if (idx < 6) coinAmount = 10;
-                else if (idx < 16) coinAmount = 30;
+                if (idx < 3) coinAmount = 1;
+                else if (idx < 9) coinAmount = 10;
+                else if (idx < 17) coinAmount = 30;
                 else if (idx < 20) coinAmount = 50;
                 else if (idx < 22) coinAmount = 80;
                 else if (idx < 23) coinAmount = 100;
-                else if (idx < 25) weightAmount = 1;
-                else if (idx < 35) weightAmount = 5;
+                else if (idx < 27) weightAmount = 1;
+                else if (idx < 37) weightAmount = 5;
                 else if (idx < 39) weightAmount = 10;
                 else weightAmount = 20;
             }
@@ -114,8 +114,8 @@ namespace LaMulana2Archipelago.Managers
                 {
                     case 0: coinAmount = 1; break;
                     case 1: case 2: coinAmount = 10; break;
-                    case 3: case 4: coinAmount = 30; break;
-                    case 5: case 6: coinAmount = 50; break;
+                    case 3: case 4: case 5: coinAmount = 30; break;
+                    case 6: coinAmount = 50; break;
                     case 7: coinAmount = 80; break;
                     case 8: coinAmount = 100; break;
                     case 9: weightAmount = 1; break;

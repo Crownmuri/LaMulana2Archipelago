@@ -185,6 +185,7 @@ namespace LaMulana2Archipelago.Archipelago
                 GoalReported = false;
 
                 Patches.ShopDialogPatch.Reapply();
+                ScoutAllLocations();
 
                 outText = $"Successfully connected to {ServerData.NormalizedUri} as {ServerData.SlotName}!";
                 ArchipelagoConsole.LogMessage(outText);
@@ -219,6 +220,11 @@ namespace LaMulana2Archipelago.Archipelago
         // =============================
         // Location checks
         // =============================
+        // 1. Add the cache dictionary near your other fields (e.g., under ServerData)
+        private static readonly object cacheLock = new object();
+        public static Dictionary<long, ScoutedItem> ScoutedLocationsCache = new Dictionary<long, ScoutedItem>();
+
+        // 2. Replace your existing SendLocationCheck method:
         public void SendLocationCheck(long locationId)
         {
             if (!Authenticated || session == null)
@@ -228,10 +234,73 @@ namespace LaMulana2Archipelago.Archipelago
                 return;
 
             ServerData.CheckedLocations.Add(locationId);
-            session.Locations.CompleteLocationChecks(locationId);
+
+            // Offload the AP library's socket logic to a background worker thread.
+            // This guarantees zero frame drops on the Unity main thread when grabbing an item.
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    session?.Locations?.CompleteLocationChecksAsync(null, locationId);
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log.LogError($"[AP] Error sending location check: {e}");
+                }
+            });
 
             Plugin.Log.LogInfo($"[AP] Location confirmed: {locationId}");
         }
+
+        // 3. Replace your existing GetItemAtLocation method:
+        public ScoutedItem GetItemAtLocation(long locationId)
+        {
+            if (session == null) return null;
+
+            lock (cacheLock)
+            {
+                if (ScoutedLocationsCache.TryGetValue(locationId, out var cachedItem))
+                {
+                    return cachedItem;
+                }
+            }
+
+            // We intentionally return null here now. 
+            // We removed the dynamic session.Locations.ScoutLocationsAsync call because sending 
+            // a network request during gameplay was the source of the remaining micro-stutter.
+            return null;
+        }
+
+        // 4. Add this new method to pre-cache everything on connect:
+        private void ScoutAllLocations()
+        {
+            if (session == null) return;
+
+            var missing = session.Locations.AllMissingLocations;
+            if (missing == null || missing.Count == 0) return;
+
+            session.Locations.ScoutLocationsAsync(
+                scoutResult =>
+                {
+                    if (scoutResult == null) return;
+                    lock (cacheLock)
+                    {
+                        foreach (var kvp in scoutResult)
+                        {
+                            ScoutedLocationsCache[kvp.Key] = new ScoutedItem
+                            {
+                                ItemName = kvp.Value.ItemName,
+                                PlayerName = session.Players.GetPlayerName(kvp.Value.Player)
+                            };
+                        }
+                    }
+                    Plugin.Log.LogInfo($"[AP] Pre-scouted {scoutResult.Count} locations into cache.");
+
+                    LaMulana2Archipelago.Patches.ShopDialogPatch.Reapply();
+                },
+                missing.ToArray());
+        }
+
         public void ReportGoalOnce()
         {
             if (GoalReported) return;
@@ -272,33 +341,6 @@ namespace LaMulana2Archipelago.Archipelago
         {
             // Archipelago.NET exposes this on the session's Locations helper
             return session?.Locations?.GetLocationIdFromName(Game, locationName);
-        }
-
-        public ScoutedItem GetItemAtLocation(long locationId)
-        {
-            if (session == null) return null;
-
-            ScoutedItem result = null;
-            var done = new System.Threading.ManualResetEvent(false);
-
-            session.Locations.ScoutLocationsAsync(
-                scoutResult =>
-                {
-                    if (scoutResult != null && scoutResult.ContainsKey(locationId))
-                    {
-                        var info = scoutResult[locationId];
-                        result = new ScoutedItem
-                        {
-                            ItemName = info.ItemName,
-                            PlayerName = session.Players.GetPlayerName(info.Player)
-                        };
-                    }
-                    done.Set();
-                },
-                locationId);
-
-            done.WaitOne(5000);
-            return result;
         }
 
         // =============================

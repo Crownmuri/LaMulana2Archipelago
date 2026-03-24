@@ -18,7 +18,7 @@ La-Mulana 2:
   # 2: Guaranteed to be in an early-accessible location. -- NOT IMPLEMENTED 
   # Note: FDC/Scanner/Codices/Map Reader are vanilla shop items.
   random_grail: 0
-  random_fdc: 1
+  random_fdc: 0
   random_scanner: 1
   random_shell_horn: 1
   random_codices: 1
@@ -41,7 +41,7 @@ La-Mulana 2:
   # --- Starting Location Pool ---
   # Set any of these to true. If multiple are true, the randomizer picks one at random.
   # If nothing is chosen, defaults to Village of Departure
-  start_village_of_departure: true
+  start_village_of_departure: false
   start_roots_of_yggdrasil: false
   start_annwfn: false
   start_immortal_battlefield: false
@@ -60,7 +60,7 @@ La-Mulana 2:
   # Set any of these to true. If multiple are true, the randomizer picks one at random.
   # If a projectile is chosen, logic ensures an accessible shop with ammo refills.
   # If nothing is chosen, defaults to Leather Whip.
-  start_leather_whip: true
+  start_leather_whip: false
   start_knife: false
   start_rapier: false
   start_axe: false
@@ -83,13 +83,14 @@ La-Mulana 2:
   # hard - hard logic - Removes logic for certain weapons and Sacred Orbs for stronger enemies
   logic_difficulty: standard 
   # The Boss Echidna (Hall of Malice) becomes stronger depending on gameplay time, but it can be fixed to a certain state.
-  # Phase true (Child):        false - 3 hours
-  # Phase 2 (Teenager):     3 - 15 hours
-  # Phase 3 (Young Adult)   15 - 35 hours
-  # Phase 4 (Adult)         35+ hours
-  # Options: child, teenager, youngadult, adult, random, normal
-  # [not tested but it should work as it's just a flag in the seed binary]
-  echidna_difficulty: normal
+  # 0: Fixed Child phase (<3 hours)
+  # 1: Fixed Teenager phase (<15 hours)
+  # 2: Fixed Young Adult phase (<35 hours)
+  # 3: Fixed Adult phase (35+ hours)
+  # 4: Standard phases
+  # random: AP picks randomly from the above.
+  # [not tested but it should work as it's a flag in the seed binary read by L2Rando]
+  echidna_difficulty: 4
   # Include Glitched logic to be included
   costume_clip: false
   
@@ -104,7 +105,7 @@ La-Mulana 2:
   # Randomized Dissonance
   # true: Adds 6 Progressive Beherit into the item pool, places chests at dissonance locations
   # false: Dissonance works as usual. All dissonance required for sealing the Corridor.
-  random_dissonance: true
+  random_dissonance: false
   # If random_dissonance is true, the randomizer will check Guardian Kills for sealing the Corridor.
   required_guardians: 5
   # Adjust the amount of Crystal Skulls required for Nibiru Dissonance
@@ -117,14 +118,22 @@ La-Mulana 2:
   cursed_chests: 4
    
   # --- Entrance Randomizer ---
+  # Entrance pairs are shuffled in their own areatype unless FullRandomEntrances is enabled.
+  # C# parity change: unique_transitions can be enabled without FullRandomEntrances. 
   horizontal_entrances: false
   vertical_entrances: false
   gate_entrances: false
+  unique_transitions: false
   soul_gate_entrances: false
   include_nine_soul_gates: false
   random_soul_gate_value: false
   full_random_entrances: false
-  include_unique_transitions: false
+  # Prevent entrance randomization from pairing exits within the same area.
+  # When enabled, exits from the same area will not be paired together.
+  # Increases the odds of ER seeds succeeding due to better early sphere clusters.
+  # Disabling can be an option if you wish to maintain the original randomizer behaviour.
+  # Could work in multiworld where other player spheres will open up the seed. 
+  prevent_area_loops: false
   
   # --- Quality of Life ---
   # Remove Icefire Treetop Statue for more accessibility.
@@ -141,7 +150,7 @@ La-Mulana 2:
   # Auto-Place Crystal Skulls in Nibiru
   auto_skulls: true
   # Starting Money
-  starting_money: 100
+  starting_money: 200
   # Starting Weights:
   starting_weights: 10
   # Item Chest Color

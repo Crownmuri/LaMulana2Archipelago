@@ -36,7 +36,22 @@ namespace LaMulana2Archipelago.Patches
         // ---------------------------------------------------------------
         // Public toggle — set this from your slot-data / settings loader.
         // ---------------------------------------------------------------
-        public static bool GuardianSpecificAnkhsEnabled { get; set; } = false;
+        
+        private static bool _enabled = false;
+        public static volatile bool SlotRefresh = false;
+
+        public static bool GuardianSpecificAnkhsEnabled
+        {
+            get => _enabled;
+            set
+            {
+                if (_enabled != value)
+                {
+                    _enabled = value;
+                    SlotRefresh = true; // Signal the main thread to refresh scene objects
+                }
+            }
+        }
 
         // ---------------------------------------------------------------
         // Thread-local tracker: which AnchScript is currently executing.
