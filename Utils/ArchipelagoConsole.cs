@@ -11,6 +11,12 @@ namespace LaMulana2Archipelago.Utils
     {
         public static bool Hidden = true;
 
+        /// <summary>
+        /// Master visibility toggle, controlled by F11.
+        /// When false the entire console (log + buttons) is suppressed.
+        /// </summary>
+        public static bool Visible = true;
+
         private static List<string> logLines = new();
         private static Vector2 scrollView;
         private static Rect window;
@@ -49,6 +55,14 @@ namespace LaMulana2Archipelago.Utils
 
         public static void OnGUI()
         {
+            // F11 master toggle (check in OnGUI so it works even when Update isn't called)
+            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.F11)
+            {
+                Visible = !Visible;
+                Event.current.Use();
+            }
+
+            if (!Visible) return;
             if (logLines.Count == 0) return;
 
             if (!Hidden || Time.time - lastUpdateTime < HideTimeout)
@@ -69,11 +83,18 @@ namespace LaMulana2Archipelago.Utils
             if (Hidden || !ArchipelagoClient.Authenticated) return;
 
             CommandText = GUI.TextField(CommandTextRect, CommandText);
-            //if (!CommandText.IsNullOrWhiteSpace() && GUI.Button(SendCommandButton, "Send"))
-            //{
-            //    Plugin.ArchipelagoClient.SendMessage(CommandText);
-            //    CommandText = "";
-            //}
+
+            bool enterPressed = Event.current.type == EventType.KeyDown
+                && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter);
+
+            if (!CommandText.IsNullOrWhiteSpace()
+                && (GUI.Button(SendCommandButton, "Send") || enterPressed))
+            {
+                Plugin.ArchipelagoClient.SendMessage(CommandText);
+                ArchipelagoConsole.LogMessage($"[sent] {CommandText}");
+                CommandText = "";
+                if (enterPressed) Event.current.Use();
+            }
         }
 
         public static void UpdateWindow()
@@ -120,7 +141,7 @@ namespace LaMulana2Archipelago.Utils
             text = new Rect(0, 0, width, scrollDepth);
 
             textStyle.alignment = TextAnchor.LowerLeft;
-            textStyle.fontSize = Hidden ? (int)(Screen.height * 0.0165f) : (int)(Screen.height * 0.0185f);
+            textStyle.fontSize = Hidden ? (int)(Screen.height * 0.018f) : (int)(Screen.height * 0.020f);
             textStyle.normal.textColor = Color.white;
             textStyle.wordWrap = !Hidden;
 

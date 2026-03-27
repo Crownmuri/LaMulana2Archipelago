@@ -38,6 +38,13 @@ namespace LaMulana2Archipelago.Patches
         // ---------------------------------------------------------------
         public static string PendingDisplayLabel { get; set; }
         public static string PendingSenderName { get; set; }
+        public static string PendingRecipientName { get; set; }
+
+        /// <summary>
+        /// Set to true when this patch has already overwritten DialogText.
+        /// Checked by ItemDialogApItemPatch to avoid clobbering the result.
+        /// </summary>
+        public static bool DialogHandled { get; set; }
 
         // ---------------------------------------------------------------
         // Boss name lookup for numbered ankh jewels.
@@ -148,10 +155,18 @@ namespace LaMulana2Archipelago.Patches
                 // Patch cellData with sender suffix before fetching text3, then restore.
                 if (_talkCellData != null)
                 {
-                    _talkCellData[0][Row][ColEnglish][TextIndex] =
-                        string.IsNullOrEmpty(PendingSenderName)
-                            ? OriginalEnglishSuffix
-                            : $"<line-height=50%>\nacquired from <color=#4FFD84FF>{PendingSenderName}</color>.<line-height=100%>";
+                    if (!string.IsNullOrEmpty(PendingRecipientName))
+                    {
+                        _talkCellData[0][Row][ColEnglish][TextIndex] =
+                            $"<line-height=50%>\nto <color=#4FFD84FF>{PendingRecipientName}</color>.<line-height=100%>";
+                    }
+                    else
+                    {
+                        _talkCellData[0][Row][ColEnglish][TextIndex] =
+                            string.IsNullOrEmpty(PendingSenderName)
+                                ? OriginalEnglishSuffix
+                                : $"<color=#FFD700FF><line-height=50%></color>\nacquired from <color=#4FFD84FF>{PendingSenderName}</color>.<line-height=100%>";
+                    }
                 }
 
                 string text3 = sys.getMojiText(true, "system", "itemDialog2", mojiScriptType.system)
@@ -160,7 +175,18 @@ namespace LaMulana2Archipelago.Patches
                 if (_talkCellData != null)
                     _talkCellData[0][Row][ColEnglish][TextIndex] = OriginalEnglishSuffix;
 
-                con.DialogText.text = label + text3;
+                string displayPrefix = !string.IsNullOrEmpty(PendingRecipientName) ? "Sent <color=#FFD700FF>" : "</color>";
+                con.DialogText.text = displayPrefix + label + text3;
+                DialogHandled = true;
+
+                // Show custom AP icon in the dialog (StartSwitch hid it for "Nothing").
+                if (ItemDialogApItemPatch.WasApPlaceholder
+                    && ApSpriteLoader.IsLoaded && con.Icon != null)
+                {
+                    con.Icon.sprite = ApSpriteLoader.MapSprite;
+                    con.Icon.gameObject.SetActive(true);
+                }
+
                 Plugin.Log.LogInfo($"[AP] Dialog label substituted: \"{label}\"");
             }
             catch (Exception ex)
@@ -175,6 +201,7 @@ namespace LaMulana2Archipelago.Patches
                 {
                     PendingDisplayLabel = null;
                     PendingSenderName = null;
+                    PendingRecipientName = null;
                     CheckManager.PendingAnkhJewelName = null;
                 }
             }
@@ -193,6 +220,8 @@ namespace LaMulana2Archipelago.Patches
 
             PendingDisplayLabel = null;
             PendingSenderName = null;
+            PendingRecipientName = null;
+            DialogHandled = false;
             CheckManager.PendingAnkhJewelName = null;
         }
 

@@ -222,6 +222,7 @@ namespace LaMulana2Archipelago
                 // Clear pending so a vanilla dialog can't accidentally pick them up.
                 Patches.ItemDialogPatch.PendingDisplayLabel = null;
                 Patches.ItemDialogPatch.PendingSenderName = null;
+                Patches.ItemDialogPatch.PendingRecipientName = null;
             }
         }
 
@@ -241,7 +242,11 @@ namespace LaMulana2Archipelago
             }
 
             if (!onTitle)
+            {
+                // During gameplay, only draw the console (toggle with F11)
+                ArchipelagoConsole.OnGUI();
                 return;
+            }
 
             GUI.Label(new Rect(150, 510, 300, 20), ModDisplayInfo, guiStyle);
             ArchipelagoConsole.OnGUI();

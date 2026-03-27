@@ -32,10 +32,16 @@ namespace LaMulana2Archipelago.Patches
                 if (sr == null) sr = __instance.GetComponentInChildren<SpriteRenderer>(true);
                 if (sr == null) return;
 
-                var grailData = L2SystemCore.getItemData("Holy Grail");
-                if (grailData == null) return;
-
-                sr.sprite = L2SystemCore.getMapIconSprite(grailData);
+                if (ApSpriteLoader.IsLoaded)
+                {
+                    sr.sprite = ApSpriteLoader.MapSprite;
+                }
+                else
+                {
+                    var grailData = L2SystemCore.getItemData("Holy Grail");
+                    if (grailData == null) return;
+                    sr.sprite = L2SystemCore.getMapIconSprite(grailData);
+                }
             }
             catch { }
         }
@@ -399,9 +405,16 @@ namespace LaMulana2Archipelago.Patches
                 if (!isApName && !isApPlaceholder)
                     return true;
 
-                var grailData = L2SystemCore.getItemData("Holy Grail");
-                if (grailData != null)
-                    __result = L2SystemCore.getMapIconSprite(grailData);
+                if (ApSpriteLoader.IsLoaded)
+                {
+                    __result = ApSpriteLoader.MapSprite;
+                }
+                else
+                {
+                    var grailData = L2SystemCore.getItemData("Holy Grail");
+                    if (grailData != null)
+                        __result = L2SystemCore.getMapIconSprite(grailData);
+                }
 
                 Plugin.Log.LogInfo(
                     "[GetItemSprite] AP fallback for '" + itemName + "' (ID=" + itemID + ").");

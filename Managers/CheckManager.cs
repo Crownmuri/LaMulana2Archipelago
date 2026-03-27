@@ -133,15 +133,23 @@ namespace LaMulana2Archipelago.Managers
                 else if (!kataribeHandled && !chestFillerHandled)
                 {
                     var scouted = client.GetItemAtLocation(apLocation);
+
                     if (scouted != null)
                     {
-                        string label = scouted.PlayerName != ArchipelagoClient.ServerData.SlotName
+                        bool isForOtherPlayer = !scouted.IsOwnItem;
+
+                        ItemDialogPatch.PendingDisplayLabel = scouted.ItemName;
+
+                        if (isForOtherPlayer)
+                            ItemDialogPatch.PendingRecipientName = scouted.PlayerName;
+
+                        string label = isForOtherPlayer
                             ? scouted.ItemName + " (" + scouted.PlayerName + ")"
                             : scouted.ItemName;
-
-                        ItemDialogPatch.PendingDisplayLabel = label;
                         Plugin.Log.LogInfo("[CHECK] Dialog label primed: \"" + label + "\"");
                     }
+                    // We intentionally DO NOT have an 'else' block here.
+                    // If the item isn't in the AP cache, we let the base game use the real LM2 item name!
 
                     PendingAnkhJewelName = null;
                     if (itemAtLocation >= ItemID.AnkhJewel1 && itemAtLocation <= ItemID.AnkhJewel9)

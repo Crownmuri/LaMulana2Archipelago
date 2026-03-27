@@ -290,7 +290,8 @@ namespace LaMulana2Archipelago.Archipelago
                             ScoutedLocationsCache[kvp.Key] = new ScoutedItem
                             {
                                 ItemName = kvp.Value.ItemName,
-                                PlayerName = session.Players.GetPlayerName(kvp.Value.Player)
+                                PlayerName = session.Players.GetPlayerName(kvp.Value.Player),
+                                IsOwnItem = kvp.Value.Player == session.ConnectionInfo.Slot
                             };
                         }
                     }
@@ -336,6 +337,7 @@ namespace LaMulana2Archipelago.Archipelago
         {
             public string ItemName;
             public string PlayerName;
+            public bool IsOwnItem;
         }
         public long? GetLocationIdByName(string locationName)
         {

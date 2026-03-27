@@ -475,19 +475,6 @@ namespace LaMulana2Archipelago.Managers
     // =========================================================================
     // L2Rando.CreateSetItemString — safe shop display for AP placeholders
     // =========================================================================
-
-    /// <summary>
-    /// L2Rando.CreateSetItemString assembles the [@sitm,...] script command used
-    /// to display a shop slot.  When the slot contains an AP placeholder the
-    /// ItemInfo fields ShopType / ShopName are not valid shop-database entries,
-    /// which causes a DATA Err (SheetNo=0 IDNo=-1 RetuNo=3) crash at area load.
-    ///
-    /// This Prefix intercepts the build and returns a Weights display entry
-    /// instead (shopType=1 / shopName=Weights).  The price is preserved from the
-    /// seed file's multiplier.  The shop's "thanks" script still calls
-    /// CreateGetFlagString, which emits [@setf,31,{flagIndex},=,1] — that flag is
-    /// what CheckManager monitors to fire the AP protocol check.
-    /// </summary>
     [HarmonyPatch(typeof(L2Rando), "CreateSetItemString")]
     internal static class CreateSetItemStringApPatch
     {
@@ -551,13 +538,9 @@ namespace LaMulana2Archipelago.Managers
     /// Patches ItemDialog.StartSwitch to safely handle every special item name
     /// that would otherwise crash or produce wrong output.
     ///
-    ///   "AP Item"  — redirect to "Nothing" (no icon, no DB lookup, kataribe-safe)
-    ///   "Coin1"    — 1-coin bundle opened by GrantCoins()
-    ///   "Coin10"   — 10-coin bundle
-    ///   "Coin30"   — 30-coin bundle
-    ///   "Weight1"  — 1-weight bundle opened by GrantWeights()
-    ///   "Weight5"  — 5-weight bundle
-    ///   "Weight10" — 10-weight bundle
+    ///   "AP Item"  — redirect to "Nothing"
+    ///   "CoinX"    — opened by GrantCoins()
+    ///   "WeightX"  — opened by GrantWeights()
     ///
     /// All names are redirected to "Nothing" in the Prefix (fully hardcoded path,
     /// no item-sheet lookup, safe in kataribe context).  The Postfix then
@@ -568,9 +551,18 @@ namespace LaMulana2Archipelago.Managers
     {
         private static string _overriddenText = null;
 
+        /// <summary>
+        /// True when the current dialog was originally for an "AP Item" placeholder
+        /// (i.e. an item belonging to another player's world, with no native icon).
+        /// Consumed by <see cref="Patches.ItemDialogPatch"/> to decide whether to
+        /// show the custom AP icon.  NOT set for Coin/Weight filler or real game items.
+        /// </summary>
+        public static bool WasApPlaceholder { get; set; }
+
         static void Prefix(ItemDialog __instance)
         {
             _overriddenText = null;
+            WasApPlaceholder = false;
 
             string[] messString = Traverse.Create(__instance)
                 .Field("MessString")
@@ -581,6 +573,7 @@ namespace LaMulana2Archipelago.Managers
             {
                 messString[0] = "Nothing";
                 _overriddenText = "AP Item";
+                WasApPlaceholder = true;
             }
             else if (messString[0].StartsWith("Coin") && int.TryParse(messString[0].Substring(4), out int coins))
             {
@@ -599,6 +592,9 @@ namespace LaMulana2Archipelago.Managers
             if (_overriddenText == null) return;
             string label = _overriddenText;
             _overriddenText = null;
+
+            if (label == "AP Item" && Patches.ItemDialogPatch.DialogHandled)
+                return;
 
             var con = Traverse.Create(__instance)
                 .Field("con")
@@ -619,6 +615,13 @@ namespace LaMulana2Archipelago.Managers
             {
                 con.DialogText.text = label;
             }
+
+            // Show custom AP icon in the dialog (StartSwitch hid it for "Nothing")
+            if (label == "AP Item" && ApSpriteLoader.IsLoaded && con.Icon != null)
+            {
+                con.Icon.sprite = ApSpriteLoader.MapSprite;
+                con.Icon.gameObject.SetActive(true);
+            }
         }
 
         // =========================================================================
@@ -632,14 +635,66 @@ namespace LaMulana2Archipelago.Managers
         ///   • EventItemScript.itemGetAction — chest/ground pickup animation
         ///     (NewPlayer.setGetItemIcon → L2SystemCore.getMapIconSprite NRE fix)
         ///   • Any other system doing a visual lookup for the AP Item name
+        ///
+        /// Sets <see cref="LastWasApRedirect"/> so downstream patches (e.g.
+        /// <see cref="SetGetItemIconApPatch"/>) can distinguish a real Holy Grail
+        /// from an AP placeholder redirect.
         /// </summary>
         [HarmonyPatch(typeof(L2SystemCore), "getItemData", new[] { typeof(string) })]
         internal static class GetItemDataApItemPatch
         {
+            /// <summary>
+            /// True when the most recent getItemData call was an AP Item redirect.
+            /// Consumed (cleared) by <see cref="SetGetItemIconApPatch"/>.
+            /// </summary>
+            internal static bool LastWasApRedirect;
+
             static void Postfix(string itemId, ref ItemData __result)
             {
                 if (__result == null && itemId != null && itemId.StartsWith("AP Item"))
+                {
                     __result = L2SystemCore.getItemData("Holy Grail");
+                    LastWasApRedirect = true;
+                }
+                else
+                {
+                    LastWasApRedirect = false;
+                }
+            }
+        }
+
+        // =========================================================================
+        // NewPlayer.setGetItemIcon — swap pickup animation icon for AP items
+        // =========================================================================
+
+        /// <summary>
+        /// After setGetItemIcon has set the Holy Grail sprite (due to the
+        /// <see cref="GetItemDataApItemPatch"/> redirect), overwrite it with the
+        /// custom AP icon if available.
+        /// </summary>
+        [HarmonyPatch(typeof(NewPlayer), "setGetItemIcon")]
+        internal static class SetGetItemIconApPatch
+        {
+            static void Postfix(NewPlayer __instance)
+            {
+                try
+                {
+                    if (!GetItemDataApItemPatch.LastWasApRedirect) return;
+                    GetItemDataApItemPatch.LastWasApRedirect = false;
+
+                    if (!ApSpriteLoader.IsLoaded) return;
+
+                    var renderer = Traverse.Create(__instance)
+                        .Field("itemRenderer")
+                        .GetValue<SpriteRenderer>();
+
+                    if (renderer != null)
+                        renderer.sprite = ApSpriteLoader.MapSprite;
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Log.LogWarning("[AP] SetGetItemIconApPatch error: " + ex);
+                }
             }
         }
 
@@ -691,8 +746,13 @@ namespace LaMulana2Archipelago.Managers
                 {
                     if (baseName.StartsWith("AP Item"))
                     {
-                        var data = L2SystemCore.getItemData("Holy Grail");
-                        if (data != null) chosenSprite = L2SystemCore.getShopIconSprite(data);
+                        if (ApSpriteLoader.IsLoaded)
+                            chosenSprite = ApSpriteLoader.ShopSprite;
+                        else
+                        {
+                            var data = L2SystemCore.getItemData("Holy Grail");
+                            if (data != null) chosenSprite = L2SystemCore.getShopIconSprite(data);
+                        }
                     }
                     else if (baseName.StartsWith("Coin"))
                     {
