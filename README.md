@@ -1,4 +1,4 @@
-# La-Mulana 2 Archipelago v.0.1.0.0
+# La-Mulana 2 Archipelago v.0.6.0.0
 Archipelago mod using BepInEx 5 for the **La-Mulana 2 Randomizer** by **Coookie93** (https://github.com/Coookie93/LaMulana2Randomizer).
 
 In its current alpha state, you will require to monomod the game with the original randomizer prior to applying AP patches.
@@ -21,8 +21,8 @@ In its current alpha state, you will require to monomod the game with the origin
 2. Install it (put it into the `archipelago/custom_worlds` folder)
 3. Customize the YAML template and put it into the `archipelago/Players` folder
 4. Generate the seed and hope it doesn't result in a FillError
-6. The output will contain an `AP_[#####]_P[#]_[PlayerName].lm2r` seed file
-7. Rename your seed file to `seed.lm2r` and put it in the original LaMulana2Randomizer's seed folder:
+6. The output will contain a `AP_[#####]_P[#]_[PlayerName].zip` file that contains your `seed.lm2r`.
+7. Put the `seed.lm2r` it in the original LaMulana2Randomizer's seed folder:
 `..\Steam\steamapps\common\La-Mulana 2\LaMulana2Randomizer\Seed`
 8. Start the Archipelago Server
 9. Launch La-Mulana 2.
@@ -34,6 +34,7 @@ In its current alpha state, you will require to monomod the game with the origin
 - Archipelago.MultiClient.Net.dll
 - Newtonsoft.Json.dll
 - websocket-sharp.dll
+- ap-icon.png (edited original asset) 
 
 ## Features
 Most original randomizer features are maintained through the seed reading from L2Rando. 
@@ -45,7 +46,7 @@ However, some adaptations are made to accommodate AP features.
   - NPC: acts like a regular item grant and will update your resources.
   - Mural: acts like a regular item grant and will update your resources.
   - Shop: instead of falling back to Weights, will act as a regular item purchase showing as Codices (Annoyingly, the Weight sprite comes with the +5). Currently I have set the price multiplier to 0 -- balancing might be required.
-- **AP item sprite.** Currently AP items appear as Holy Grail (custom AP sprite to be implemented)
+- **AP item sprite.** Currently AP items appear as a darkened version of the original AP logo asset.
 - **Shops will tell what AP item is for sale.** So that you don't end up wasting money on another world's filler.
 - **Three-way Chest Colors.** Regular items, filler items and AP items.
 - **DeathLink.** It will trigger the mantra instant death sequence upon receiving a death from AP.  
@@ -62,8 +63,6 @@ However, some adaptations are made to accommodate AP features.
 - There could be some issues not listed here, feel free to share on Discord or on GitHub.
 
 ## Food for thought
-- Potsanity: Add all static reward pots to the location pool (would also require ammo to be grantable without having the weapon)
-- Chipsanity: Add all static bestiary chips to the location pool 
-- Work on Poptracker / Universal Tracker 
-- Work on inserting AP sprite
+- Potsanity: Add all static reward pots to the location pool -- not sure if the ammo pots should be included, or just become coin/weight filler.
+- Chipsanity: Add all static glossary entries to the location pool 
 - Consolidating into a single randomizer
