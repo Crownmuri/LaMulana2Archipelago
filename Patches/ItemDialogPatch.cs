@@ -46,6 +46,10 @@ namespace LaMulana2Archipelago.Patches
         /// </summary>
         public static bool DialogHandled { get; set; }
 
+        // Cached references for retroactive dialog updates (e.g. AP items at NPCs).
+        private static ItemDialogController _activeCon;
+        private static L2System _activeSys;
+
         // ---------------------------------------------------------------
         // Boss name lookup for numbered ankh jewels.
         // ---------------------------------------------------------------
@@ -138,6 +142,11 @@ namespace LaMulana2Archipelago.Patches
                     return;
                 }
 
+                // Cache for retroactive updates (CheckManager may need to update
+                // the dialog text after StartSwitch has already run).
+                _activeCon = con;
+                _activeSys = sys;
+
                 // Priority 1: AP grant label (set by Plugin.Update).
                 string label = PendingDisplayLabel;
 
@@ -152,41 +161,7 @@ namespace LaMulana2Archipelago.Patches
                 if (string.IsNullOrEmpty(label))
                     return;
 
-                // Patch cellData with sender suffix before fetching text3, then restore.
-                if (_talkCellData != null)
-                {
-                    if (!string.IsNullOrEmpty(PendingRecipientName))
-                    {
-                        _talkCellData[0][Row][ColEnglish][TextIndex] =
-                            $"<line-height=50%>\nto <color=#4FFD84FF>{PendingRecipientName}</color>.<line-height=100%>";
-                    }
-                    else
-                    {
-                        _talkCellData[0][Row][ColEnglish][TextIndex] =
-                            string.IsNullOrEmpty(PendingSenderName)
-                                ? OriginalEnglishSuffix
-                                : $"<color=#FFD700FF><line-height=50%></color>\nacquired from <color=#4FFD84FF>{PendingSenderName}</color>.<line-height=100%>";
-                    }
-                }
-
-                string text3 = sys.getMojiText(true, "system", "itemDialog2", mojiScriptType.system)
-                    .Replace("\"", "");
-
-                if (_talkCellData != null)
-                    _talkCellData[0][Row][ColEnglish][TextIndex] = OriginalEnglishSuffix;
-
-                string displayPrefix = !string.IsNullOrEmpty(PendingRecipientName) ? "Sent <color=#FFD700FF>" : "</color>";
-                con.DialogText.text = displayPrefix + label + text3;
-                DialogHandled = true;
-
-                // Show custom AP icon in the dialog (StartSwitch hid it for "Nothing").
-                if (ItemDialogApItemPatch.WasApPlaceholder
-                    && ApSpriteLoader.IsLoaded && con.Icon != null)
-                {
-                    con.Icon.sprite = ApSpriteLoader.MapSprite;
-                    con.Icon.gameObject.SetActive(true);
-                }
-
+                ApplyDialogText(con, sys, label, PendingRecipientName, PendingSenderName);
                 Plugin.Log.LogInfo($"[AP] Dialog label substituted: \"{label}\"");
             }
             catch (Exception ex)
@@ -208,6 +183,73 @@ namespace LaMulana2Archipelago.Patches
         }
 
         // ===============================================================
+        // B2) Shared helper: build and apply dialog text.
+        // ===============================================================
+
+        private static void ApplyDialogText(
+            ItemDialogController con, L2System sys,
+            string label, string recipientName, string senderName)
+        {
+            // Patch cellData with sender/recipient suffix before fetching text3, then restore.
+            if (_talkCellData != null)
+            {
+                if (!string.IsNullOrEmpty(recipientName))
+                {
+                    _talkCellData[0][Row][ColEnglish][TextIndex] =
+                        $"<line-height=50%>\nto <color=#4FFD84FF>{recipientName}</color>.<line-height=100%>";
+                }
+                else
+                {
+                    _talkCellData[0][Row][ColEnglish][TextIndex] =
+                        string.IsNullOrEmpty(senderName)
+                            ? OriginalEnglishSuffix
+                            : $"<color=#FFD700FF><line-height=50%></color>\nacquired from <color=#4FFD84FF>{senderName}</color>.<line-height=100%>";
+                }
+            }
+
+            string text3 = sys.getMojiText(true, "system", "itemDialog2", mojiScriptType.system)
+                .Replace("\"", "");
+
+            if (_talkCellData != null)
+                _talkCellData[0][Row][ColEnglish][TextIndex] = OriginalEnglishSuffix;
+
+            string displayPrefix = !string.IsNullOrEmpty(recipientName) ? "Sent <color=#FFD700FF>" : "</color>";
+            con.DialogText.text = displayPrefix + label + text3;
+            DialogHandled = true;
+
+            // Show custom AP icon in the dialog (StartSwitch hid it for "Nothing").
+            if (ItemDialogApItemPatch.WasApPlaceholder
+                && ApSpriteLoader.IsLoaded && con.Icon != null)
+            {
+                con.Icon.sprite = ApSpriteLoader.MapSprite;
+                con.Icon.gameObject.SetActive(true);
+            }
+        }
+
+        // ===============================================================
+        // B3) Retroactive update for deferred priming (AP items at NPCs).
+        //     Called by CheckManager when the flag fires after StartSwitch.
+        // ===============================================================
+
+        public static void RetroUpdateDialog(string itemName, string recipientName)
+        {
+            if (_activeCon == null || _activeCon.DialogText == null || _activeSys == null)
+                return;
+
+            try
+            {
+                ApplyDialogText(_activeCon, _activeSys, itemName, recipientName, null);
+                Plugin.Log.LogInfo($"[AP] Dialog label retroactively updated: \"{itemName}\"");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError($"[AP] RetroUpdateDialog: {ex}");
+                if (_talkCellData != null)
+                    _talkCellData[0][Row][ColEnglish][TextIndex] = OriginalEnglishSuffix;
+            }
+        }
+
+        // ===============================================================
         // C) Safety-net restore when the dialog closes.
         // ===============================================================
 
@@ -223,6 +265,8 @@ namespace LaMulana2Archipelago.Patches
             PendingRecipientName = null;
             DialogHandled = false;
             CheckManager.PendingAnkhJewelName = null;
+            _activeCon = null;
+            _activeSys = null;
         }
 
         // ---------------------------------------------------------------

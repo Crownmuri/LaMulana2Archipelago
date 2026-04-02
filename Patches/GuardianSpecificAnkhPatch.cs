@@ -132,10 +132,24 @@ namespace LaMulana2Archipelago.Patches
 
         [HarmonyPrefix]
         [HarmonyPatch(typeof(L2System), nameof(L2System.getItemNum))]
-        private static void GetItemNum_Prefix(ref string item_name)
+        private static bool GetItemNum_Prefix(L2System __instance, ref string item_name, ref int __result)
         {
-            if (_activeAnkh != null && item_name == "Ankh Jewel")
-                item_name = GetBossJewelName(_activeAnkh);
+            if (_activeAnkh == null || item_name != "Ankh Jewel")
+                return true;
+
+            string jewel = GetBossJewelName(_activeAnkh);
+            if (jewel == "Ankh Jewel")
+                return true;
+
+            // Read the specific jewel's flag directly.
+            // 0 = never obtained, 1 = held, 2 = consumed.
+            // Only value 1 means the player currently has the jewel.
+            int sheet = __instance.SeetNametoNo("02Items");
+            short val = 0;
+            if (sheet >= 0)
+                __instance.getFlag(sheet, jewel, ref val);
+            __result = (val == 1) ? 1 : 0;
+            return false;
         }
 
         // ===============================================================
@@ -162,11 +176,14 @@ namespace LaMulana2Archipelago.Patches
             if (jewel == "Ankh Jewel")
                 return true;
 
-            // Clear the specific jewel's owned flag in 02Items.
+            // Mark the specific jewel as consumed (2) rather than clearing to 0.
+            // Value 0 = never obtained, 1 = held, 2 = consumed.
+            // Keeping it non-zero prevents the item from respawning at its
+            // pickup location (the game treats 0 as "not yet collected").
             // The original will handle A_Jewel decrement + HUD refresh.
             int itemsSheet = __instance.SeetNametoNo("02Items");
             if (itemsSheet >= 0)
-                __instance.setFlagData(itemsSheet, jewel, 0);
+                __instance.setFlagData(itemsSheet, jewel, 2);
 
             return true; // let original run
         }
@@ -236,7 +253,7 @@ namespace LaMulana2Archipelago.Patches
                 string jewelName = "Ankh Jewel" + (i + 1);
                 short val = 0;
                 __instance.getFlag(itemsSheet, jewelName, ref val);
-                if (val > 0)
+                if (val == 1)
                     held.Add(BossNames[i]);
             }
 

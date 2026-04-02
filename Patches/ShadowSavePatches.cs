@@ -1,28 +1,31 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using L2Base;
 using LaMulana2Archipelago.Managers;
 using LaMulana2Archipelago.Archipelago;
 
 namespace LaMulana2Archipelago.Patches
 {
-    [HarmonyPatch(typeof(L2System), nameof(L2System.fileLoad))]
-    internal static class Shadow_FileLoad_Patch
+    // SaveMenu calls sys.dataLoad(SaveTab * 5 + slotIndex) / sys.dataSave(...)
+    // NOT fileLoad/fileSave (those are dead code wrappers).
+
+    [HarmonyPatch(typeof(L2System), nameof(L2System.dataLoad))]
+    internal static class Shadow_DataLoad_Patch
     {
-        static void Prefix(int no)
+        static void Prefix(int file_no)
         {
-            ShadowSaveManager.SetCurrentSaveSlot(no);
-            ArchipelagoClient.SetCurrentSaveSlot(no);
+            ShadowSaveManager.SetCurrentSaveSlot(file_no);
+            ArchipelagoClient.SetCurrentSaveSlot(file_no);
             ShadowSaveManager.OnFileLoad();
         }
     }
 
-    [HarmonyPatch(typeof(L2System), nameof(L2System.fileSave))]
-    internal static class Shadow_FileSave_Patch
+    [HarmonyPatch(typeof(L2System), nameof(L2System.dataSave))]
+    internal static class Shadow_DataSave_Patch
     {
-        static void Prefix(int no)
+        static void Prefix(int file_no)
         {
-            ShadowSaveManager.SetCurrentSaveSlot(no);
-            ArchipelagoClient.SetCurrentSaveSlot(no);
+            ShadowSaveManager.SetCurrentSaveSlot(file_no);
+            ArchipelagoClient.SetCurrentSaveSlot(file_no);
         }
     }
 

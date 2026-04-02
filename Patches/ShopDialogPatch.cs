@@ -155,12 +155,19 @@ namespace LaMulana2Archipelago.Patches
             if (locationId == null) return null;
 
             var itemInfo = client.GetItemAtLocation(locationId.Value);
-            if (itemInfo == null) return null;
+            if (itemInfo != null)
+            {
+                if (itemInfo.PlayerName != ArchipelagoClient.ServerData.SlotName)
+                    return itemInfo.ItemName + " (" + itemInfo.PlayerName + ")";
 
-            if (itemInfo.PlayerName != ArchipelagoClient.ServerData.SlotName)
-                return itemInfo.ItemName + " (" + itemInfo.PlayerName + ")";
+                return itemInfo.ItemName;
+            }
 
-            return itemInfo.ItemName;
+            // Fallback for already-collected locations not in the scout cache.
+            if (ArchipelagoClient.ServerData.CheckedLocations.Contains(locationId.Value))
+                return "AP Item";
+
+            return null;
         }
     }
 }

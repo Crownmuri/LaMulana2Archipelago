@@ -276,8 +276,10 @@ namespace LaMulana2Archipelago.Archipelago
         {
             if (session == null) return;
 
-            var missing = session.Locations.AllMissingLocations;
-            if (missing == null || missing.Count == 0) return;
+            // Scout ALL locations (not just missing) so that shop labels for
+            // already-collected items are still available in the cache.
+            var all = session.Locations.AllLocations;
+            if (all == null || all.Count == 0) return;
 
             session.Locations.ScoutLocationsAsync(
                 scoutResult =>
@@ -299,7 +301,7 @@ namespace LaMulana2Archipelago.Archipelago
 
                     LaMulana2Archipelago.Patches.ShopDialogPatch.Reapply();
                 },
-                missing.ToArray());
+                all.ToArray());
         }
 
         public void ReportGoalOnce()

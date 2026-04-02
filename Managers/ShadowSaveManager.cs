@@ -87,15 +87,70 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
-        /// Call on explicit file load from title — clears any stale death restore.
+        /// Call on explicit file load from title.
+        /// Restores the persisted item index so already-saved items are not
+        /// re-granted, and clears transient death-restore state.
         /// </summary>
         public static void OnFileLoad()
         {
             var st = State;
-            if (!st.PendingRestore) return;
-            st.PendingRestore = false;
-            Persist(st);
-            Plugin.Log.LogInfo("[Shadow] PendingRestore cleared (explicit file load).");
+
+            // Restore the processed item index from the checkpoint so that
+            // items already saved in this slot aren't re-granted on reconnect.
+            if (st.CheckpointIndex > 0
+                && st.CheckpointIndex > ArchipelagoClient.ServerData.Index)
+            {
+                int oldIndex = ArchipelagoClient.ServerData.Index;
+                ArchipelagoClient.ServerData.Index = st.CheckpointIndex;
+                DrainProcessedItems(st.CheckpointIndex);
+                Plugin.Log.LogInfo(
+                    $"[Shadow] Restored Index: {oldIndex} -> {st.CheckpointIndex}");
+            }
+
+            // File load resets game state to the checkpoint.  Clear transient
+            // tracking — items after the checkpoint will be naturally
+            // re-delivered from the AP queue.
+            bool dirty = false;
+            if (st.PendingRestore)
+            {
+                st.PendingRestore = false;
+                dirty = true;
+                Plugin.Log.LogInfo("[Shadow] PendingRestore cleared (explicit file load).");
+            }
+            if (st.GrantedSinceCheckpoint.Count > 0)
+            {
+                st.GrantedSinceCheckpoint.Clear();
+                dirty = true;
+            }
+            if (dirty) Persist(st);
+        }
+
+        /// <summary>
+        /// Removes items from the AP queue that have already been processed
+        /// (index &lt;= upToIndex).
+        /// </summary>
+        private static void DrainProcessedItems(int upToIndex)
+        {
+            var queue = ArchipelagoClient.ItemQueue;
+            if (queue.Count == 0) return;
+
+            var keep = new Queue<ArchipelagoClient.QueuedApItem>();
+            int drained = 0;
+
+            while (queue.Count > 0)
+            {
+                var item = queue.Dequeue();
+                if (item.Index <= upToIndex)
+                    drained++;
+                else
+                    keep.Enqueue(item);
+            }
+
+            while (keep.Count > 0)
+                queue.Enqueue(keep.Dequeue());
+
+            if (drained > 0)
+                Plugin.Log.LogInfo($"[Shadow] Drained {drained} already-processed items from queue.");
         }
 
         /// <summary>

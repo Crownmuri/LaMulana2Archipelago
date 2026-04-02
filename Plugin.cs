@@ -15,7 +15,7 @@ namespace LaMulana2Archipelago
     {
         public const string PluginGUID = "com.Crownmuri.Archipelago.LaMulana2";
         public const string PluginName = "LaMulana2Archipelago";
-        public const string PluginVersion = "0.5.0.0";
+        public const string PluginVersion = "0.7.0.0";
 
         public const string ModDisplayInfo = $"{PluginName} v{PluginVersion}";
         private const string APDisplayInfo = $"Archipelago v{ArchipelagoClient.APVersion}";
@@ -88,6 +88,8 @@ namespace LaMulana2Archipelago
 
             var wsType = System.Type.GetType("WebSocketSharp.WebSocket, websocket-sharp");
             Plugin.Log.LogInfo($"[AP] websocket-sharp loaded from: {wsType?.Assembly.Location ?? "NOT FOUND"}");
+
+            ApSpriteLoader.Load(System.IO.Path.GetDirectoryName(Info.Location));
 
             _harmony = new Harmony(PluginGUID);
             _harmony.PatchAll();
