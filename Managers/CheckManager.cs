@@ -114,7 +114,8 @@ namespace LaMulana2Archipelago.Managers
             {
                 int raw = (int)itemAtLocation;
                 // Filler ranges: ChestWeight (191-230), FakeItem (231-270), NPCMoney (271-280), FakeScan (281-295)
-                isFillerItem = (raw >= 191 && raw <= 230);
+                // FakeItem freestanding filler shows only a pop-up + SFX (no dialog), so skip dialog priming.
+                isFillerItem = (raw >= 191 && raw <= 270);
             }
 
             if (!IsShopLocation(apLocation, client))
@@ -125,12 +126,22 @@ namespace LaMulana2Archipelago.Managers
                 bool chestFillerHandled = Managers.SetItemApPatch.ChestFillerDialog;
                 Managers.SetItemApPatch.ChestFillerDialog = false;
 
+                bool potFillerHandled = ItemPotPatch.PotFillerDialog;
+                ItemPotPatch.PotFillerDialog = false;
+
                 if (isFillerItem)
                 {
                     Plugin.Log.LogDebug("[CHECK] Skipping dialog prime — filler item");
                 }
 
-                else if (!kataribeHandled && !chestFillerHandled)
+                // Don't overwrite a dialog label that was already primed this frame
+                // (e.g. two pickups on the same frame — show the first, skip the second).
+                else if (ItemDialogPatch.PendingDisplayLabel != null)
+                {
+                    Plugin.Log.LogInfo("[CHECK] Skipping dialog prime — another label already pending");
+                }
+
+                else if (!kataribeHandled && !chestFillerHandled && !potFillerHandled)
                 {
                     var scouted = client.GetItemAtLocation(apLocation);
 
@@ -203,6 +214,15 @@ namespace LaMulana2Archipelago.Managers
         // =====================================================================
         // Helpers
         // =====================================================================
+
+        /// <summary>
+        /// Returns true if this AP location ID was already reported in the current session
+        /// (local dedup cache). Used by SnapMenuPatch to prevent duplicate mural grants.
+        /// </summary>
+        public static bool IsLocationReported(long apLocationId)
+        {
+            return reportedLocations.Contains(apLocationId);
+        }
 
         private static long ToApLocationId(LocationID location)
         {

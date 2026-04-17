@@ -180,7 +180,7 @@ namespace LaMulana2Archipelago.Managers
             {
                 int flagIndex = ApItemIDs.ToFlagIndex(raw);
 
-                __result = new ItemInfo("AP Item", "AP Item", "item", 31, flagIndex, 0, 1, -1);
+                __result = new ItemInfo("AP Item", "AP Item", "item", 31, flagIndex, 10, 1, -1);
                 Plugin.Log.LogDebug($"[AP] ItemDB stub for placeholder {raw} → sheet=31 flag={flagIndex}");
                 return; // IMPORTANT: don't remap placeholders
             }
@@ -213,10 +213,10 @@ namespace LaMulana2Archipelago.Managers
 
         static bool Prefix(L2System __instance, ref string item_name, int num, bool direct = false, bool loadcall = false, bool sub_add = true)
         {
-            // Suppress AP placeholder (your existing behavior)
-            if (item_name == "AP Item")
+            // Suppress AP placeholder (matches "AP Item", "AP Item 0", "AP Item 123", etc.)
+            if (item_name == "AP Item" || item_name.StartsWith("AP Item "))
             {
-                Plugin.Log.LogInfo("[AP] Suppressed setItem for AP placeholder");
+                Plugin.Log.LogInfo($"[AP] Suppressed setItem for AP placeholder: {item_name}");
                 return false;
             }
 
@@ -472,8 +472,10 @@ namespace LaMulana2Archipelago.Managers
         }
     }
 
+#if LEGACY
     // =========================================================================
     // L2Rando.CreateSetItemString — safe shop display for AP placeholders
+    // (Legacy mode only — requires original randomizer's L2Rando)
     // =========================================================================
     [HarmonyPatch(typeof(L2Rando), "CreateSetItemString")]
     internal static class CreateSetItemStringApPatch
@@ -529,6 +531,7 @@ namespace LaMulana2Archipelago.Managers
             return false;
         }
     }
+#endif
 
     // =========================================================================
     // ItemDialog.StartSwitch — safe handling for all special item names
@@ -536,21 +539,17 @@ namespace LaMulana2Archipelago.Managers
 
     /// <summary>
     /// Patches ItemDialog.StartSwitch to safely handle every special item name
-    /// that would otherwise crash or produce wrong output.
+    /// that would otherwise crash in vanilla getMojiText (unknown item names).
     ///
-    ///   "AP Item"  — redirect to "Nothing"
-    ///   "CoinX"    — opened by GrantCoins()
-    ///   "WeightX"  — opened by GrantWeights()
-    ///
-    /// All names are redirected to "Nothing" in the Prefix (fully hardcoded path,
-    /// no item-sheet lookup, safe in kataribe context).  The Postfix then
-    /// overrides the dialog text with the correct display string.
+    ///   "AP Item"    — skip vanilla, set up dialog manually with AP icon
+    ///   "CoinX"      — skip vanilla, set up dialog manually (filler)
+    ///   "WeightX"    — skip vanilla, set up dialog manually (filler)
+    ///   "Research7"  — rename to "Research" and let vanilla handle it
+    ///   "Beherit3"   — rename to "Beherit" and let vanilla handle it
     /// </summary>
     [HarmonyPatch(typeof(ItemDialog), "StartSwitch")]
     public class ItemDialogApItemPatch
     {
-        private static string _overriddenText = null;
-
         /// <summary>
         /// True when the current dialog was originally for an "AP Item" placeholder
         /// (i.e. an item belonging to another player's world, with no native icon).
@@ -559,69 +558,195 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static bool WasApPlaceholder { get; set; }
 
-        static void Prefix(ItemDialog __instance)
+        /// <summary>
+        /// Prefix: for AP/filler items, skip the vanilla StartSwitch entirely
+        /// and set up the dialog manually (vanilla crashes on unknown item names
+        /// in getMojiText). For progressive items, just rename and let vanilla run.
+        /// </summary>
+        static bool Prefix(ItemDialog __instance)
         {
-            _overriddenText = null;
             WasApPlaceholder = false;
 
             string[] messString = Traverse.Create(__instance)
                 .Field("MessString")
                 .GetValue<string[]>();
-            if (messString == null || messString[0] == null) return;
+            if (messString == null || messString[0] == null) return true;
 
-            if (messString[0] == "AP Item")
+            string displayLabel = null;
+            bool isAp = false;
+
+            if (messString[0] == "AP Item" || messString[0].StartsWith("AP Item "))
             {
-                messString[0] = "Nothing";
-                _overriddenText = "AP Item";
+                displayLabel = "AP Item";
+                isAp = true;
                 WasApPlaceholder = true;
             }
-            else if (messString[0].StartsWith("Coin") && int.TryParse(messString[0].Substring(4), out int coins))
+            else if (messString[0] == "Nothing" || messString[0] == "Fake" || messString[0] == "Money")
             {
-                messString[0] = "Nothing";
-                _overriddenText = coins == 1 ? "1 Coin" : $"{coins} Coins";
+                // Not in the vanilla text DB — handle safely
+                displayLabel = "";
             }
-            else if (messString[0].StartsWith("Weight") && int.TryParse(messString[0].Substring(6), out int weights))
+            else if (messString[0] == "Weight" || messString[0] == "Gold")
             {
-                messString[0] = "Nothing";
-                _overriddenText = weights == 1 ? "1 Weight" : $"{weights} Weights";
+                // Bare "Weight"/"Gold" from filler chest/mural — not in vanilla text DB
+                displayLabel = messString[0] == "Weight" ? "1 Weight" : "Coins";
             }
-        }
-
-        static void Postfix(ItemDialog __instance)
-        {
-            if (_overriddenText == null) return;
-            string label = _overriddenText;
-            _overriddenText = null;
-
-            if (label == "AP Item" && Patches.ItemDialogPatch.DialogHandled)
-                return;
-
-            var con = Traverse.Create(__instance)
-                .Field("con")
-                .GetValue<ItemDialogController>();
-            if (con == null || con.DialogText == null) return;
-
-            L2System sys = Traverse.Create(__instance)
-                .Field("sys")
-                .GetValue<L2System>();
-
-            if (sys != null)
+            else if (messString[0].StartsWith("Coin") && TryParseFiller(messString[0], "Coin", out int coins))
             {
-                string pre = sys.getMojiText(true, "system", "itemDialog1", mojiScriptType.system).Replace("\"", "");
-                string post = sys.getMojiText(true, "system", "itemDialog2", mojiScriptType.system).Replace("\"", "");
-                con.DialogText.text = pre + label + post;
+                displayLabel = coins == 1 ? "1 Coin" : $"{coins} Coins";
+            }
+            else if (messString[0].StartsWith("Weight") && TryParseFiller(messString[0], "Weight", out int weights))
+            {
+                displayLabel = weights == 1 ? "1 Weight" : $"{weights} Weights";
             }
             else
             {
-                con.DialogText.text = label;
+                // Progressive item variants: the game only knows the base name.
+                // "Research7" → "Research", "Beherit3" → "Beherit", etc.
+                string baseName = GetProgressiveBaseName(messString[0]);
+                if (baseName != null)
+                    messString[0] = baseName;
+                return true; // let vanilla StartSwitch handle it
             }
 
-            // Show custom AP icon in the dialog (StartSwitch hid it for "Nothing")
-            if (label == "AP Item" && ApSpriteLoader.IsLoaded && con.Icon != null)
+            // --- Skip vanilla StartSwitch: manually set up the dialog ---
+            // Vanilla StartSwitch crashes on unknown names (getMojiText → getMojiNameToNo)
+            // so we replicate its essential setup here.
+            SetupDialogManually(__instance, messString, displayLabel, isAp);
+            return false; // skip original
+        }
+
+        private static void SetupDialogManually(ItemDialog __instance, string[] messString, string label, bool isAp)
+        {
+            var t = Traverse.Create(__instance);
+            var sys = t.Field("sys").GetValue<L2System>();
+            var con = t.Field("con").GetValue<ItemDialogController>();
+            if (sys == null || con == null) return;
+
+            // Camera + position (same as vanilla)
+            var cam = GameObject.Find("BGScrollSystemBase")?.GetComponent<BGScrollSystem>()?.bgCamera?.BaseCamera;
+            t.Field("cam").SetValue(cam);
+
+            float posF, posD;
+            if (messString[1] == "kataribe")
+            {
+                posF = 100f;
+                posD = 120f;
+            }
+            else
+            {
+                Vector3 position = sys.getPlayer().gameObject.transform.position;
+                if (cam != null && cam.WorldToScreenPoint(position).y > 224f)
+                {
+                    posF = -100f;
+                    posD = -120f;
+                }
+                else
+                {
+                    posF = 100f;
+                    posD = 120f;
+                }
+                sys.setSysFlag(L2Base.SYSTEMFLAG.MENUOPEN);
+            }
+            t.Field("PositionF").SetValue(posF);
+            t.Field("PositionD").SetValue(posD);
+
+            // Canvas group
+            var cgroup = con.DialogBase.GetComponent<CanvasGroup>();
+            t.Field("cgroup").SetValue(cgroup);
+            cgroup.alpha = 0f;
+
+            // Icon
+            if (isAp && ApSpriteLoader.IsLoaded && con.Icon != null)
             {
                 con.Icon.sprite = ApSpriteLoader.MapSprite;
                 con.Icon.gameObject.SetActive(true);
             }
+            else if (isAp)
+            {
+                // Fallback: use Holy Grail icon for AP items
+                var grailSprite = L2Math.Load("Textures/icons_itemmenu", "Holy Grail");
+                if (grailSprite != null)
+                {
+                    con.Icon.sprite = grailSprite;
+                    con.Icon.gameObject.SetActive(true);
+                }
+                else
+                {
+                    con.Icon.gameObject.SetActive(false);
+                }
+            }
+            else
+            {
+                // Filler — hide icon
+                con.Icon.gameObject.SetActive(false);
+            }
+
+            // Build dialog text — use the system dialog prefix/suffix directly
+            // ("You got" + label + "!")
+            string text;
+            try
+            {
+                string pre = sys.getMojiText(true, "system", "itemDialog1", mojiScriptType.system).Replace("\"", "");
+                string post = sys.getMojiText(true, "system", "itemDialog2", mojiScriptType.system).Replace("\"", "");
+
+                // Check if ItemDialogPatch has a better label (e.g. "1 Puzzle Piece (CrownJigsaw)")
+                string finalLabel = label;
+                if (isAp && Patches.ItemDialogPatch.PendingDisplayLabel != null)
+                    finalLabel = Patches.ItemDialogPatch.PendingDisplayLabel;
+
+                text = pre + finalLabel + post;
+            }
+            catch
+            {
+                text = label;
+            }
+            con.DialogText.text = text;
+
+            // Set state and activate — same as vanilla
+            sys.setSysFlag(L2Base.SYSTEMFLAG.ITDLRBLOCK);
+            t.Field("sta").SetValue(1);
+            con.DialogBase.transform.localPosition = new Vector3(0f, posD, 600f);
+            t.Field("move_count").SetValue(0f);
+            t.Field("m_obj").GetValue<GameObject>().SetActive(true);
+
+            // Let ItemDialogPatch.Postfix do its sender-name overlay if needed
+            Patches.ItemDialogPatch.DialogHandled = true;
+        }
+
+        /// <summary>
+        /// Parses filler names like "Coin30", "Weight5", or "Coin30 15" (with flag suffix).
+        /// Returns the numeric amount, stripping any trailing flag index after a space.
+        /// </summary>
+        private static bool TryParseFiller(string name, string prefix, out int amount)
+        {
+            amount = 0;
+            string remainder = name.Substring(prefix.Length);
+            // Strip flag suffix: "30 15" → "30"
+            int spaceIdx = remainder.IndexOf(' ');
+            if (spaceIdx >= 0)
+                remainder = remainder.Substring(0, spaceIdx);
+            return int.TryParse(remainder, out amount) && amount > 0;
+        }
+
+        /// <summary>
+        /// Returns the base game item name for numbered progressive items,
+        /// or null if the name doesn't need remapping.
+        /// </summary>
+        private static string GetProgressiveBaseName(string name)
+        {
+            if (name == null || name.Length < 2) return null;
+            char last = name[name.Length - 1];
+            if (last < '0' || last > '9') return null;
+
+            if (name.StartsWith("Research") && name.Length > 8) return "Research";
+            if (name.StartsWith("Beherit") && name.Length > 7) return "Beherit";
+            if (name.StartsWith("Whip") && name.Length > 4) return null; // handled by setItem rename
+            if (name.StartsWith("Shield") && name.Length > 6) return null; // handled by setItem rename
+            if (name.StartsWith("Mantra") && name.Length > 6) return "Mantra";
+            if (name.StartsWith("Ankh Jewel") && name.Length > 10) return "Ankh Jewel";
+
+            return null;
         }
 
         // =========================================================================

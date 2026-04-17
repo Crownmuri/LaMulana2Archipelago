@@ -30,7 +30,7 @@ namespace LaMulana2Archipelago.Utils
         private const int MaxLogLines = 80;
         private const float HideTimeout = 15f;
 
-        private static string CommandText = "!help";
+        private static string CommandText = "";
         private static Rect CommandTextRect;
         private static Rect SendCommandButton;
 
@@ -162,13 +162,13 @@ namespace LaMulana2Archipelago.Utils
             width = (int)(Screen.width * 0.4f);
             var xPos = (int)(Screen.width / 2.0f - width / 2.0f);
             var yPos = (int)(Screen.height * 0.307f);
-            height = (int)(Screen.height * 0.022f);
+            height = 25;
 
             CommandTextRect = new Rect(xPos, yPos, width, height);
 
-            width = (int)(Screen.width * 0.035f);
-            yPos += (int)(Screen.height * 0.03f);
-            SendCommandButton = new Rect(xPos, yPos, width, height);
+            var sendWidth = 100;
+            yPos += height + 4;
+            SendCommandButton = new Rect(xPos, yPos, sendWidth, height);
         }
     }
 }

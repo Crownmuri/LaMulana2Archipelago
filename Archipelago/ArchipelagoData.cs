@@ -98,6 +98,16 @@ namespace LaMulana2Archipelago.Archipelago
             slotData = roomSlotData;
             seed = roomSeed;
         }
+
+        /// <summary>
+        /// Clear cached slot data / seed so the next Connect() requests slot data
+        /// again. Called on Disconnect so reconnecting (same or new seed) works.
+        /// </summary>
+        public void ClearSessionCache()
+        {
+            slotData = null;
+            seed = null;
+        }
         public bool GetSlotBool(string key, bool defaultValue = false)
         {
             if (slotData == null || !slotData.TryGetValue(key, out object raw))
@@ -113,6 +123,36 @@ namespace LaMulana2Archipelago.Archipelago
                 return defaultValue;
             try { return Convert.ToInt32(raw); }
             catch { return defaultValue; }
+        }
+        public object GetSlotRaw(string key)
+        {
+            if (slotData == null || !slotData.TryGetValue(key, out object raw))
+                return null;
+            return raw;
+        }
+
+        /// <summary>
+        /// Reads a dictionary from slot_data (e.g., pot_flag_map).
+        /// AP sends nested JSON objects as Dictionary&lt;string, object&gt; or
+        /// Newtonsoft JObject depending on the library version.
+        /// </summary>
+        public Dictionary<string, object> GetSlotDict(string key)
+        {
+            if (slotData == null || !slotData.TryGetValue(key, out object raw))
+                return null;
+
+            if (raw is Dictionary<string, object> dict)
+                return dict;
+
+            if (raw is Newtonsoft.Json.Linq.JObject jObj)
+            {
+                var result = new Dictionary<string, object>();
+                foreach (var prop in jObj)
+                    result[prop.Key] = prop.Value;
+                return result;
+            }
+
+            return null;
         }
         public override string ToString()
         {

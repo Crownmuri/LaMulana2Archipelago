@@ -7,6 +7,7 @@ using LaMulana2Archipelago.Utils;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using L2Base;
+using System.Collections;
 
 namespace LaMulana2Archipelago
 {
@@ -29,6 +30,7 @@ namespace LaMulana2Archipelago
 
         private Harmony _harmony;
         private L2System _cachedSys;
+        private DevUI _devUI;
 
         // ============================================================
         // Receive/grant gating (computed, not scene-name based)
@@ -56,23 +58,39 @@ namespace LaMulana2Archipelago
         private const string GoalSceneName = "Ending1";
         private const int GoalSceneBuildIndex = 48;
 
-        private bool _isConnecting = false;
+        private bool _bootstrapStarted = false;
+        private bool _bootstrapFinished = false;
 
         private void Start()
         {
-            // Start the delayed connection process to avoid the infinite load bug
-            StartCoroutine(DelayedConnect());
+            if (_bootstrapStarted)
+                return;
+
+            _bootstrapStarted = true;
+            StartCoroutine(BootstrapRoutine());
         }
 
-        private System.Collections.IEnumerator DelayedConnect()
+        private IEnumerator BootstrapRoutine()
         {
-            _isConnecting = true;
-            // Wait for the game systems to initialize (3 seconds is usually plenty)
-            yield return new WaitForSeconds(3.0f);
+            // Wait until the real first playable bootstrap scene appears.
+            while (SceneManager.GetActiveScene().name != "Opening")
+                yield return null;
 
-            // Trigger the connection
+            // Give Opening one extra frame to finish settling.
+            yield return null;
+
+            var sys = UnityEngine.Object.FindObjectOfType<L2Base.L2System>();
+            if (sys != null)
+            {
+                Managers.PrefabHarvester.StartHarvest(sys);
+
+                // Wait until the harvester finishes before connecting.
+                while (!Managers.PrefabHarvester.HasHarvested)
+                    yield return null;
+            }
+
             ArchipelagoClient.Connect();
-            _isConnecting = false;
+            _bootstrapFinished = true;
         }
 
         private void Awake()
@@ -97,12 +115,12 @@ namespace LaMulana2Archipelago
 
             LocationFlagMap.InitializeFromSeed();
 
-            SceneManager.sceneLoaded += OnSceneLoaded;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
         private void OnDestroy()
         {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
 
             Log.LogInfo("Unpatching Harmony");
             _harmony?.UnpatchSelf();
@@ -167,6 +185,13 @@ namespace LaMulana2Archipelago
                 _cachedSys = UnityEngine.Object.FindObjectOfType<L2System>();
             if (_cachedSys == null)
                 return;
+
+            // Create DevUI once we have L2System
+            if (_devUI == null)
+            {
+                _devUI = gameObject.AddComponent<DevUI>();
+                _devUI.Initialise(_cachedSys);
+            }
 
             // Must have system before we can compute gameplayActive safely
             var sys = _cachedSys;
@@ -250,8 +275,19 @@ namespace LaMulana2Archipelago
                 return;
             }
 
-            GUI.Label(new Rect(150, 510, 300, 20), ModDisplayInfo, guiStyle);
+            // Make cursor visible on the title screen so the user can click text fields
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+
             ArchipelagoConsole.OnGUI();
+
+            // Scale the AP title UI (designed for 960x540) to current resolution.
+            Matrix4x4 prevMatrix = GUI.matrix;
+            float sx = Screen.width / 960f;
+            float sy = Screen.height / 540f;
+            GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(sx, sy, 1f));
+
+            GUI.Label(new Rect(150, 510, 300, 20), ModDisplayInfo, guiStyle);
 
             if (ArchipelagoClient.Authenticated)
             {
@@ -310,10 +346,13 @@ namespace LaMulana2Archipelago
                     ArchipelagoClient.Connect();
                 }
             }
+
+            GUI.matrix = prevMatrix;
         }
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+
             onTitle = scene.name.Equals("title");
 
             // Keep tracing (useful forever, cheap)
@@ -332,7 +371,19 @@ namespace LaMulana2Archipelago
                 gameplayActive = false;
                 gameplayActivationTime = float.MaxValue;
             }
+
+            // Standalone scene randomization (chests, entrances, NPCs, etc.)
+            if (Managers.SceneRandomizer.Instance != null)
+                Managers.SceneRandomizer.Instance.OnSceneLoaded(scene);
         }
+        private IEnumerator BeginHarvest()
+        {
+            yield return null; // let Opening finish settling
+            var sys = UnityEngine.Object.FindObjectOfType<L2Base.L2System>();
+            if (sys != null)
+                Managers.PrefabHarvester.StartHarvest(sys);
+        }
+
         [HarmonyPatch(typeof(NewPlayer), "hitCallBack")]
         internal static class DeathLinkSendPatch
         {

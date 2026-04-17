@@ -3,8 +3,10 @@ using L2Base;
 using L2Flag;
 using LaMulana2Archipelago.Archipelago;
 using LaMulana2Archipelago.Managers;
+#if LEGACY
 using LaMulana2RandomizerShared;
 using LM2RandomiserMod;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -154,8 +156,10 @@ namespace LaMulana2Archipelago.Patches
         }
     }
 
+#if LEGACY
     // ══════════════════════════════════════════════════════════════════
     //  Shared helper: re-create AP-item chests with the correct color
+    //  (Legacy mode only — requires original randomizer's L2Rando)
     // ══════════════════════════════════════════════════════════════════
 
     internal static class ApChestRecolorHelper
@@ -428,4 +432,5 @@ namespace LaMulana2Archipelago.Patches
             }
         }
     }
+#endif
 }

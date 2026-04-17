@@ -4,6 +4,7 @@ using System.IO;
 using BepInEx;
 using LaMulana2RandomizerShared;
 using LM2RandomiserMod;
+using Newtonsoft.Json.Linq;
 
 namespace LaMulana2Archipelago.Managers
 {
@@ -59,14 +60,16 @@ namespace LaMulana2Archipelago.Managers
 
 
         /// <summary>
-        /// Reads seed.lm2r and registers:
+        /// Reads slot_data from AP connection and registers:
         ///   - main numeric map: (item sheet, item flag) -> LocationID (unique flags only)
         ///   - seed-derived maps for FakeItem/NPCMoney container flags
+        /// Falls back to seed.lm2r if slot_data does not contain item_placements.
         /// </summary>
         public static void BuildIntoMap(
             Action<int, int, LocationID> addNumeric,
             Action<string> logInfo,
-            Action<string> logWarn)
+            Action<string> logWarn,
+            Dictionary<string, object> slotData = null)
         {
             if (addNumeric == null) throw new ArgumentNullException(nameof(addNumeric));
             if (logInfo == null) throw new ArgumentNullException(nameof(logInfo));
@@ -79,7 +82,104 @@ namespace LaMulana2Archipelago.Managers
             LocationToItem.Clear();
             BoxNameToLocation.Clear();
 
+            // Try slot_data first (standalone mode), fall back to seed.lm2r (legacy mode)
+            if (slotData != null && slotData.ContainsKey("item_placements"))
+            {
+                logInfo("[AP] Building flag map from slot_data (standalone mode)");
+                BuildFromSlotData(addNumeric, logInfo, logWarn, slotData);
+            }
+            else
+            {
+                logInfo("[AP] Building flag map from seed.lm2r (legacy mode)");
+                BuildFromSeedFile(addNumeric, logInfo, logWarn);
+            }
+        }
 
+        /// <summary>
+        /// Build maps from AP slot_data dictionaries.
+        /// </summary>
+        private static void BuildFromSlotData(
+            Action<int, int, LocationID> addNumeric,
+            Action<string> logInfo,
+            Action<string> logWarn,
+            Dictionary<string, object> slotData)
+        {
+            int added = 0;
+            int collisions = 0;
+            int noItemInfo = 0;
+            int chestWeightMapped = 0;
+            int fakeItemMapped = 0;
+            int npcMoneyMapped = 0;
+            int fakeScanMapped = 0;
+
+            HashSet<int> seenKeys = new HashSet<int>();
+
+            try
+            {
+                // Parse item_placements: [{location: int, item: int}, ...]
+                if (slotData.TryGetValue("item_placements", out object rawPlacements))
+                {
+                    var placements = rawPlacements as JArray;
+                    if (placements != null)
+                    {
+                        foreach (var entry in placements)
+                        {
+                            LocationID loc = (LocationID)(int)entry["location"];
+                            ItemID item = (ItemID)(int)entry["item"];
+
+                            TryAdd(item, loc, addNumeric, seenKeys,
+                                ref added, ref collisions, ref noItemInfo,
+                                ref chestWeightMapped, ref fakeItemMapped,
+                                ref npcMoneyMapped, ref fakeScanMapped,
+                                logWarn);
+                        }
+                    }
+                }
+
+                // Parse shop_placements: [{location: int, item: int, price: int}, ...]
+                if (slotData.TryGetValue("shop_placements", out object rawShops))
+                {
+                    var shops = rawShops as JArray;
+                    if (shops != null)
+                    {
+                        foreach (var entry in shops)
+                        {
+                            LocationID loc = (LocationID)(int)entry["location"];
+                            ItemID item = (ItemID)(int)entry["item"];
+                            // price not needed for flag mapping
+
+                            TryAdd(item, loc, addNumeric, seenKeys,
+                                ref added, ref collisions, ref noItemInfo,
+                                ref chestWeightMapped, ref fakeItemMapped,
+                                ref npcMoneyMapped, ref fakeScanMapped,
+                                logWarn);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logWarn("[AP] Failed reading slot_data placements: " + ex);
+                return;
+            }
+
+            logInfo("[AP] Slot_data flag map built: added=" + added
+                    + " collisions=" + collisions
+                    + " noItemInfo=" + noItemInfo
+                    + " chestWeightMapped=" + chestWeightMapped
+                    + " fakeItemMapped=" + fakeItemMapped
+                    + " npcMoneyMapped=" + npcMoneyMapped
+                    + " fakeScanMapped=" + fakeScanMapped);
+        }
+
+        /// <summary>
+        /// Legacy: build maps from seed.lm2r binary file.
+        /// </summary>
+        private static void BuildFromSeedFile(
+            Action<int, int, LocationID> addNumeric,
+            Action<string> logInfo,
+            Action<string> logWarn)
+        {
             if (!File.Exists(SeedPath))
             {
                 logWarn("[AP] seed.lm2r not found at: " + SeedPath);

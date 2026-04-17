@@ -72,20 +72,13 @@ namespace LaMulana2Archipelago.Patches
                 if (!ItemGrantStateGuard.IsSafe(sys, pl))
                     return false; // swallow; will try again next frame
 
-                // Acquisition sequence
-                var dlg = sys.getMenuObjectNF(1);
-                dlg.setMess(label);
-                dlg.setMess("");
-                sys.openItemDialog();
-
-                // Play specific filler SFX
+                // Non-blocking popup above the player + SFX (no dialog, no pause).
+                var popType = (coinAmount > 0)
+                    ? ItemPopUpController.PopUpType.Coin
+                    : ItemPopUpController.PopUpType.Weight;
+                int popAmount = (coinAmount > 0) ? coinAmount : weightAmount;
                 int se = (coinAmount > 0) ? 109 : 23;
-                var core = sys.getL2SystemCore();
-                if (core?.seManager != null)
-                {
-                    int h = core.seManager.playSE(null, se);
-                    core.seManager.releaseGameObjectFromPlayer(h);
-                }
+                ItemGrantManager.ShowFillerPopUp(sys, popType, popAmount, se);
 
                 // direct: false: we don't set the value, but only add.
                 using (ItemGrantRecursiveGuard.Begin())

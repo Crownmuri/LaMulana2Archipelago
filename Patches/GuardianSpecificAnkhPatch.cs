@@ -61,6 +61,12 @@ namespace LaMulana2Archipelago.Patches
         [ThreadStatic]
         private static AnchScript _activeAnkh;
 
+        /// <summary>
+        /// True when we're currently inside an AnchScript method that checks jewel possession.
+        /// Used by GetItemNumPatch to defer to this patch instead of returning the global counter.
+        /// </summary>
+        public static bool IsAnkhContextActive => _activeAnkh != null;
+
         // ---------------------------------------------------------------
         // Helper: derive "Ankh JewelN" from an AnchScript's flagName field.
         // flagName is a public field set in the Unity Inspector per-object,

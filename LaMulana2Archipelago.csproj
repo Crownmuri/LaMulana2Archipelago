@@ -7,13 +7,14 @@
         <Version>0.1.1.0</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
-        <!-- you may need this for getting the multiclient dll to output for .net 6 and netstandard 2.0 -->
-        <!--        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>-->
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <RootNamespace>LaMulana2Archipelago</RootNamespace>
     </PropertyGroup>
 
+    <!-- To build against the pre-patched (original randomizer) Assembly-CSharp.dll,
+         add LEGACY to DefineConstants below. This enables compatibility patches
+         that target L2Rando/FakeItem from the original randomizer. -->
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <DebugSymbols>true</DebugSymbols>
         <DebugType>full</DebugType>
@@ -74,6 +75,7 @@
     <ItemGroup>
       <Compile Include="Utils\ArchipelagoConsole.cs" />
       <Compile Include="Utils\ChestFillerSetup.cs" />
+      <Compile Include="Utils\DevUI.cs" />
       <Compile Include="Utils\LocationResolver.cs" />
     </ItemGroup>
 
@@ -93,13 +95,14 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Reference Include="Assembly-CSharp">
-        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
-        <Private>False</Private>
-      </Reference>
+      <!-- LEGACY BUILD: Uncomment to use external DLLs instead of inlined Data/ files.
       <Reference Include="LaMulana2RandomizerShared">
         <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\LaMulana2RandomizerShared.dll</HintPath>
         <Private>False</Private>
+      </Reference>
+      -->
+      <Reference Include="Assembly-CSharp">
+        <HintPath>..\..\..\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
       </Reference>
       <Reference Include="TextMeshPro">
         <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\TextMeshPro.dll</HintPath>

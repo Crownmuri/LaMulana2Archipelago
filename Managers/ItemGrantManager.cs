@@ -95,6 +95,37 @@ namespace LaMulana2Archipelago.Managers
                     return true;
                 }
 
+                // Ammo bundle AP items (310-312)
+                if (gameId >= 310 && gameId <= 312)
+                {
+                    switch (gameId)
+                    {
+                        case 310:
+                            Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 10 shuriken (AP {apItemId})");
+                            GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_SYURIKEN, 10);
+                            break;
+                        case 311:
+                            Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 3 bombs (AP {apItemId})");
+                            GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_BOM, 3);
+                            break;
+                        case 312:
+                            Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 1 chakram (AP {apItemId})");
+                            GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_CHAKURA, 1);
+                            break;
+                    }
+
+                    FinishGrant(apItemId, now);
+                    return true;
+                }
+
+                // Pot filler items (400-429)
+                if (gameId >= 400 && gameId <= 429)
+                {
+                    GrantPotFiller(sys, gameId, apItemId);
+                    FinishGrant(apItemId, now);
+                    return true;
+                }
+
                 if (gameId <= 0)
                 {
                     Plugin.Log.LogWarning("[ITEM] AP item id out of range (base=" + BaseApItemId + "): " + apItemId);
@@ -158,6 +189,8 @@ namespace LaMulana2Archipelago.Managers
                 bool isSacredOrb =
                     itemId >= ItemID.SacredOrb0 && itemId <= ItemID.SacredOrb9;
 
+                bool isMSX3p = itemId == ItemID.MobileSuperx3P;
+
                 if (isSacredOrb)
                 {
                     Plugin.Log.LogInfo($"[ITEM] Sacred Orb: ItemID={itemId} sheet={info.ItemSheet} flag={info.ItemFlag}");
@@ -195,6 +228,7 @@ namespace LaMulana2Archipelago.Managers
                         sys.getFlag(3, 30, ref skullTally);
                         sys.setFlagData(3, 30, (short)(skullTally + 4));
 
+#if LEGACY
                         var l2Rando = UnityEngine.Object.FindObjectOfType<L2Rando>();
                         bool autoPlace = false;
                         if (l2Rando != null)
@@ -204,6 +238,9 @@ namespace LaMulana2Archipelago.Managers
                                 System.Reflection.BindingFlags.NonPublic);
                             if (f != null) autoPlace = (bool)f.GetValue(l2Rando);
                         }
+#else
+                        bool autoPlace = LaMulana2Archipelago.Patches.GameFlagResetsPatch.AutoPlaceSkull;
+#endif
                         if (autoPlace)
                         {
                             int nibiruFlag = (int)itemId - (int)ItemID.SacredOrb4;
@@ -228,6 +265,14 @@ namespace LaMulana2Archipelago.Managers
 
                         // CALCU.EQR: stamp this specific orb's flag
                         sys.setFlagData(info.ItemSheet, info.ItemFlag, 1);
+                    }
+
+                    if (isMSX3p)
+                    {
+                        // Match vanilla randomiser CreateGetFlags: CALCU.EQR sheet=2 flag=15 -> 2.
+                        // setItem("MSX3p",...) alone doesn't stamp the "MSX" flag the game checks
+                        // (isHaveItem("MSX") == 2 for the upgraded variant).
+                        sys.setFlagData(info.ItemSheet, info.ItemFlag, 2);
                     }
                 }
 
@@ -263,16 +308,8 @@ namespace LaMulana2Archipelago.Managers
             {
                 using (ItemGrantRecursiveGuard.Begin())
                 {
-                    //if (!ShadowSaveManager.IsApplying || RestoreWithAnimations)
                     if (RestoreWithAnimations)
-                    {
-                        // Show the custom dialog only during normal gameplay (not restore)
-                        var dlg = sys.getMenuObjectNF(1);
-                        dlg.setMess(dialogKey);
-                        dlg.setMess("");
-                        sys.openItemDialog();
-                        PlayPickupSFX(109); // coin SFX override
-                    }
+                        ShowFillerPopUp(sys, ItemPopUpController.PopUpType.Coin, amount, 109);
 
                     sys.setItem("Gold", amount, direct: false, loadcall: false, sub_add: true);
                 }
@@ -289,15 +326,8 @@ namespace LaMulana2Archipelago.Managers
             {
                 using (ItemGrantRecursiveGuard.Begin())
                 {
-                    //if (!ShadowSaveManager.IsApplying || RestoreWithAnimations)
                     if (RestoreWithAnimations)
-                    {
-                        var dlg = sys.getMenuObjectNF(1);
-                        dlg.setMess(dialogKey);
-                        dlg.setMess("");
-                        sys.openItemDialog();
-                        PlayPickupSFX(23); // weight SFX override
-                    }
+                        ShowFillerPopUp(sys, ItemPopUpController.PopUpType.Weight, amount, 23);
 
                     sys.setItem("Weight", amount, direct: false, loadcall: false, sub_add: true);
                 }
@@ -305,6 +335,29 @@ namespace LaMulana2Archipelago.Managers
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning("[ITEM] GrantWeights failed: " + ex);
+            }
+        }
+
+        /// <summary>
+        /// Non-blocking filler notification: shows the small popup above the
+        /// player (same widget CoinScript/DropItemScript use when picking up
+        /// world drops) and plays the given SFX. Does NOT open the item dialog
+        /// and does NOT pause the game.
+        /// </summary>
+        public static void ShowFillerPopUp(L2System sys, ItemPopUpController.PopUpType type, int amount, int seNo)
+        {
+            try
+            {
+                var pl = sys?.getPlayer();
+                if (pl != null)
+                    pl.setPopUp(type, amount);
+
+                if (seNo > 0)
+                    PlayPickupSFX(seNo);
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[ITEM] ShowFillerPopUp failed: {ex.Message}");
             }
         }
 
@@ -326,6 +379,103 @@ namespace LaMulana2Archipelago.Managers
         {
             GlobalCooldownUntil = now + 0.20f;
             NextAttemptTime.Remove(apItemId);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // Ammo grant helper
+        // ─────────────────────────────────────────────────────────────────────────
+
+        private static void GrantAmmo(L2System sys, L2Hit.SUBWEAPON sw, int amount)
+        {
+            try
+            {
+                // The non-"_B" SUBWEAPON values (SUB_SYURIKEN etc.) are the
+                // "have weapon" flags — vanilla ammo pickups live in the "_B"
+                // slots (SUB_SYURIKEN_B etc.), which is what addSubWeaponNum
+                // and the status bar actually read from for ammo counts.
+                L2Hit.SUBWEAPON ammoSw;
+                switch (sw)
+                {
+                    case L2Hit.SUBWEAPON.SUB_SYURIKEN: ammoSw = L2Hit.SUBWEAPON.SUB_SYURIKEN_B; break;
+                    case L2Hit.SUBWEAPON.SUB_BOM:     ammoSw = L2Hit.SUBWEAPON.SUB_BOM_B;     break;
+                    case L2Hit.SUBWEAPON.SUB_CHAKURA: ammoSw = L2Hit.SUBWEAPON.SUB_CHAKURA_B; break;
+                    default:                          ammoSw = sw;                           break;
+                }
+
+                using (ItemGrantRecursiveGuard.Begin())
+                {
+                    sys.addSubWeaponNum(ammoSw, amount);
+                }
+
+                if (RestoreWithAnimations)
+                {
+                    ItemPopUpController.PopUpType popType;
+                    switch (sw)
+                    {
+                        case L2Hit.SUBWEAPON.SUB_SYURIKEN: popType = ItemPopUpController.PopUpType.Shuriken; break;
+                        case L2Hit.SUBWEAPON.SUB_BOM:     popType = ItemPopUpController.PopUpType.Bomb;     break;
+                        case L2Hit.SUBWEAPON.SUB_CHAKURA: popType = ItemPopUpController.PopUpType.Chakram;  break;
+                        default:                          popType = ItemPopUpController.PopUpType.Shuriken; break;
+                    }
+                    ShowFillerPopUp(sys, popType, amount, 23);
+                }
+
+                Plugin.Log.LogInfo($"[ITEM] Granted {amount} {ammoSw} ammo");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[ITEM] GrantAmmo failed for {sw}: {ex}");
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // Pot filler grant helper
+        // ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Grants pot filler rewards (PotFiller01-30, gameId 400-429).
+        /// Distribution matches Python POT_FILLER_DISTRIBUTION:
+        ///   400-413 (14): 10 coins
+        ///   414-415 (2):  30 coins
+        ///   416-423 (8):  1 weight
+        ///   424-427 (4):  10 shuriken
+        ///   428 (1):      3 bombs
+        ///   429 (1):      1 chakram
+        /// </summary>
+        private static void GrantPotFiller(L2System sys, int gameId, long apItemId)
+        {
+            int idx = gameId - 400;
+
+            if (idx < 14) // 0-13: 10 coins
+            {
+                Plugin.Log.LogInfo($"[ITEM] Pot filler: granting 10 coins (AP {apItemId})");
+                GrantCoins(sys, 10, "Coin10");
+            }
+            else if (idx < 16) // 14-15: 30 coins
+            {
+                Plugin.Log.LogInfo($"[ITEM] Pot filler: granting 30 coins (AP {apItemId})");
+                GrantCoins(sys, 30, "Coin30");
+            }
+            else if (idx < 24) // 16-23: 1 weight
+            {
+                Plugin.Log.LogInfo($"[ITEM] Pot filler: granting 1 weight (AP {apItemId})");
+                GrantWeights(sys, 1, "Weight1");
+            }
+            else if (idx < 28) // 24-27: 10 shuriken
+            {
+                Plugin.Log.LogInfo($"[ITEM] Pot filler: granting 10 shuriken (AP {apItemId})");
+                GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_SYURIKEN, 10);
+            }
+            else if (idx == 28) // 28: 3 bombs
+            {
+                Plugin.Log.LogInfo($"[ITEM] Pot filler: granting 3 bombs (AP {apItemId})");
+                GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_BOM, 3);
+            }
+            else // 29: 1 chakram
+            {
+                Plugin.Log.LogInfo($"[ITEM] Pot filler: granting 1 chakram (AP {apItemId})");
+                GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_CHAKURA, 1);
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────────

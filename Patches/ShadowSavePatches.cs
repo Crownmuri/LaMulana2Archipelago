@@ -27,6 +27,11 @@ namespace LaMulana2Archipelago.Patches
             ShadowSaveManager.SetCurrentSaveSlot(file_no);
             ArchipelagoClient.SetCurrentSaveSlot(file_no);
         }
+
+        static void Postfix()
+        {
+            ShadowSaveManager.OnMemSave();
+        }
     }
 
     [HarmonyPatch(typeof(L2System), nameof(L2System.memSave))]

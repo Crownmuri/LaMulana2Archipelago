@@ -13,12 +13,29 @@ namespace LaMulana2Archipelago
         // Use stable composite string key rather than GetHashCode.
         private static readonly Dictionary<string, LocationID> StringFlagMap = new Dictionary<string, LocationID>();
 
+        /// <summary>
+        /// Legacy: initialize from seed.lm2r file (called at Awake before AP connection).
+        /// </summary>
         public static void InitializeFromSeed()
+        {
+            Initialize(slotData: null);
+        }
+
+        /// <summary>
+        /// Initialize from AP slot_data (called after successful AP connection).
+        /// Falls back to seed.lm2r if slot_data lacks item_placements.
+        /// </summary>
+        public static void InitializeFromSlotData(Dictionary<string, object> slotData)
+        {
+            Initialize(slotData);
+        }
+
+        private static void Initialize(Dictionary<string, object> slotData)
         {
             NumericFlagMap.Clear();
             StringFlagMap.Clear();
 
-            RegisterNumericFlags();
+            RegisterNumericFlags(slotData);
             RegisterStringFlags();
 
             Plugin.Log.LogInfo($"[LocationFlagMap] Loaded {NumericFlagMap.Count} numeric flags, {StringFlagMap.Count} string flags");
@@ -28,14 +45,13 @@ namespace LaMulana2Archipelago
         // USER-FACING REGISTRATION API
         // ----------------------------
 
-        // This is now seed-driven. No hardcoded entries here.
-        private static void RegisterNumericFlags()
+        private static void RegisterNumericFlags(Dictionary<string, object> slotData)
         {
-            // NumericFlags come from seed.lm2r (rigid, correct, includes shops)
             SeedFlagMapBuilder.BuildIntoMap(
                 addNumeric: AddNumeric,
                 logInfo: Plugin.Log.LogInfo,
-                logWarn: Plugin.Log.LogWarning
+                logWarn: Plugin.Log.LogWarning,
+                slotData: slotData
             );
         }
 
@@ -90,6 +106,19 @@ namespace LaMulana2Archipelago
 
             StringFlagMap.Add(key, location);
             Plugin.Log.LogDebug($"[LocationFlagMap] String seet={sheet} name={name} → {location}");
+        }
+
+        // ----------------------------
+        // PUBLIC REGISTRATION (for subsystems like Potsanity)
+        // ----------------------------
+
+        /// <summary>
+        /// Register an additional numeric flag mapping after initial build.
+        /// Used by ItemPotPatch to add pot flag → LocationID entries.
+        /// </summary>
+        public static void RegisterNumeric(int sheet, int flag, LocationID location)
+        {
+            AddNumeric(sheet, flag, location);
         }
 
         // ----------------------------

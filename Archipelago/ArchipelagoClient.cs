@@ -3,6 +3,7 @@ using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.Packets;
+using LaMulana2Archipelago.Managers;
 using LaMulana2Archipelago.Utils;
 using System;
 using System.Collections.Generic;
@@ -163,13 +164,65 @@ namespace LaMulana2Archipelago.Archipelago
 
                 ServerData.SetupSession(success.SlotData, session.RoomState.Seed);
 
+                // Rebuild flag maps from slot_data (standalone mode) or seed.lm2r (legacy fallback).
+                LocationFlagMap.InitializeFromSlotData(success.SlotData);
+
+                // Enable standalone patches if slot_data contains full placement data.
+                bool standaloneMode = success.SlotData.ContainsKey("item_placements");
+                Patches.SetItemPatch.Enabled = standaloneMode;
+                Patches.IsHaveItemPatch.Enabled = standaloneMode;
+                Patches.GetItemNumPatch.Enabled = standaloneMode;
+                Patches.GameFlagResetsPatch.Enabled = standaloneMode;
+                Patches.EventItemGetActionPatch.Enabled = standaloneMode;
+                Patches.CostumeItemGetActionPatch.Enabled = standaloneMode;
+                Patches.ShopItemCallBackPatch.Enabled = standaloneMode;
+                Patches.ShopSetSoldOutPatch.Enabled = standaloneMode;
+                Patches.MenuSystemFlagQuePatch.Enabled = standaloneMode;
+                Patches.StatusResetPatch.Enabled = standaloneMode;
+                Patches.StatusChangeMainWeaponPatch.Enabled = standaloneMode;
+                Patches.HolyTabretPatch.Enabled = standaloneMode;
+                Patches.SeihaiGetOnHolyNumPatch.Enabled = standaloneMode;
+                Patches.SeihaiGetNowFieldPointPatch.Enabled = standaloneMode;
+                if (standaloneMode)
+                {
+                    Patches.GameFlagResetsPatch.LoadFromSlotData(ServerData);
+
+                    bool autoScan = ServerData.GetSlotBool("auto_scan_tablets", false);
+                    Patches.HolyTabretPatch.AutoScanTablets = autoScan;
+                    Plugin.Log.LogInfo($"[AP] auto_scan_tablets = {autoScan}");
+
+                    // Initialize scene randomizer for per-scene modifications
+                    SceneRandomizer.Create();
+                    SceneRandomizer.Instance.LoadFromSlotData(success.SlotData, ServerData);
+                }
+                Plugin.Log.LogInfo($"[AP] Standalone mode = {standaloneMode}");
+
                 // Apply slot-data settings to any active Harmony patches.
                 bool guardianAnkhs = ServerData.GetSlotBool("guardian_specific_ankhs");
                 Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = guardianAnkhs;
-                Plugin.Log.LogInfo($"[AP] guardian_specific_ankhs = {guardianAnkhs}");
 
-                int APChestColor = ServerData.GetSlotInt("ap_chest_color");
-                Plugin.Log.LogInfo($"[AP] ap_chest_color = {APChestColor}");
+                // Log all AP settings in one block
+                Plugin.Log.LogInfo("[AP] === Slot Settings ===");
+                Plugin.Log.LogInfo($"[AP]   starting_area       = {ServerData.GetSlotInt("starting_area")}");
+                Plugin.Log.LogInfo($"[AP]   starting_weapon     = {ServerData.GetSlotInt("starting_weapon")}");
+                Plugin.Log.LogInfo($"[AP]   starting_money      = {ServerData.GetSlotInt("starting_money", 200)}");
+                Plugin.Log.LogInfo($"[AP]   starting_weights    = {ServerData.GetSlotInt("starting_weights", 10)}");
+                Plugin.Log.LogInfo($"[AP]   random_dissonance   = {ServerData.GetSlotBool("random_dissonance", true)}");
+                Plugin.Log.LogInfo($"[AP]   required_guardians  = {ServerData.GetSlotInt("required_guardians", 5)}");
+                Plugin.Log.LogInfo($"[AP]   required_skulls     = {ServerData.GetSlotInt("required_skulls", 6)}");
+                Plugin.Log.LogInfo($"[AP]   echidna             = {ServerData.GetSlotInt("echidna", 4)}");
+                Plugin.Log.LogInfo($"[AP]   auto_scan_tablets   = {ServerData.GetSlotBool("auto_scan_tablets")}");
+                Plugin.Log.LogInfo($"[AP]   auto_place_skull    = {ServerData.GetSlotBool("auto_place_skull", true)}");
+                Plugin.Log.LogInfo($"[AP]   remove_it_statue    = {ServerData.GetSlotBool("remove_it_statue", true)}");
+                Plugin.Log.LogInfo($"[AP]   guardian_specific_ankhs = {guardianAnkhs}");
+                Plugin.Log.LogInfo($"[AP]   death_link          = {ServerData.GetSlotBool("death_link")}");
+                Plugin.Log.LogInfo($"[AP]   item_chest_color    = {ServerData.GetSlotInt("item_chest_color")}");
+                Plugin.Log.LogInfo($"[AP]   filler_chest_color  = {ServerData.GetSlotInt("filler_chest_color", 4)}");
+                Plugin.Log.LogInfo($"[AP]   ap_chest_color      = {ServerData.GetSlotInt("ap_chest_color", 1)}");
+                Plugin.Log.LogInfo("[AP] === End Settings ===");
+
+                // Initialize Potsanity (pot_flag_map from slot_data)
+                Patches.ItemPotPatch.Initialize();
 
                 bool deathLinkEnabled = ServerData.GetSlotBool("death_link", false);
 
@@ -213,8 +266,14 @@ namespace LaMulana2Archipelago.Archipelago
             session?.Socket.Disconnect();
             session = null;
             Authenticated = false;
+            attemptingConnection = false;
             GoalReported = false;
             ItemQueue.Clear();
+
+            // Ensure next Connect() re-requests slot_data. Without this, slotData
+            // from the previous session is still non-null, so NeedSlotData=false,
+            // and the new server returns empty SlotData → NRE in HandleConnectResult.
+            ServerData?.ClearSessionCache();
         }
 
         // =============================
@@ -291,6 +350,7 @@ namespace LaMulana2Archipelago.Archipelago
                         {
                             ScoutedLocationsCache[kvp.Key] = new ScoutedItem
                             {
+                                ItemId = kvp.Value.ItemId,
                                 ItemName = kvp.Value.ItemName,
                                 PlayerName = session.Players.GetPlayerName(kvp.Value.Player),
                                 IsOwnItem = kvp.Value.Player == session.ConnectionInfo.Slot
@@ -337,6 +397,7 @@ namespace LaMulana2Archipelago.Archipelago
         // =============================
         public class ScoutedItem
         {
+            public long ItemId;
             public string ItemName;
             public string PlayerName;
             public bool IsOwnItem;
@@ -412,6 +473,7 @@ namespace LaMulana2Archipelago.Archipelago
         {
             ItemQueue.Clear();
             GoalReported = false;
+            Patches.ItemPotPatch.Reset();
         }
     }
 }
