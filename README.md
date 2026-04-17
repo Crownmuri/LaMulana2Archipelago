@@ -16,6 +16,7 @@ Current version no longer depends on the original patch and can be run by simply
 5. Launch La-Mulana 2. On startup it will load some sprites from certain areas. 
 6. On the title screen, **LaMulana2Archipelago** will automatically attempt to connect to `localhost:38281` with slotname `Lumisa` first. If the connection fails, you can manually fill in the server, slotname and password in the GUI on the title screen.
 7. Once you're connected you're good to go!
+8. [Optionally] [Connect the La-Mulana 2 PopTracker pack for auto-tracking](https://github.com/Crownmuri/LaMulana2AP-PopTracker)
 
 ## Packaged dependencies
 - BepInEx **5** [last built with **5.4.23.4**] (https://github.com/BepInEx/BepInEx/releases)
