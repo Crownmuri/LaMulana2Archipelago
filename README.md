@@ -40,10 +40,12 @@ Current version no longer depends on the original patch and can be run by simply
 - **DeathLink.** It will trigger the mantra instant death sequence upon receiving a death from AP.  
 - **Release upon reaching credits.** If the server is set to release items upon game clear, the flag is set after the sequence at the Cliff transitioning into the credits.
 - [WIP] Potsanity: Currently the first 30 locations (from Village of Departure to Roots of Yggdrasil) are mapped and have their contents shuffled if enabled in the YAML.
-- [UNTESTED] Backwards compatibility if there's a `seed.lm2r` present from the original randomizer 
+- Offline Mode: If you wish to just play offline, you can either write seeds through AP or the original randomizer and load the `seed.lm2r` from the title screen.
+  - Filepath should be `La-Mulana 2\LaMulana2Randomizer\Seed\seed.lm2r`
+  - If you play with an AP generated seed, you can turn on the toggles for AP based filler rewards and restricting ankhs to be guardian specific.
 
 ## Issues
-- Minor: Currently, ShopDialogPatch only works if AP is connected before the L2ShopDatabase is constructed. Otherwise, NPCs will still just say the vanilla item on purchase prompt. 
+- Minor: Only if AP is connected before L2ShopDatabase is constructed, it can patch in the NPC dialog confirmation text. But otherwise you can still rely on the item labels in the shop. 
 - Minor: Some text does not wrap nicely after patching in AP label names.
 - Minor: Death Link sometimes not sending out to other players
 - Fake items are currently overwritten as the new filler, so there are no actual traps at this point in development.
