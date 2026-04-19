@@ -129,10 +129,6 @@ La-Mulana 2:
   random_soul_gate_value: false
   full_random_entrances: false
   # Prevent entrance randomization from pairing exits within the same area.
-  # When enabled, exits from the same area will not be paired together.
-  # Increases the odds of ER seeds succeeding due to better early sphere clusters.
-  # Disabling can be an option if you wish to maintain the original randomizer behaviour.
-  # Could work in multiworld where other player spheres will open up the seed. 
   prevent_area_loops: false
   
   # --- Quality of Life ---
@@ -174,6 +170,18 @@ La-Mulana 2:
   # 3: pink
   # 4: yellow
   ap_chest_color: 1
+  
+  # Potsanity (WIP)
+  # Shuffles all item pots (300) into the pool
+  # Currently adds the first 30 pots from Starting Area until Roots of Yggdrasil to the pool.
+  potsanity: 0
+
+  # Output seed.lm2r file
+  # For offline solo runs and backwards compatibility with the original randomizer.
+  # If running the AP bepinex mod, you can manually turn on GuardianSpecificAnkhJewels and AP filler rewards from the title menu.
+  # Note: If potsanity is enabled, write_seed_file will not work.
+  write_seed_file: 0
+
 
   # --- Archipelago Standard ---
   death_link: false
