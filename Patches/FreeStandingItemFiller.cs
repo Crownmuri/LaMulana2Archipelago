@@ -19,6 +19,11 @@ namespace LaMulana2Archipelago.Patches
         // We run BEFORE the original Update and skip it only for filler
         static bool Prefix(object __instance)
         {
+            // Offline + "AP filler off" → let LM2's vanilla FakeItem behavior run
+            // (evil tune, disappears) so legacy L2Rando seeds play as intended.
+            if (!LaMulana2Archipelago.Archipelago.ArchipelagoClient.ApFillerActive)
+                return true;
+
             try
             {
                 if (__instance == null) return true;

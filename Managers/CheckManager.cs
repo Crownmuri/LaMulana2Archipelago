@@ -78,6 +78,39 @@ namespace LaMulana2Archipelago.Managers
             ReportLocation(location);
         }
 
+        /// <summary>
+        /// Silent shop auto-collect: send the AP location check without dialog
+        /// priming or local item grants. The AP server's echo grants the item.
+        /// </summary>
+        public static void NotifyApLocationId(long apLocationId)
+        {
+            if (!gameplayReady)
+            {
+                Plugin.Log.LogDebug("[CHECK] Ignored shop auto-collect outside gameplay: AP " + apLocationId);
+                return;
+            }
+
+            if (reportedLocations.Contains(apLocationId))
+                return;
+
+            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
+                return;
+
+            var client = ArchipelagoClientProvider.Client;
+            if (client == null) return;
+
+            // Already-checked on the server: dedupe locally and bail.
+            if (ArchipelagoClient.ServerData.CheckedLocations.Contains(apLocationId))
+            {
+                reportedLocations.Add(apLocationId);
+                return;
+            }
+
+            reportedLocations.Add(apLocationId);
+            Plugin.Log.LogInfo("[CHECK] Reporting location: AP " + apLocationId + " (shop auto-collect)");
+            client.SendLocationCheck(apLocationId);
+        }
+
         // =====================================================================
         // Core report
         // =====================================================================
@@ -92,7 +125,7 @@ namespace LaMulana2Archipelago.Managers
                 return;
             }
 
-            if (!ArchipelagoClient.Authenticated)
+            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
             {
                 Plugin.Log.LogDebug("[CHECK] Not connected, skipping report");
                 return;

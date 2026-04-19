@@ -18,6 +18,41 @@ namespace LaMulana2Archipelago.Archipelago
         private const string Game = "La-Mulana 2";
 
         public static bool Authenticated;
+
+        /// <summary>
+        /// True while the mod is running a solo seed.lm2r locally with no
+        /// Archipelago session. Standalone patches are enabled, but all
+        /// networking (location checks, item queue, goal, deathlink) stays
+        /// dormant since Authenticated remains false.
+        /// </summary>
+        public static bool OfflineMode;
+
+        /// <summary>
+        /// Offline-only preference: when true, the seed was produced by the
+        /// AP-aware randomizer and its filler intercepts (variable Coin/Weight
+        /// amounts per ChestWeight/FakeItem ID) should run. When false, the
+        /// seed is treated as a vanilla L2Rando seed — filler intercepts are
+        /// skipped and LM2's original filler behavior applies (ChestWeight
+        /// always 1 weight, FakeItem plays the evil tune, etc.).
+        /// Ignored while connected to AP (filler is always on in AP mode).
+        /// </summary>
+        public static bool OfflineApFillerEnabled = false;
+
+        /// <summary>
+        /// Offline-only preference: forces guardian-specific Ankh Jewels.
+        /// Applied into slot_data at ActivateOffline time so
+        /// <see cref="Patches.GuardianSpecificAnkhPatch"/> picks it up.
+        /// Ignored while connected to AP (that uses the server's slot value).
+        /// </summary>
+        public static bool OfflineGuardianAnkhsEnabled = false;
+
+        /// <summary>
+        /// True when AP-style filler intercepts should replace the vanilla
+        /// LM2 filler behavior. Always on for AP-connected play; in offline
+        /// mode it follows <see cref="OfflineApFillerEnabled"/>.
+        /// </summary>
+        public static bool ApFillerActive => !OfflineMode || OfflineApFillerEnabled;
+
         private bool attemptingConnection;
 
         public static ArchipelagoData ServerData = new();
@@ -100,9 +135,145 @@ namespace LaMulana2Archipelago.Archipelago
         /// call to connect to an Archipelago session. Connection info should already be set up on ServerData
         /// </summary>
 
+        /// <summary>
+        /// Activate offline solo-seed mode: parse seed.lm2r into a slot_data-shaped
+        /// dictionary and run the same standalone-mode activation the AP connect
+        /// path runs — but without opening a network session.
+        /// </summary>
+        public bool ActivateOffline()
+        {
+            if (Authenticated || OfflineMode) return false;
+
+            if (!SeedToSlotData.TryLoad(out var slotData, out string error))
+            {
+                Plugin.Log.LogError("[AP] Offline activation failed: " + error);
+                return false;
+            }
+
+            // Offline toggles override whatever the seed baked in.
+            slotData["guardian_specific_ankhs"] = OfflineGuardianAnkhsEnabled ? 1 : 0;
+
+            ServerData.SetupSession(slotData, "offline");
+            ApplyStandaloneFromSlotData(slotData);
+
+            OfflineMode = true;
+            Plugin.Log.LogInfo("[AP] Offline mode activated from seed.lm2r");
+            return true;
+        }
+
+        /// <summary>
+        /// Turn offline mode back off. Only safe from the title screen — the
+        /// scene randomizer's cellData rewrites are one-way once gameplay
+        /// starts, but the title UI is the only place the toggle is exposed.
+        /// </summary>
+        public bool DeactivateOffline()
+        {
+            if (!OfflineMode || Authenticated) return false;
+
+            Patches.SetItemPatch.Enabled = false;
+            Patches.IsHaveItemPatch.Enabled = false;
+            Patches.GetItemNumPatch.Enabled = false;
+            Patches.GameFlagResetsPatch.Enabled = false;
+            Patches.EventItemGetActionPatch.Enabled = false;
+            Patches.CostumeItemGetActionPatch.Enabled = false;
+            Patches.ShopItemCallBackPatch.Enabled = false;
+            Patches.ShopSetSoldOutPatch.Enabled = false;
+            Patches.MenuSystemFlagQuePatch.Enabled = false;
+            Patches.StatusResetPatch.Enabled = false;
+            Patches.StatusChangeMainWeaponPatch.Enabled = false;
+            Patches.HolyTabretPatch.Enabled = false;
+            Patches.SeihaiGetOnHolyNumPatch.Enabled = false;
+            Patches.SeihaiGetNowFieldPointPatch.Enabled = false;
+
+            Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = false;
+
+            if (SceneRandomizer.Instance != null)
+                UnityEngine.Object.Destroy(SceneRandomizer.Instance.gameObject);
+
+            Patches.ItemPotPatch.Reset();
+            CheckManager.Reset();
+            ItemQueue.Clear();
+            ServerData?.ClearSessionCache();
+
+            // Rebuild the default flag map from legacy seed.lm2r or defaults
+            // so the mod returns to its pre-activation state.
+            LocationFlagMap.InitializeFromSeed();
+
+            OfflineMode = false;
+            Plugin.Log.LogInfo("[AP] Offline mode deactivated");
+            return true;
+        }
+
+        /// <summary>
+        /// Shared activation path for both AP connect (slot_data from the server)
+        /// and offline solo seeds (slot_data synthesized from seed.lm2r).
+        /// Assumes ServerData.SetupSession has already been called.
+        /// </summary>
+        private static void ApplyStandaloneFromSlotData(Dictionary<string, object> slotData)
+        {
+            // Rebuild flag maps from slot_data (standalone mode) or seed.lm2r (legacy fallback).
+            LocationFlagMap.InitializeFromSlotData(slotData);
+
+            // Enable standalone patches if slot_data contains full placement data.
+            bool standaloneMode = slotData.ContainsKey("item_placements");
+            Patches.SetItemPatch.Enabled = standaloneMode;
+            Patches.IsHaveItemPatch.Enabled = standaloneMode;
+            Patches.GetItemNumPatch.Enabled = standaloneMode;
+            Patches.GameFlagResetsPatch.Enabled = standaloneMode;
+            Patches.EventItemGetActionPatch.Enabled = standaloneMode;
+            Patches.CostumeItemGetActionPatch.Enabled = standaloneMode;
+            Patches.ShopItemCallBackPatch.Enabled = standaloneMode;
+            Patches.ShopSetSoldOutPatch.Enabled = standaloneMode;
+            Patches.MenuSystemFlagQuePatch.Enabled = standaloneMode;
+            Patches.StatusResetPatch.Enabled = standaloneMode;
+            Patches.StatusChangeMainWeaponPatch.Enabled = standaloneMode;
+            Patches.HolyTabretPatch.Enabled = standaloneMode;
+            Patches.SeihaiGetOnHolyNumPatch.Enabled = standaloneMode;
+            Patches.SeihaiGetNowFieldPointPatch.Enabled = standaloneMode;
+
+            if (standaloneMode)
+            {
+                Patches.GameFlagResetsPatch.LoadFromSlotData(ServerData);
+
+                bool autoScan = ServerData.GetSlotBool("auto_scan_tablets", false);
+                Patches.HolyTabretPatch.AutoScanTablets = autoScan;
+                Plugin.Log.LogInfo($"[AP] auto_scan_tablets = {autoScan}");
+
+                SceneRandomizer.Create();
+                SceneRandomizer.Instance.LoadFromSlotData(slotData, ServerData);
+            }
+            Plugin.Log.LogInfo($"[AP] Standalone mode = {standaloneMode}");
+
+            bool guardianAnkhs = ServerData.GetSlotBool("guardian_specific_ankhs");
+            Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = guardianAnkhs;
+
+            Plugin.Log.LogInfo("[AP] === Slot Settings ===");
+            Plugin.Log.LogInfo($"[AP]   starting_area       = {ServerData.GetSlotInt("starting_area")}");
+            Plugin.Log.LogInfo($"[AP]   starting_weapon     = {ServerData.GetSlotInt("starting_weapon")}");
+            Plugin.Log.LogInfo($"[AP]   starting_money      = {ServerData.GetSlotInt("starting_money", 200)}");
+            Plugin.Log.LogInfo($"[AP]   starting_weights    = {ServerData.GetSlotInt("starting_weights", 10)}");
+            Plugin.Log.LogInfo($"[AP]   random_dissonance   = {ServerData.GetSlotBool("random_dissonance", true)}");
+            Plugin.Log.LogInfo($"[AP]   required_guardians  = {ServerData.GetSlotInt("required_guardians", 5)}");
+            Plugin.Log.LogInfo($"[AP]   required_skulls     = {ServerData.GetSlotInt("required_skulls", 6)}");
+            Plugin.Log.LogInfo($"[AP]   echidna             = {ServerData.GetSlotInt("echidna", 4)}");
+            Plugin.Log.LogInfo($"[AP]   auto_scan_tablets   = {ServerData.GetSlotBool("auto_scan_tablets")}");
+            Plugin.Log.LogInfo($"[AP]   auto_place_skull    = {ServerData.GetSlotBool("auto_place_skull", true)}");
+            Plugin.Log.LogInfo($"[AP]   remove_it_statue    = {ServerData.GetSlotBool("remove_it_statue", true)}");
+            Plugin.Log.LogInfo($"[AP]   guardian_specific_ankhs = {guardianAnkhs}");
+            Plugin.Log.LogInfo($"[AP]   death_link          = {ServerData.GetSlotBool("death_link")}");
+            Plugin.Log.LogInfo($"[AP]   item_chest_color    = {ServerData.GetSlotInt("item_chest_color")}");
+            Plugin.Log.LogInfo($"[AP]   filler_chest_color  = {ServerData.GetSlotInt("filler_chest_color", 4)}");
+            Plugin.Log.LogInfo($"[AP]   ap_chest_color      = {ServerData.GetSlotInt("ap_chest_color", 1)}");
+            Plugin.Log.LogInfo("[AP] === End Settings ===");
+
+            // Initialize Potsanity (pot_flag_map from slot_data); offline seeds
+            // set potsanity=0 so this is a no-op in that path.
+            Patches.ItemPotPatch.Initialize();
+        }
+
         public void Connect()
         {
-            if (Authenticated || attemptingConnection) return;
+            if (Authenticated || attemptingConnection || OfflineMode) return;
 
             try
             {
@@ -164,65 +335,7 @@ namespace LaMulana2Archipelago.Archipelago
 
                 ServerData.SetupSession(success.SlotData, session.RoomState.Seed);
 
-                // Rebuild flag maps from slot_data (standalone mode) or seed.lm2r (legacy fallback).
-                LocationFlagMap.InitializeFromSlotData(success.SlotData);
-
-                // Enable standalone patches if slot_data contains full placement data.
-                bool standaloneMode = success.SlotData.ContainsKey("item_placements");
-                Patches.SetItemPatch.Enabled = standaloneMode;
-                Patches.IsHaveItemPatch.Enabled = standaloneMode;
-                Patches.GetItemNumPatch.Enabled = standaloneMode;
-                Patches.GameFlagResetsPatch.Enabled = standaloneMode;
-                Patches.EventItemGetActionPatch.Enabled = standaloneMode;
-                Patches.CostumeItemGetActionPatch.Enabled = standaloneMode;
-                Patches.ShopItemCallBackPatch.Enabled = standaloneMode;
-                Patches.ShopSetSoldOutPatch.Enabled = standaloneMode;
-                Patches.MenuSystemFlagQuePatch.Enabled = standaloneMode;
-                Patches.StatusResetPatch.Enabled = standaloneMode;
-                Patches.StatusChangeMainWeaponPatch.Enabled = standaloneMode;
-                Patches.HolyTabretPatch.Enabled = standaloneMode;
-                Patches.SeihaiGetOnHolyNumPatch.Enabled = standaloneMode;
-                Patches.SeihaiGetNowFieldPointPatch.Enabled = standaloneMode;
-                if (standaloneMode)
-                {
-                    Patches.GameFlagResetsPatch.LoadFromSlotData(ServerData);
-
-                    bool autoScan = ServerData.GetSlotBool("auto_scan_tablets", false);
-                    Patches.HolyTabretPatch.AutoScanTablets = autoScan;
-                    Plugin.Log.LogInfo($"[AP] auto_scan_tablets = {autoScan}");
-
-                    // Initialize scene randomizer for per-scene modifications
-                    SceneRandomizer.Create();
-                    SceneRandomizer.Instance.LoadFromSlotData(success.SlotData, ServerData);
-                }
-                Plugin.Log.LogInfo($"[AP] Standalone mode = {standaloneMode}");
-
-                // Apply slot-data settings to any active Harmony patches.
-                bool guardianAnkhs = ServerData.GetSlotBool("guardian_specific_ankhs");
-                Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = guardianAnkhs;
-
-                // Log all AP settings in one block
-                Plugin.Log.LogInfo("[AP] === Slot Settings ===");
-                Plugin.Log.LogInfo($"[AP]   starting_area       = {ServerData.GetSlotInt("starting_area")}");
-                Plugin.Log.LogInfo($"[AP]   starting_weapon     = {ServerData.GetSlotInt("starting_weapon")}");
-                Plugin.Log.LogInfo($"[AP]   starting_money      = {ServerData.GetSlotInt("starting_money", 200)}");
-                Plugin.Log.LogInfo($"[AP]   starting_weights    = {ServerData.GetSlotInt("starting_weights", 10)}");
-                Plugin.Log.LogInfo($"[AP]   random_dissonance   = {ServerData.GetSlotBool("random_dissonance", true)}");
-                Plugin.Log.LogInfo($"[AP]   required_guardians  = {ServerData.GetSlotInt("required_guardians", 5)}");
-                Plugin.Log.LogInfo($"[AP]   required_skulls     = {ServerData.GetSlotInt("required_skulls", 6)}");
-                Plugin.Log.LogInfo($"[AP]   echidna             = {ServerData.GetSlotInt("echidna", 4)}");
-                Plugin.Log.LogInfo($"[AP]   auto_scan_tablets   = {ServerData.GetSlotBool("auto_scan_tablets")}");
-                Plugin.Log.LogInfo($"[AP]   auto_place_skull    = {ServerData.GetSlotBool("auto_place_skull", true)}");
-                Plugin.Log.LogInfo($"[AP]   remove_it_statue    = {ServerData.GetSlotBool("remove_it_statue", true)}");
-                Plugin.Log.LogInfo($"[AP]   guardian_specific_ankhs = {guardianAnkhs}");
-                Plugin.Log.LogInfo($"[AP]   death_link          = {ServerData.GetSlotBool("death_link")}");
-                Plugin.Log.LogInfo($"[AP]   item_chest_color    = {ServerData.GetSlotInt("item_chest_color")}");
-                Plugin.Log.LogInfo($"[AP]   filler_chest_color  = {ServerData.GetSlotInt("filler_chest_color", 4)}");
-                Plugin.Log.LogInfo($"[AP]   ap_chest_color      = {ServerData.GetSlotInt("ap_chest_color", 1)}");
-                Plugin.Log.LogInfo("[AP] === End Settings ===");
-
-                // Initialize Potsanity (pot_flag_map from slot_data)
-                Patches.ItemPotPatch.Initialize();
+                ApplyStandaloneFromSlotData(success.SlotData);
 
                 bool deathLinkEnabled = ServerData.GetSlotBool("death_link", false);
 

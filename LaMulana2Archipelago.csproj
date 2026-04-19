@@ -103,6 +103,7 @@
       -->
       <Reference Include="Assembly-CSharp">
         <HintPath>..\..\..\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
+        <Private>False</Private>
       </Reference>
       <Reference Include="TextMeshPro">
         <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\TextMeshPro.dll</HintPath>

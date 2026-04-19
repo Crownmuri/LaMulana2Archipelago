@@ -172,7 +172,8 @@ namespace LaMulana2Archipelago.Patches
             LocationID locationID = SceneRandomizer.Instance.GetLocationIDForMural(snapTarget);
 
             // --- Duplicate prevention: skip grant if already collected ---
-            if (locationID != LocationID.None && ArchipelagoClient.Authenticated)
+            if (locationID != LocationID.None &&
+                (ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode))
             {
                 long apLocationId = 430000L + (int)locationID;
                 bool alreadyCollected = ArchipelagoClient.ServerData.CheckedLocations.Contains(apLocationId)

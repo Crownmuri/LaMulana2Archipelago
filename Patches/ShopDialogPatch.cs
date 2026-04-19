@@ -16,11 +16,30 @@ namespace LaMulana2Archipelago.Patches
         // "shopId:slotIndex" → AP display name
         private static readonly Dictionary<string, string> _slotDisplayNames = new Dictionary<string, string>();
 
+        // "shopId:slotIndex" → AP location id (used for shop-entry auto-collect)
+        private static readonly Dictionary<string, long> _slotApLocationIds = new Dictionary<string, long>();
+
+        // Ownworld refill items that auto-check the shop location on shop entry.
+        // See Archipelago/worlds/lamulana2/ids.py (ItemID 182-190).
+        private static readonly HashSet<string> _autoCollectItemNames = new HashSet<string>
+        {
+            "Shuriken Ammo",
+            "Rolling Shuriken Ammo",
+            "Earth Spear Ammo",
+            "Flare Ammo",
+            "Bomb Ammo",
+            "Chakram Ammo",
+            "Caltrops Ammo",
+            "Pistol Ammo",
+            "Weights",
+        };
+
         private class ShopSlotEntry
         {
             public int PageId;
             public ShopCell Cell;
             public string DisplayName;
+            public long ApLocationId;
         }
 
         // ── Constructor: cache instance, apply if already connected ──────────
@@ -46,6 +65,7 @@ namespace LaMulana2Archipelago.Patches
             }
             // Clear the old (empty) data
             _slotDisplayNames.Clear();
+            _slotApLocationIds.Clear();
 
             // Re-run the logic now that the ScoutedLocationsCache is full
             Apply(_cachedInstance);
@@ -58,6 +78,7 @@ namespace LaMulana2Archipelago.Patches
         private static void Apply(L2ShopDataBase instance)
         {
             _slotDisplayNames.Clear();
+            _slotApLocationIds.Clear();
 
             var client = ArchipelagoClientProvider.Client;
             if (client == null) return;
@@ -70,6 +91,9 @@ namespace LaMulana2Archipelago.Patches
                 string apText = GetApItemText(client, kvp.Value);
                 if (apText == null) continue;
 
+                long? apLocationId = client.GetLocationIdByName(kvp.Value);
+                if (apLocationId == null) continue;
+
                 int shopId = kvp.Key.ShopId;
                 if (!byShop.ContainsKey(shopId))
                     byShop[shopId] = new List<ShopSlotEntry>();
@@ -78,7 +102,8 @@ namespace LaMulana2Archipelago.Patches
                 {
                     PageId = kvp.Key.PageId,
                     Cell = kvp.Key,
-                    DisplayName = apText
+                    DisplayName = apText,
+                    ApLocationId = apLocationId.Value,
                 });
             }
 
@@ -106,7 +131,9 @@ namespace LaMulana2Archipelago.Patches
                     }
 
                     // Cache for item listing UI patch.
-                    _slotDisplayNames[kvp.Key + ":" + slot] = entry.DisplayName;
+                    string cacheKey = kvp.Key + ":" + slot;
+                    _slotDisplayNames[cacheKey] = entry.DisplayName;
+                    _slotApLocationIds[cacheKey] = entry.ApLocationId;
                 }
             }
 
@@ -145,6 +172,14 @@ namespace LaMulana2Archipelago.Patches
 
             itemNames[slot].text = apName;
             Plugin.Log.LogInfo("[ShopPatch] Slot " + slot + " (shopId=" + shopId + ") name -> \"" + apName + "\"");
+
+            // Auto-collect ownworld refill items the moment the shop UI shows them.
+            if (_autoCollectItemNames.Contains(apName))
+            {
+                long apLocationId;
+                if (_slotApLocationIds.TryGetValue(cacheKey, out apLocationId))
+                    CheckManager.NotifyApLocationId(apLocationId);
+            }
         }
 
         // ── Helper ───────────────────────────────────────────────────────────

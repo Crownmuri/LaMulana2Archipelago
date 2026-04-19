@@ -89,7 +89,11 @@ namespace LaMulana2Archipelago
                     yield return null;
             }
 
-            ArchipelagoClient.Connect();
+            if (ArchipelagoClient.OfflineMode)
+                ArchipelagoClient.ActivateOffline();
+            else
+                ArchipelagoClient.Connect();
+
             _bootstrapFinished = true;
         }
 
@@ -320,6 +324,22 @@ namespace LaMulana2Archipelago
                     GUI.color = oldColor;
                 }
             }
+            else if (ArchipelagoClient.OfflineMode)
+            {
+                GUI.Label(new Rect(150, 522, 400, 20), "Status: Offline Mode (seed.lm2r)", guiStyle);
+
+                DrawOfflineToggles();
+
+                Rect offlineRect = new Rect(960 - 16 - 160, 510, 160, 20);
+                Color oldColor = GUI.color;
+                GUI.color = Color.green;
+                if (GUI.Button(offlineRect, "Loaded seed.lm2r (offline)"))
+                {
+                    Log.LogInfo("[AP] Offline mode toggle OFF requested");
+                    ArchipelagoClient.DeactivateOffline();
+                }
+                GUI.color = oldColor;
+            }
             else
             {
                 GUI.Label(new Rect(150, 522, 400, 20), "Status: Disconnected", guiStyle); // APDisplayInfo + " Status: Disconnected"
@@ -345,9 +365,65 @@ namespace LaMulana2Archipelago
                     Log.LogInfo("[AP] Manual connect requested");
                     ArchipelagoClient.Connect();
                 }
+
+                // Offline mode toggle — activates immediately from seed.lm2r so
+                // the user gets fast failure feedback if the file is missing.
+                Rect offlineRect = new Rect(960 - 16 - 160, 510, 160, 20);
+                Color oldColor = GUI.color;
+                GUI.color = Color.red;
+                if (GUI.Button(offlineRect, "Load seed.lm2r (offline)"))
+                {
+                    Log.LogInfo("[AP] Offline mode requested");
+                    ArchipelagoClient.ActivateOffline();
+                }
+                GUI.color = oldColor;
             }
 
             GUI.matrix = prevMatrix;
+        }
+
+        /// <summary>
+        /// Two offline-mode preference toggles rendered above the Load seed.lm2r
+        /// button on the right side of the title screen. Visible both pre- and
+        /// post-activation; post-activation flips sync live via
+        /// <see cref="Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled"/>
+        /// (which triggers its own scene refresh) and via <see cref="ArchipelagoClient.ApFillerActive"/>.
+        /// </summary>
+        private static void DrawOfflineToggles()
+        {
+            // Only visible once the player has clicked "Load seed.lm2r".
+            if (!ArchipelagoClient.OfflineMode)
+                return;
+
+            Color oldColor = GUI.color;
+
+            Rect apFillerRect = new Rect(960 - 16 - 160, 470, 160, 20);
+            bool apFillerOn = ArchipelagoClient.OfflineApFillerEnabled;
+            GUI.color = apFillerOn ? Color.green : Color.red;
+            string apFillerLabel = apFillerOn ? "AP Filler: ON" : "AP Filler: OFF";
+            if (GUI.Button(apFillerRect, apFillerLabel))
+            {
+                ArchipelagoClient.OfflineApFillerEnabled = !apFillerOn;
+                Log.LogInfo($"[AP] OfflineApFillerEnabled -> {ArchipelagoClient.OfflineApFillerEnabled}");
+            }
+
+            Rect ankhRect = new Rect(960 - 16 - 160, 490, 160, 20);
+            bool ankhOn = ArchipelagoClient.OfflineGuardianAnkhsEnabled;
+            GUI.color = ankhOn ? Color.green : Color.red;
+            string ankhLabel = ankhOn ? "Guardian Ankhs: ON" : "Guardian Ankhs: OFF";
+            if (GUI.Button(ankhRect, ankhLabel))
+            {
+                ArchipelagoClient.OfflineGuardianAnkhsEnabled = !ankhOn;
+                Log.LogInfo($"[AP] OfflineGuardianAnkhsEnabled -> {ArchipelagoClient.OfflineGuardianAnkhsEnabled}");
+
+                // If offline mode is already live, mirror the preference into
+                // the patch flag so scene Ankhs refresh immediately.
+                if (ArchipelagoClient.OfflineMode)
+                    Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled =
+                        ArchipelagoClient.OfflineGuardianAnkhsEnabled;
+            }
+
+            GUI.color = oldColor;
         }
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -358,7 +434,8 @@ namespace LaMulana2Archipelago
             // Keep tracing (useful forever, cheap)
             Log.LogInfo($"[Scene] Loaded '{scene.name}' (buildIndex={scene.buildIndex}) mode={mode}");
 
-            if (ArchipelagoClient == null || !ArchipelagoClient.Authenticated)
+            if (ArchipelagoClient == null ||
+                (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode))
                 return;
 
             // Exact trigger: credits roll

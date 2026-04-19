@@ -20,6 +20,11 @@ namespace LaMulana2Archipelago.Patches
             var item = __instance.itemObj.GetComponent<AbstractItemBase>();
             if (item == null) return true;
 
+            // Offline + "AP filler off" → let LM2 handle ChestWeight normally
+            // (always drops 1 weight) so legacy L2Rando seeds play as intended.
+            if (!LaMulana2Archipelago.Archipelago.ArchipelagoClient.ApFillerActive)
+                return true;
+
             // 1. ONLY intercept L2Rando filler chests
             bool isFiller = item.itemLabel.StartsWith("Coin") || item.itemLabel.StartsWith("Weight");
             if (!isFiller) return true; // Let vanilla/other mods handle real items!

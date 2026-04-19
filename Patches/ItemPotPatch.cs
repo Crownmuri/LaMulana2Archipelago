@@ -253,18 +253,20 @@ namespace LaMulana2Archipelago.Patches
             spawnedItem.scanItem = false;
 
             string internalLabel = "AP Item";
+            ItemID? ownItemId = null;
+            ItemInfo ownItemInfo = null;
             if (scouted != null && scouted.IsOwnItem)
             {
                 // Resolve game ItemID from the AP item id (420000-based).
                 // Pot locations are NOT in SceneRandomizer's locationToItemMap,
                 // so we derive the ItemID directly from the scouted AP data.
-                var itemId = (ItemID)(int)(scouted.ItemId - 420000);
-                var info = ItemDB.GetItemInfo(itemId);
+                ownItemId = (ItemID)(int)(scouted.ItemId - 420000);
+                ownItemInfo = ItemDB.GetItemInfo(ownItemId.Value);
                 // Use BoxName (valid vanilla name) for the label — ShopName
                 // variants like "Map7" or "Sacred Orb0" crash the vanilla
                 // dialog system which runs in AP mode.
-                if (info != null && !string.IsNullOrEmpty(info.BoxName))
-                    internalLabel = info.BoxName;
+                if (ownItemInfo != null && !string.IsNullOrEmpty(ownItemInfo.BoxName))
+                    internalLabel = ownItemInfo.BoxName;
             }
 
             spawnedItem.itemLabel = internalLabel;
@@ -281,10 +283,20 @@ namespace LaMulana2Archipelago.Patches
                 }
             };
 
-            spawnedItem.itemGetFlags = new L2FlagBoxEnd[]
+            // Build itemGetFlags: item-specific flags first (Sacred Orb count,
+            // Crystal Skull count, Ankh score, per-item collected flag, etc.),
+            // then the pot flag last so the AP location check fires via
+            // AddFlagPatch → CheckManager once everything is granted.
+            // Mirrors what chests do via ChangeChestItemFlags → CreateGetFlags.
+            var getFlags = new List<L2FlagBoxEnd>();
+            if (ownItemId.HasValue && ownItemInfo != null && Managers.SceneRandomizer.Instance != null)
             {
-                new L2FlagBoxEnd { seet_no1 = seetNo, flag_no1 = potFlagNo, calcu = CALCU.EQR, data = 1 }
-            };
+                var itemFlags = Managers.SceneRandomizer.Instance.CreateGetFlags(ownItemId.Value, ownItemInfo);
+                if (itemFlags != null)
+                    getFlags.AddRange(itemFlags);
+            }
+            getFlags.Add(new L2FlagBoxEnd { seet_no1 = seetNo, flag_no1 = potFlagNo, calcu = CALCU.EQR, data = 1 });
+            spawnedItem.itemGetFlags = getFlags.ToArray();
 
             // Pass internalLabel to properly resolve the sprite
             SetItemSprite(spawned, scouted, internalLabel);
