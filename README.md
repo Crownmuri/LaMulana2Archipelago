@@ -20,9 +20,9 @@ Current version no longer depends on the original patch and can be run by simply
 
 ## Packaged dependencies
 - BepInEx **5** [last built with **5.4.23.4**] (https://github.com/BepInEx/BepInEx/releases)
-- Archipelago.MultiClient.Net.dll
-- Newtonsoft.Json.dll
-- websocket-sharp.dll
+- [Archipelago.MultiClient.Net.dll](https://github.com/ArchipelagoMW/Archipelago.MultiClient.Net)
+- [Newtonsoft.Json.dll](https://github.com/jamesnk/newtonsoft.json)
+- [c-wspp.dll](https://github.com/black-sliver/c-wspp-websocket-sharp/releases/tag/v0.4.1)
 - ap-icon.png (edited original asset) 
 
 ## Features
