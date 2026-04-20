@@ -1,4 +1,5 @@
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using LaMulana2Archipelago.Archipelago;
@@ -16,7 +17,7 @@ namespace LaMulana2Archipelago
     {
         public const string PluginGUID = "com.Crownmuri.Archipelago.LaMulana2";
         public const string PluginName = "LaMulana2Archipelago";
-        public const string PluginVersion = "0.7.0.0";
+        public const string PluginVersion = "0.7.1.0";
 
         public const string ModDisplayInfo = $"{PluginName} v{PluginVersion}";
         private const string APDisplayInfo = $"Archipelago v{ArchipelagoClient.APVersion}";
@@ -27,6 +28,12 @@ namespace LaMulana2Archipelago
 
         internal static ManualLogSource Log;
         internal static ArchipelagoClient ArchipelagoClient;
+
+        // Persisted connection fields — written on successful Connect click,
+        // reloaded into the GUI on the next launch. Password is intentionally
+        // not persisted (kept in memory only).
+        private static ConfigEntry<string> _cfgHost;
+        private static ConfigEntry<string> _cfgSlotName;
 
         private Harmony _harmony;
         private L2System _cachedSys;
@@ -89,10 +96,10 @@ namespace LaMulana2Archipelago
                     yield return null;
             }
 
-            if (ArchipelagoClient.OfflineMode)
-                ArchipelagoClient.ActivateOffline();
-            else
-                ArchipelagoClient.Connect();
+            // Connection is player-initiated from the title screen — no auto-connect
+            // on startup. This avoids a spurious localhost:38281 attempt (and its
+            // noisy retry logs) for players who are launching into offline play or
+            // who host their server somewhere other than the default.
 
             _bootstrapFinished = true;
         }
@@ -102,7 +109,21 @@ namespace LaMulana2Archipelago
             Log = Logger;
             Log.LogInfo($"{ModDisplayInfo} initializing");
 
+            // net35's default SecurityProtocol is Ssl3|Tls (TLS 1.0). Modern wss://
+            // servers (Let's Encrypt, Cloudflare, nginx defaults) require TLS 1.2+.
+            // SecurityProtocolType.Tls12 doesn't exist as a named member in net35,
+            // so the numeric value 3072 is used directly.
+            try { System.Net.ServicePointManager.SecurityProtocol = (System.Net.SecurityProtocolType)3072; }
+            catch (System.Exception e) { Log.LogWarning($"[AP] Could not enable TLS 1.2: {e.Message}"); }
+
+            _cfgHost = Config.Bind("Connection", "Host", "localhost:38281",
+                "Archipelago server host and port. Remembered between sessions.");
+            _cfgSlotName = Config.Bind("Connection", "SlotName", "Lumisa",
+                "Slot (player) name used when connecting. Remembered between sessions.");
+
             ArchipelagoClient = new ArchipelagoClient();
+            ArchipelagoClient.ServerData.Uri = _cfgHost.Value;
+            ArchipelagoClient.ServerData.SlotName = _cfgSlotName.Value;
             ArchipelagoClientProvider.Client = ArchipelagoClient;
 
             ArchipelagoConsole.Awake();
@@ -362,6 +383,11 @@ namespace LaMulana2Archipelago
                 if (GUI.Button(connectRect, "Connect") &&
                     !string.IsNullOrEmpty(ArchipelagoClient.ServerData.SlotName))
                 {
+                    // Persist host + slot name so the next launch pre-fills them.
+                    // (Password is deliberately not persisted.)
+                    _cfgHost.Value = ArchipelagoClient.ServerData.Uri ?? "";
+                    _cfgSlotName.Value = ArchipelagoClient.ServerData.SlotName ?? "";
+
                     Log.LogInfo("[AP] Manual connect requested");
                     ArchipelagoClient.Connect();
                 }
