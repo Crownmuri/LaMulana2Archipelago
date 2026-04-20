@@ -19,13 +19,24 @@ namespace LaMulana2Archipelago.Archipelago
         }
 
         /// <summary>
-        /// URI normalized for WebSocket connection.
+        /// URI prepared for handoff to MultiClient.Net's CreateSession.
+        /// Strips accidental http(s):// prefixes; otherwise passes the user's
+        /// input through. If the user did not specify a scheme, the AP library
+        /// will negotiate ws/wss automatically (its ParseUri wraps schemeless
+        /// input in the sentinel "unspecified://" scheme that the socket layer
+        /// handles internally).
         /// </summary>
         public string NormalizedUri => NormalizeUri(_uri);
 
         /// <summary>
-        /// Ensures the URI has the correct WebSocket scheme.
-        /// localhost/127.0.0.1 uses unencrypted ws://, everything else uses wss://.
+        /// Strips accidental http(s):// prefixes and otherwise leaves the URI
+        /// alone. We deliberately do NOT pre-pick ws:// or wss:// here — the
+        /// previous version of this method forced wss:// onto everything
+        /// non-localhost, which broke connections to plain-ws servers
+        /// (self-hosted, Hamachi, LAN, archipelago.gg dynamic game-room ports)
+        /// with TLS handshake failures. Letting the AP library negotiate the
+        /// scheme matches the Archipelago convention used by archipelago.js
+        /// and other .NET clients (Hollow Knight, Risk of Rain 2, etc.).
         /// </summary>
         private static string NormalizeUri(string uri)
         {
@@ -34,21 +45,21 @@ namespace LaMulana2Archipelago.Archipelago
 
             uri = uri.Trim();
 
-            // Already has an explicit scheme — leave it alone.
+            // Explicit scheme — pass through untouched. Players who legitimately
+            // need wss:// (rare reverse-proxied custom setups) can opt in here.
             if (uri.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
                 uri.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
                 return uri;
 
-            // Strip accidental http/https
+            // Strip accidental http(s):// from copy-paste.
             if (uri.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
                 uri = uri.Substring(7);
             if (uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 uri = uri.Substring(8);
 
-            string host = uri.Split(':')[0].ToLowerInvariant();
-            bool isLocal = host == "localhost" || host == "127.0.0.1";
-
-            return (isLocal ? "ws://" : "wss://") + uri;
+            // No scheme — hand the bare host:port to MultiClient.Net and let
+            // its socket layer negotiate ws/wss.
+            return uri;
         }
 
         public string SlotName;
