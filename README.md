@@ -1,4 +1,4 @@
-# La-Mulana 2 Archipelago v.0.7.0.0
+# La-Mulana 2 Archipelago v.0.7.1.0
 Archipelago mod for La-Mulana 2 using BepInEx.
 Functions as a port of the original **[La-Mulana 2 Randomizer](https://github.com/Coookie93/LaMulana2Randomizer)** by **Coookie93**, with additional features for AP.
 
