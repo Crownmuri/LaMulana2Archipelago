@@ -23,7 +23,11 @@ namespace LaMulana2Archipelago.Patches
                 if ((int)kvp.Value == itemId)
                 {
                     long apLoc = 430000 + (long)kvp.Key;
-                    if (CheckManager.IsLocationReported(apLoc))
+                    // reportedLocations covers the current session; CheckedLocations
+                    // is repopulated from the server on connect, so it covers items
+                    // collected in previous sessions after a fresh launch.
+                    if (CheckManager.IsLocationReported(apLoc)
+                        || ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc))
                         return 1;
 
                     break;

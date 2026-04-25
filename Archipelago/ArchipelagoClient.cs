@@ -350,6 +350,21 @@ namespace LaMulana2Archipelago.Archipelago
                 Authenticated = true;
                 GoalReported = false;
 
+                // Populate CheckedLocations from the server's authoritative list.
+                // Needed so VirtualFlagManager can correctly identify already-collected
+                // AP placeholder items after a fresh session start (their sheet-31 flags
+                // are in-memory only and don't survive a relaunch).
+                var alreadyChecked = session.Locations.AllLocationsChecked;
+                if (alreadyChecked != null)
+                {
+                    foreach (long loc in alreadyChecked)
+                    {
+                        if (!ServerData.CheckedLocations.Contains(loc))
+                            ServerData.CheckedLocations.Add(loc);
+                    }
+                    Plugin.Log.LogInfo($"[AP] Restored {alreadyChecked.Count} checked locations from server.");
+                }
+
                 Patches.ShopDialogPatch.Reapply();
                 ScoutAllLocations();
 

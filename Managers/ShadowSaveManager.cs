@@ -97,8 +97,11 @@ namespace LaMulana2Archipelago.Managers
 
             // Restore the processed item index from the checkpoint so that
             // items already saved in this slot aren't re-granted on reconnect.
-            if (st.CheckpointIndex > 0
-                && st.CheckpointIndex > ArchipelagoClient.ServerData.Index)
+            // Always restore unconditionally (not just when checkpoint > current
+            // Index): if the player received items after the last save and then
+            // loads, ServerData.Index may be higher than CheckpointIndex and we
+            // must roll it back so the AP server re-delivers those items.
+            if (st.CheckpointIndex > 0)
             {
                 int oldIndex = ArchipelagoClient.ServerData.Index;
                 ArchipelagoClient.ServerData.Index = st.CheckpointIndex;
