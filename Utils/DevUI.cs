@@ -56,9 +56,11 @@ namespace LaMulana2Archipelago.Utils
         {
             if (oldValue == newValue) return;
 
+            string flagName = GetFlagName(sheet, flag);
+            if (ShouldFilterFlag(flagName)) return;
+
             short diff = (short)(newValue - oldValue);
             string sheetName = GetSheetName(sheet);
-            string flagName = GetFlagName(sheet, flag);
             _flagWatch.Enqueue($"[{sheet},{flag}]{sheetName}.{flagName} = {newValue} (diff:{diff})");
 
             while (_flagWatch.Count > MaxFlagWatchEntries)
@@ -70,11 +72,22 @@ namespace LaMulana2Archipelago.Utils
         /// </summary>
         public static void RecordFlagChangeByName(int sheet, string name, short newValue)
         {
+            if (ShouldFilterFlag(name)) return;
+
             string sheetName = GetSheetName(sheet);
             _flagWatch.Enqueue($"[{sheet}]{sheetName}.{name} = {newValue}");
 
             while (_flagWatch.Count > MaxFlagWatchEntries)
                 _flagWatch.Dequeue();
+        }
+
+        private static bool ShouldFilterFlag(string name)
+        {
+            if (name == null) return false;
+            if (name.StartsWith("playtime")) return true;
+            if (name.Contains("pDoor")) return true;
+            if (name == "Gold" || name == "weight" || name == "Playtime") return true;
+            return false;
         }
 
         private static string GetSheetName(int sheet)

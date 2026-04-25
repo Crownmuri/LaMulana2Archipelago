@@ -273,6 +273,7 @@ namespace LaMulana2Archipelago.Managers
             reportedLocations.Clear();
             _shopApLocationIds = null;
             PendingAnkhJewelName = null;
+            ItemGrantStateGuard.IsPostExitTalkActive = false;
             Plugin.Log.LogInfo("[CHECK] CheckManager reset");
         }
     }

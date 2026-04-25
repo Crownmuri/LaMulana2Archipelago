@@ -454,6 +454,8 @@ namespace LaMulana2Archipelago.Managers
             List<GameObject> objectsToDeactivate = new List<GameObject>();
             foreach (TreasureBoxScript oldChest in FindObjectsOfType<TreasureBoxScript>())
             {
+                if (oldChest.closetMode) continue;
+                if (oldChest.itemObj == null) continue;
                 LocationID locationID = GetLocationID(oldChest.itemObj.name);
                 if (locationID == LocationID.None) continue;
                 if (!locationToItemMap.TryGetValue(locationID, out ItemID newItemID)) continue;

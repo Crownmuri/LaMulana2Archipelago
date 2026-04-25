@@ -9,6 +9,13 @@ namespace LaMulana2Archipelago.Managers
     /// </summary>
     public static class ItemGrantStateGuard
     {
+        /// <summary>
+        /// True from the moment an NPC talk script fires [@exit] (dialog window
+        /// closes but the script keeps running) until [@out] ends the session.
+        /// Set/cleared by TalkSessionPatch. Must be reset on scene transitions.
+        /// </summary>
+        public static bool IsPostExitTalkActive = false;
+
         public static bool IsSafe(L2System sys, NewPlayer pl)
         {
             // --- System flags ---
@@ -49,6 +56,17 @@ namespace LaMulana2Archipelago.Managers
             if (sys.getSysFlag((SYSTEMFLAG)4128) != 0)
             {
             //    Plugin.Log.LogDebug("[GRANT] Blocked: SysFlag 4128");
+                return false;
+            }
+
+            // Post-[@exit] NPC talk session: the dialog window closed but the NPC
+            // script is still running. Player state is WALK and no system flag is set,
+            // but the script may be suspended at [@anifla,mnext,wait2] waiting for a
+            // button press. Granting here would deadlock (both the NPC wait and the
+            // item dialog compete for the same input).
+            if (IsPostExitTalkActive)
+            {
+            //    Plugin.Log.LogDebug("[GRANT] Blocked: IsPostExitTalkActive");
                 return false;
             }
 

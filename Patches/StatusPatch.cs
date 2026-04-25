@@ -6,6 +6,17 @@ using L2STATUS;
 
 namespace LaMulana2Archipelago.Patches
 {
+    // Tracks when L2System.reInitSystem is executing so StatusResetPatch can suppress
+    // the hardcoded MAINWEAPON.LWHIP that the vanilla method passes to resetPlayerStatus.
+    [HarmonyPatch(typeof(L2System), "reInitSystem")]
+    internal static class ReInitSystemPatch
+    {
+        internal static bool InProgress = false;
+
+        static void Prefix() => InProgress = true;
+        static void Postfix() => InProgress = false;
+    }
+
     /// <summary>
     /// Replaces Status.resetPlayerStatus to use sys.setItem for weapon
     /// initialization, ensuring progressive weapon logic is applied.
@@ -30,16 +41,21 @@ namespace LaMulana2Archipelago.Patches
             sys.setFlagData(2, 62, 0);
             __instance.clearItemsNum();
 
-            string weaponName = string.Empty;
-            if (now_wea != MAINWEAPON.NON)
-                weaponName = sys.exchengeMainWeaponEnumToName(now_wea);
-            else if (now_sub != SUBWEAPON.NON)
-                weaponName = sys.exchengeSubWeaponEnumToName(now_sub);
-
-            if (!string.IsNullOrEmpty(weaponName))
+            // reInitSystem hardcodes MAINWEAPON.LWHIP; suppress setItem/equipItem so the
+            // subsequent memLoad() can restore the correct state without a stale whip flag.
+            if (!ReInitSystemPatch.InProgress)
             {
-                sys.setItem(weaponName, 1, false, false, true);
-                sys.equipItem(weaponName, true);
+                string weaponName = string.Empty;
+                if (now_wea != MAINWEAPON.NON)
+                    weaponName = sys.exchengeMainWeaponEnumToName(now_wea);
+                else if (now_sub != SUBWEAPON.NON)
+                    weaponName = sys.exchengeSubWeaponEnumToName(now_sub);
+
+                if (!string.IsNullOrEmpty(weaponName))
+                {
+                    sys.setItem(weaponName, 1, false, false, true);
+                    sys.equipItem(weaponName, true);
+                }
             }
 
             trav.Field("player_level").SetValue(lv < 1 ? 1 : lv);
