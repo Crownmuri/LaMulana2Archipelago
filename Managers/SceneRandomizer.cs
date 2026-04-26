@@ -1554,7 +1554,7 @@ namespace LaMulana2Archipelago.Managers
 
         private void CreateStartingFieldObjects(string field)
         {
-            if (!field.Equals(startFieldName))
+            if (startingArea == AreaID.VoD || !field.Equals(startFieldName))
                 return;
 
             Vector3 tabletPosition = Vector3.zero;
@@ -1567,9 +1567,6 @@ namespace LaMulana2Archipelago.Managers
                     hotSpring.Init(sys);
                 }
             }
-
-            if (startingArea == AreaID.VoD)
-                return;
 
             StartInfo startInfo = StartDB.GetStartInfo(startingArea);
             if (startInfo == null) return;
