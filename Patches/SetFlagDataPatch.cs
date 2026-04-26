@@ -1,6 +1,7 @@
 using HarmonyLib;
 using L2Base;
 using L2Flag;
+using LaMulana2Archipelago.Archipelago;
 using LaMulana2Archipelago.Managers;
 using LaMulana2Archipelago.Utils;
 using System.Collections.Generic;
