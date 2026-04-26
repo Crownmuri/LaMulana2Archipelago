@@ -6,6 +6,7 @@ using L2Word;
 using L2STATUS;
 using L2Flag;
 using L2Menu;
+using LaMulana2Archipelago.Managers;
 using LaMulana2RandomizerShared;
 using LM2RandomiserMod;
 using System.Collections.Generic;
@@ -122,6 +123,7 @@ namespace LaMulana2Archipelago.Patches
                 if (startInfo != null)
                 {
                     __instance.setItem(startInfo.BoxName, 1, false, false, true);
+                    __instance.setEffectFlag(SceneRandomizer.Instance.CreateGetFlags(startItemId, startInfo));
                 }
             }
 
