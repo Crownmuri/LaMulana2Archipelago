@@ -30,7 +30,7 @@ namespace LaMulana2Archipelago.Patches
 
         static void Postfix()
         {
-            ShadowSaveManager.OnMemSave();
+            ShadowSaveManager.OnDataSave();
         }
     }
 
@@ -50,6 +50,23 @@ namespace LaMulana2Archipelago.Patches
         static void Postfix()
         {
             ShadowSaveManager.OnDeath();
+        }
+    }
+
+    // memLoad reverts the in-memory state to the last memSave (autosave)
+    // checkpoint. It fires from three call sites:
+    //   - Title.cs Continue button
+    //   - GameOverTask path 1 (memSave → reInitSystem → memLoad)
+    //   - GameOverTask path 2 (reInitSystem → memLoad, no memSave)
+    // The death paths already flag via gameOverStart (which lands before the
+    // in-death memSave); this hook is what catches the title-Continue path,
+    // and is a harmless no-op in the death paths.
+    [HarmonyPatch(typeof(L2System), nameof(L2System.memLoad))]
+    internal static class Shadow_MemLoad_Patch
+    {
+        static void Postfix()
+        {
+            ShadowSaveManager.OnMemLoad();
         }
     }
 }

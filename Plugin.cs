@@ -262,6 +262,17 @@ namespace LaMulana2Archipelago
 
             if (granted)
             {
+                // Popup-only grants (coins, weights, ammo, pot filler) never open
+                // the item dialog, so the prime we just set won't be consumed by
+                // ItemDialogPatch.StartSwitch. Clear it now or it will overwrite
+                // the next location-check's dialog label.
+                if (ItemGrantManager.LastGrantUsedPopupOnly)
+                {
+                    Patches.ItemDialogPatch.PendingDisplayLabel = null;
+                    Patches.ItemDialogPatch.PendingSenderName = null;
+                    Patches.ItemDialogPatch.PendingRecipientName = null;
+                }
+
                 ArchipelagoClient.ItemQueue.Dequeue();
                 ArchipelagoClient.MarkItemProcessed(q.Index);
 

@@ -47,9 +47,11 @@ namespace LaMulana2Archipelago
         ///   NPCMoney01-10     → flags 80-89
         ///   FakeScan01-15     → flags 90-104
         ///
-        /// To avoid collisions we start AP placeholder flags at 105 (FlagOffset).
-        /// ID 410001 → flag 106, ID 410002 → flag 107, … ID 410053 → flag 158.
-        /// All safely within the 0-254 flag-sheet range.
+        /// AP placeholder flags start at 105 (FlagOffset). Sheet 31 with
+        /// flag >= 105 is fully virtualised by VirtualFlagManager (a
+        /// Dictionary&lt;int, short&gt;), so the upper bound is unbounded — do
+        /// NOT clamp here, or distinct foreign-item locations will collide
+        /// once a seed has more than ~149 of them.
         /// </summary>
         private const int FlagOffset = 105;
 
@@ -59,7 +61,7 @@ namespace LaMulana2Archipelago
         /// ID 410001 → flag 106, ID 410002 → flag 107, etc.
         /// </summary>
         public static int ToFlagIndex(int id) =>
-            System.Math.Max(0, System.Math.Min(254, id - Placeholder + FlagOffset));
+            id - Placeholder + FlagOffset;
     }
 }
 
