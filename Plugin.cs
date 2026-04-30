@@ -17,7 +17,7 @@ namespace LaMulana2Archipelago
     {
         public const string PluginGUID = "com.Crownmuri.Archipelago.LaMulana2";
         public const string PluginName = "LaMulana2Archipelago";
-        public const string PluginVersion = "0.7.1.0";
+        public const string PluginVersion = "0.7.2";
 
         public const string ModDisplayInfo = $"{PluginName} v{PluginVersion}";
         private const string APDisplayInfo = $"Archipelago v{ArchipelagoClient.APVersion}";

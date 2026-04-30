@@ -38,42 +38,44 @@ La-Mulana 2:
   # NOTE: If 'original' is selected, FDC, Codices, and Hand Scanner will NOT be randomized.
   shop_placement: 2
  
-  # --- Starting Location Pool ---
-  # Set any of these to true. If multiple are true, the randomizer picks one at random.
-  # If nothing is chosen, defaults to Village of Departure
-  start_village_of_departure: false
-  start_roots_of_yggdrasil: false
-  start_annwfn: false
-  start_immortal_battlefield: false
-  # Below REQUIRES vertical_entrances: TRUE
-  start_icefire_treetop: false
-  # Below REQUIRES gate_entrances: TRUE
-  start_divine_fortress: false
-  start_shrine_of_the_frost_giants: false
-  start_takamagahara_shrine: false
-  start_valhalla: false
-  start_dark_star_lords_mausoleum: false
-  start_ancient_chaos: false
-  start_hall_of_malice: false
+  starting_area:
+    # Starting area for the player. 
+    # Some areas require specific entrance randomizer options to be enabled. If the chosen area's
+    # prerequisites aren't met, a uniform re-roll is performed across the remaining valid areas
+    # (a warning is logged); if no valid options remain, falls back to Village of Departure.
+    # 
+    # Requires vertical_entrances: icefire_treetop.
+    # Requires gate_entrances: divine_fortress, shrine_of_the_frost_giants, takamagahara_shrine,
+    # valhalla, dark_star_lords_mausoleum, ancient_chaos, hall_of_malice.
+    village_of_departure: 50
+    roots_of_yggdrasil: 0
+    annwfn: 0
+    immortal_battlefield: 0
+    icefire_treetop: 0
+    divine_fortress: 0
+    shrine_of_the_frost_giants: 0
+    takamagahara_shrine: 0
+    valhalla: 0
+    dark_star_lords_mausoleum: 0
+    ancient_chaos: 0
+    hall_of_malice: 0
 
-  # --- Starting Weapon Pool ---
-  # Set any of these to true. If multiple are true, the randomizer picks one at random.
-  # If a projectile is chosen, logic ensures an accessible shop with ammo refills.
-  # If nothing is chosen, defaults to Leather Whip.
-  start_leather_whip: false
-  start_knife: false
-  start_rapier: false
-  start_axe: false
-  start_katana: false
-  start_shuriken: false
-  start_rolling_shuriken: false
-  start_earth_spear: false
-  start_flare: false
-  start_caltrops: false
-  start_chakram: false
-  start_bomb: false
-  start_pistol: false
-  start_claydoll_suit: false
+  starting_weapon:
+    # Starting weapon for the player. 
+    leather_whip: 50
+    knife: 0
+    rapier: 0
+    axe: 0
+    katana: 0
+    shuriken: 0
+    rolling_shuriken: 0
+    earth_spear: 0
+    flare: 0
+    caltrops: 0
+    chakram: 0
+    bomb: 0
+    pistol: 0
+    claydoll_suit: 0
   
   # --- Logic Difficulty ---
   # Forces Ankh Jewels to be restricted to their designated guardian. 
