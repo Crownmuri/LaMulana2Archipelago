@@ -1,20 +1,23 @@
-# La-Mulana 2 Archipelago v.0.7.1.0
+# La-Mulana 2 Archipelago v.0.7.2.0
 Archipelago mod for La-Mulana 2 using BepInEx.
 Functions as a port of the original **[La-Mulana 2 Randomizer](https://github.com/Coookie93/LaMulana2Randomizer)** by **Coookie93**, with additional features for AP.
 
-Current version no longer depends on the original patch and can be run by simply placing the zipped files into the La-Mulana 2 Steam folder.
+Current version no longer runs on the original mod and can be run by simply placing the zipped files into the La-Mulana 2 Steam folder.
+**NOTE: If you have played on the original randomizer before, you will need to undo the original mod first:**
+- Revert the Assembly-CSharp.dll to its original version (either through a backup or Steam verification)
+- Remove the Monomod tools from the Managed folder, specifically `MonoMod.Utils.dll`.
 
 ## Installing La-Mulana 2 Archipelago v.0.7.0.0+
 1. Get the latest release of the AP Mod from https://github.com/Crownmuri/LaMulana2Archipelago/releases
 2. Put the contents of the zip file into your La-Mulana 2 root folder (`..\Steam\steamapps\common\La-Mulana 2`)
 
 ## Preparing the AP world and AP seed
-1. Download the La-Mulana 2 APWorld and YAML template here: https://github.com/Crownmuri/Archipelago/releases
+1. Download the La-Mulana 2 APWorld and YAML template here: https://github.com/Crownmuri/Archipelago/releases (you may also generate a YAML template with the latest version of AP)
 2. Install it (put it into the `archipelago/custom_worlds` folder)
 3. Customize the YAML template and put it into the `archipelago/Players` folder
 4. Start the Archipelago Server
 5. Launch La-Mulana 2. On startup it will load some sprites from certain areas. 
-6. On the title screen, **LaMulana2Archipelago** will automatically attempt to connect to `localhost:38281` with slotname `Lumisa` first. If the connection fails, you can manually fill in the server, slotname and password in the GUI on the title screen.
+6. On the title screen, manually fill in the server, slotname and password into the AP GUI on the bottom left.
 7. Once you're connected you're good to go!
 8. [Optionally] [Connect the La-Mulana 2 PopTracker pack for auto-tracking](https://github.com/Crownmuri/LaMulana2AP-PopTracker)
 
@@ -39,7 +42,7 @@ Current version no longer depends on the original patch and can be run by simply
 - **Three-way Chest Colors.** Regular items, filler items and AP items.
 - **DeathLink.** It will trigger the mantra instant death sequence upon receiving a death from AP.  
 - **Release upon reaching credits.** If the server is set to release items upon game clear, the flag is set after the sequence at the Cliff transitioning into the credits.
-- [WIP] Potsanity: Currently the first 30 locations (from Village of Departure to Roots of Yggdrasil) are mapped and have their contents shuffled if enabled in the YAML.
+- [WIP] Potsanity: Currently the first 49 locations (from Village of Departure to Annwfn) are mapped and have their contents shuffled if enabled in the YAML.
 - Offline Mode: If you wish to just play offline, you can either write seeds through AP or the original randomizer and load the `seed.lm2r` from the title screen.
   - Filepath should be `La-Mulana 2\LaMulana2Randomizer\Seed\seed.lm2r`
   - If you play with an AP generated seed, you can turn on the toggles for AP based filler rewards and restricting ankhs to be guardian specific.
@@ -51,6 +54,6 @@ Current version no longer depends on the original patch and can be run by simply
 - Fake items are currently overwritten as the new filler, so there are no actual traps at this point in development.
 - There could be some issues not listed here, feel free to share on Discord or on GitHub.
 
-## Food for thought
-- Potsanity: Add all static reward pots to the location pool -- not sure if the ammo pots should be included, or just become coin/weight filler.
+## Future plans
+- Potsanity: Add all static reward pots to the location pool
 - Glossanity: Add all static glossary entries to the location pool 
