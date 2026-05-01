@@ -67,7 +67,8 @@ namespace LaMulana2Archipelago.Patches
             string rawItemName = itemIdBuff[counter];
             if (string.IsNullOrEmpty(rawItemName)) return;
 
-            long apLocationId;
+            long apLocationId = -1L;
+            LocationID location = LocationID.None;
 
             if (rawItemName == "AP Item")
             {
@@ -78,7 +79,6 @@ namespace LaMulana2Archipelago.Patches
                 int flagIndex = FindPendingSheet31Flag(sys);
                 if (flagIndex < 0) return;
 
-                LocationID location;
                 if (!LocationFlagMap.TryGetNumeric(31, flagIndex, out location))
                     return;
 
@@ -86,21 +86,35 @@ namespace LaMulana2Archipelago.Patches
             }
             else
             {
-                // Look up the AP location for this item name.
-                LocationID location;
-                if (!SeedFlagMapBuilder.BoxNameToLocation.TryGetValue(rawItemName, out location))
-                {
-                    // Ankh jewels only: fall back to generic "Ankh Jewel" key.
-                    // Maps must NOT fall back since all maps share BoxName "Map" — enum name is the correct key.
-                    string normalized = null;
-                    if (sys.isAnkJewel(rawItemName)) normalized = "Ankh Jewel";
+                // NEW: Intercept NPC Money/Filler before BoxName lookup
+                int queuedFlag = FindPendingSheet31Flag(sys);
 
-                    if (normalized == null || !SeedFlagMapBuilder.BoxNameToLocation.TryGetValue(normalized, out location))
+                // Check if the queued flag is in the NPC Money range (80-89)
+                if (queuedFlag >= 80 && queuedFlag <= 89)
+                {
+                    // Resolve the specific NPC directly from the flag
+                    if (SeedFlagMapBuilder.NpcMoneyFlagToLocation.TryGetValue(queuedFlag, out location))
                     {
-                        return;
+                        apLocationId = 430000L + (int)location;
                     }
                 }
-                apLocationId = 430000L + (int)location;
+
+                // Fallback: If it's not an NPC money flag, use the standard BoxName lookup
+                if (apLocationId == -1L)
+                {
+                    if (!SeedFlagMapBuilder.BoxNameToLocation.TryGetValue(rawItemName, out location))
+                    {
+                        // Ankh jewels only: fall back to generic "Ankh Jewel" key.
+                        string normalized = null;
+                        if (sys.isAnkJewel(rawItemName)) normalized = "Ankh Jewel";
+
+                        if (normalized == null || !SeedFlagMapBuilder.BoxNameToLocation.TryGetValue(normalized, out location))
+                        {
+                            return;
+                        }
+                    }
+                    apLocationId = 430000L + (int)location;
+                }
             }
 
             // Don't prime if this location was already reported (dedup).
