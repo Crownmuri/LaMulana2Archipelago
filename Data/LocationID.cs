@@ -295,7 +295,7 @@ namespace LaMulana2RandomizerShared
         AlsedanaCoinPot = 401,
         NeburCoinPot = 402,
         XelpudCoinPot = 403,
-        XelpudWeightPot = 403,
+        XelpudWeightPot = 404,
         VoDPreLadderWeightPot = 405,
         VoDPostLadderCoinPot = 406,
         VoDChakramPot = 407,

@@ -171,31 +171,6 @@ namespace LaMulana2Archipelago.Patches
             // Look up randomized item for this mural
             LocationID locationID = SceneRandomizer.Instance.GetLocationIDForMural(snapTarget);
 
-            // --- Duplicate prevention: skip grant if already collected ---
-            if (locationID != LocationID.None &&
-                (ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode))
-            {
-                long apLocationId = 430000L + (int)locationID;
-                bool alreadyCollected = ArchipelagoClient.ServerData.CheckedLocations.Contains(apLocationId)
-                    || CheckManager.IsLocationReported(apLocationId);
-
-                if (alreadyCollected)
-                {
-                    Plugin.Log.LogInfo($"[SnapPatch] Mural {locationID} (AP {apLocationId}) already collected. Suppressing duplicate grant.");
-
-                    con.anime.Play("snap scanEnd");
-                    l2Core.seManager.playSE(null, 37);
-
-                    t.Field("SnapShotTargetSc").SetValue(snapTarget);
-                    t.Field("HaveItems").SetValue(true);
-                    t.Field("DrawBinalyCount").SetValue(0);
-                    t.Field("sta").SetValue(5);
-
-                    __result = true;
-                    return false;
-                }
-            }
-
             // If unknown mural or missing item data, run vanilla SOFTWARE logic
             ItemID itemID = locationID != LocationID.None
                 ? SceneRandomizer.Instance.GetItemIDForLocation(locationID)
@@ -229,22 +204,23 @@ namespace LaMulana2Archipelago.Patches
             if (itemID == ItemID.MobileSuperx3P)
                 flagValue = 1;
 
-            if (itemInfo.BoxName.Contains("Research") || itemInfo.BoxName.Equals("Nothing") || itemInfo.BoxName.Contains("Beherit"))
+            if (itemInfo.BoxName.Contains("Research") ||
+                itemInfo.BoxName.Equals("Nothing") ||
+                itemInfo.BoxName.Contains("Beherit") ||
+                itemInfo.BoxName.StartsWith("AP Item") || 
+                itemInfo.BoxName.StartsWith("Coin") ||    
+                itemInfo.BoxName.StartsWith("Weight"))    
             {
                 short data = 0;
-                sys.getFlag(itemInfo.ItemSheet, itemInfo.ItemFlag, ref data);
+
+                // Ensure the item has a valid mapped sheet and flag
+                if (itemInfo.ItemSheet >= 0 && itemInfo.ItemFlag >= 0)
+                {
+                    sys.getFlag(itemInfo.ItemSheet, itemInfo.ItemFlag, ref data);
+                }
+
                 if (data > 0)
                     haveItems = true;
-            }
-            else if (itemInfo.BoxName.StartsWith("AP Item"))
-            {
-                // AP placeholder items are never "already owned"
-                haveItems = false;
-            }
-            else if (itemInfo.BoxName.StartsWith("Coin") || itemInfo.BoxName.StartsWith("Weight"))
-            {
-                // Filler items are never "already owned"
-                haveItems = false;
             }
             else if (sys.isHaveItem(itemInfo.ShopName) > flagValue)
             {
