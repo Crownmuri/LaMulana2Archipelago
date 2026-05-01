@@ -188,7 +188,7 @@ namespace LaMulana2Archipelago.Patches
             else
             {
                 // === ITEM PATH: spawn pickup with correct sprite, defer AP check ===
-                bool spawned = TrySpawnItemPickup(__instance, inst, seetNo, potFlagNo, locId, scouted);
+                bool spawned = TrySpawnItemPickup(__instance, inst, sys, seetNo, potFlagNo, locId, scouted);
 
                 if (spawned)
                 {
@@ -222,7 +222,7 @@ namespace LaMulana2Archipelago.Patches
         /// the AP location check via the flag detection chain.
         /// Returns false if the pot has no exItemPrefab.
         /// </summary>
-        private static bool TrySpawnItemPickup(ItemPotScript pot, Traverse inst, int seetNo, int potFlagNo, LocationID locId,
+        private static bool TrySpawnItemPickup(ItemPotScript pot, Traverse inst, L2System sys, int seetNo, int potFlagNo, LocationID locId,
                     ArchipelagoClient.ScoutedItem scouted)
         {
             // FORCE the use of the generic chest item prefab.
@@ -257,10 +257,22 @@ namespace LaMulana2Archipelago.Patches
             ItemInfo ownItemInfo = null;
             if (scouted != null && scouted.IsOwnItem)
             {
-                // Resolve game ItemID from the AP item id (420000-based).
-                // Pot locations are NOT in SceneRandomizer's locationToItemMap,
-                // so we derive the ItemID directly from the scouted AP data.
-                ownItemId = (ItemID)(int)(scouted.ItemId - 420000);
+                // Get the unique mapped ID from SceneRandomizer first
+                if (Managers.SceneRandomizer.Instance != null)
+                {
+                    ItemID mappedId = Managers.SceneRandomizer.Instance.GetItemIDForLocation(locId);
+                    if (mappedId != ItemID.None)
+                    {
+                        ownItemId = mappedId;
+                    }
+                }
+
+                // Fallback to AP calculation if not found in the placement map
+                if (ownItemId == null)
+                {
+                    ownItemId = (ItemID)(int)(scouted.ItemId - 420000);
+                }
+
                 ownItemInfo = ItemDB.GetItemInfo(ownItemId.Value);
                 // Use BoxName (valid vanilla name) for the label — ShopName
                 // variants like "Map7" or "Sacred Orb0" crash the vanilla
@@ -299,7 +311,7 @@ namespace LaMulana2Archipelago.Patches
             spawnedItem.itemGetFlags = getFlags.ToArray();
 
             // Pass internalLabel to properly resolve the sprite
-            SetItemSprite(spawned, scouted, internalLabel);
+            SetItemSprite(spawned, sys, scouted, internalLabel);
 
             spawnedItem.initTask();
             spawnedItem.setTreasureBoxOut();
@@ -307,7 +319,7 @@ namespace LaMulana2Archipelago.Patches
             return true;
         }
 
-        private static void SetItemSprite(GameObject itemObj, ArchipelagoClient.ScoutedItem scouted, string internalLabel)
+        private static void SetItemSprite(GameObject itemObj, L2System sys, ArchipelagoClient.ScoutedItem scouted, string internalLabel)
         {
             var renderer = itemObj.GetComponent<SpriteRenderer>();
             if (renderer == null) return;
@@ -325,11 +337,35 @@ namespace LaMulana2Archipelago.Patches
                     return;
                 }
 
-                // Strip numbered suffixes so getItemData finds the correct sprite
+                // Strip numbered suffixes so getItemData finds the correct sprite.
+                // Progressive Whip/Shield always arrive as "Whip1"/"Shield1" (every
+                // Progressive Whip shares AP code 420061; every Progressive Shield
+                // shares 420076). Resolve to the next-tier sprite by reading the
+                // current progression flag — same as SceneRandomizer.GetItemSprite.
                 string lookupName = internalLabel;
-                if (lookupName.StartsWith("Ankh Jewel")) lookupName = "Ankh Jewel";
+                if (lookupName.StartsWith("Whip"))
+                {
+                    short data = 0;
+                    if (sys != null) sys.getFlag(2, "Whip", ref data);
+                    if (data == 0) lookupName = "Whip";
+                    else if (data == 1) lookupName = "Whip2";
+                    else lookupName = "Whip3";
+                }
+                else if (lookupName.StartsWith("Shield"))
+                {
+                    short data = 0;
+                    if (sys != null) sys.getFlag(2, 196, ref data);
+                    if (data == 0) lookupName = "Shield";
+                    else if (data == 1) lookupName = "Shield2";
+                    else lookupName = "Shield3";
+                }
+                else if (lookupName.StartsWith("Ankh Jewel")) lookupName = "Ankh Jewel";
                 else if (lookupName.StartsWith("Sacred Orb")) lookupName = "Sacred Orb";
                 else if (lookupName.StartsWith("Crystal S")) lookupName = "Crystal S";
+                else if (lookupName.StartsWith("Mantra")) lookupName = "Mantra";
+                else if (lookupName.StartsWith("Research")) lookupName = "Research";
+                else if (lookupName.StartsWith("Beherit")) lookupName = "Beherit";
+
 
                 var itemData = L2SystemCore.getItemData(lookupName);
                 if (itemData != null)
@@ -381,16 +417,40 @@ namespace LaMulana2Archipelago.Patches
                         Plugin.Log.LogDebug($"[POT] Shuriken ×{amount}");
                         break;
 
-                    case "Bomb":
-                        DropOrGrantAmmo(sys, pos, SUBWEAPON.SUB_BOM,
-                            DropItemGeneratorScript.SubBltType.GRENADE, amount);
-                        Plugin.Log.LogDebug($"[POT] Bomb ×{amount}");
+                    case "RShuriken":
+                        DropOrGrantAmmo(sys, pos, SUBWEAPON.SUB_KURUMA,
+                            DropItemGeneratorScript.SubBltType.WHEEL_SHURIKEN, amount);
+                        Plugin.Log.LogDebug($"[POT] Rolling Shuriken ×{amount}");
+                        break;
+
+                    case "ESpear":
+                        DropOrGrantAmmo(sys, pos, SUBWEAPON.SUB_DAICHI,
+                            DropItemGeneratorScript.SubBltType.YARI, amount);
+                        Plugin.Log.LogDebug($"[POT] Earth Spear ×{amount}");
+                        break;
+
+                    case "FlareGun":
+                        DropOrGrantAmmo(sys, pos, SUBWEAPON.SUB_HATUDAN,
+                            DropItemGeneratorScript.SubBltType.FLARE, amount);
+                        Plugin.Log.LogDebug($"[POT] Flare ×{amount}");
+                        break;
+
+                    case "Caltrops":
+                        DropOrGrantAmmo(sys, pos, SUBWEAPON.SUB_MAKIBI,
+                            DropItemGeneratorScript.SubBltType.MAKIBISHI, amount);
+                        Plugin.Log.LogDebug($"[POT] Caltrops ×{amount}");
                         break;
 
                     case "Chakram":
                         DropOrGrantAmmo(sys, pos, SUBWEAPON.SUB_CHAKURA,
                             DropItemGeneratorScript.SubBltType.CHAKRAM, amount);
                         Plugin.Log.LogDebug($"[POT] Chakram ×{amount}");
+                        break;
+
+                    case "Bomb":
+                        DropOrGrantAmmo(sys, pos, SUBWEAPON.SUB_BOM,
+                            DropItemGeneratorScript.SubBltType.GRENADE, amount);
+                        Plugin.Log.LogDebug($"[POT] Bomb ×{amount}");
                         break;
                 }
             }
@@ -431,9 +491,13 @@ namespace LaMulana2Archipelago.Patches
                 switch (sw)
                 {
                     case SUBWEAPON.SUB_SYURIKEN: ammoSw = SUBWEAPON.SUB_SYURIKEN_B; break;
-                    case SUBWEAPON.SUB_BOM:     ammoSw = SUBWEAPON.SUB_BOM_B;     break;
+                    case SUBWEAPON.SUB_KURUMA: ammoSw = SUBWEAPON.SUB_KURUMA_B; break;
+                    case SUBWEAPON.SUB_DAICHI: ammoSw = SUBWEAPON.SUB_DAICHI_B; break;
+                    case SUBWEAPON.SUB_HATUDAN: ammoSw = SUBWEAPON.SUB_HATUDAN_B; break;
+                    case SUBWEAPON.SUB_MAKIBI: ammoSw = SUBWEAPON.SUB_MAKIBI_B; break;
+                    case SUBWEAPON.SUB_BOM: ammoSw = SUBWEAPON.SUB_BOM_B; break;
                     case SUBWEAPON.SUB_CHAKURA: ammoSw = SUBWEAPON.SUB_CHAKURA_B; break;
-                    default:                    ammoSw = sw;                      break;
+                    default: ammoSw = sw; break;
                 }
                 sys.addSubWeaponNum(ammoSw, amount);
             }
@@ -461,8 +525,12 @@ namespace LaMulana2Archipelago.Patches
             if (typeStr.StartsWith("Coin")) { rewardType = "Coin"; return true; }
             if (typeStr.StartsWith("Weight")) { rewardType = "Weight"; return true; }
             if (typeStr.StartsWith("Shuriken")) { rewardType = "Shuriken"; return true; }
-            if (typeStr.StartsWith("Bomb")) { rewardType = "Bomb"; return true; }
+            if (typeStr.StartsWith("Rolling Shuriken")) { rewardType = "RShuriken"; return true; }
+            if (typeStr.StartsWith("Earth Spear")) { rewardType = "ESpear"; return true; }
+            if (typeStr.StartsWith("Flare")) { rewardType = "FlareGun"; return true; }
+            if (typeStr.StartsWith("Caltrops")) { rewardType = "Caltrops"; return true; }
             if (typeStr.StartsWith("Chakram")) { rewardType = "Chakram"; return true; }
+            if (typeStr.StartsWith("Bomb")) { rewardType = "Bomb"; return true; }
 
             return false;
         }

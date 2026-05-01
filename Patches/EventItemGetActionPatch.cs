@@ -195,6 +195,9 @@ namespace LaMulana2Archipelago.Patches
             if (lookupName.StartsWith("Ankh Jewel")) lookupName = "Ankh Jewel";
             else if (lookupName.StartsWith("Sacred Orb")) lookupName = "Sacred Orb";
             else if (lookupName.StartsWith("Crystal S")) lookupName = "Crystal S";
+            else if (lookupName.StartsWith("Mantra")) lookupName = "Mantra";
+            else if (lookupName.StartsWith("Research")) lookupName = "Research";
+            else if (lookupName.StartsWith("Beherit")) lookupName = "Beherit";
 
             if (lookupName.Contains("Whip"))
             {
