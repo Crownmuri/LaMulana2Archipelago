@@ -150,6 +150,11 @@ namespace LaMulana2Archipelago.Patches
 
             CheckManager.NotifyNumericFlag(seet_no, flag_no, data);
             DevUI.RecordFlagChange(seet_no, flag_no, __state, data);
+
+            // Guardian-kill state machine: capture the setFlagData(3, guardianN, 4)
+            // ankh-used transition so the scene tracker can confirm the kill
+            // on field exit.
+            BossKillTracker.NotifyFlagSet(seet_no, flag_no, data);
         }
     }
 
@@ -167,6 +172,7 @@ namespace LaMulana2Archipelago.Patches
 
             CheckManager.NotifyStringFlag(seet_no, name, data);
             DevUI.RecordFlagChangeByName(seet_no, name, data);
+            BossKillTracker.NotifyFlagSetByName(seet_no, name, data);
         }
     }
     [HarmonyPatch] // MUST be empty because we use TargetMethod below

@@ -9,6 +9,10 @@ namespace LaMulana2Archipelago
         // Numeric: (sheet, flag) => LocationID
         private static readonly Dictionary<int, LocationID> NumericFlagMap = new Dictionary<int, LocationID>();
 
+        // Optional per-entry minimum value gate. If present, the reported value
+        // must be >= the stored threshold or the location is not reported.
+        private static readonly Dictionary<int, short> NumericFlagMinValues = new Dictionary<int, short>();
+
         // String: (sheet, name) => LocationID
         // Use stable composite string key rather than GetHashCode.
         private static readonly Dictionary<string, LocationID> StringFlagMap = new Dictionary<string, LocationID>();
@@ -33,6 +37,7 @@ namespace LaMulana2Archipelago
         private static void Initialize(Dictionary<string, object> slotData)
         {
             NumericFlagMap.Clear();
+            NumericFlagMinValues.Clear();
             StringFlagMap.Clear();
 
             RegisterNumericFlags(slotData);
@@ -66,6 +71,25 @@ namespace LaMulana2Archipelago
         // LOOKUP
         // ----------------------------
 
+        public static bool TryGetNumeric(int sheet, int flag, short value, out LocationID location)
+        {
+            int key = MakeNumericKey(sheet, flag);
+
+            if (!NumericFlagMap.TryGetValue(key, out location))
+                return false;
+
+            if (NumericFlagMinValues.TryGetValue(key, out short minValue) && value < minValue)
+            {
+                location = default(LocationID);
+                return false;
+            }
+
+            return true;
+        }
+
+        // Overload for callers that just want the mapping without applying any
+        // value threshold (callers outside the flag-set notification path that
+        // don't have a meaningful "current value" to test against).
         public static bool TryGetNumeric(int sheet, int flag, out LocationID location)
         {
             return NumericFlagMap.TryGetValue(MakeNumericKey(sheet, flag), out location);
@@ -92,6 +116,21 @@ namespace LaMulana2Archipelago
 
             NumericFlagMap.Add(key, location);
             Plugin.Log.LogDebug($"[LocationFlagMap] Numeric seet={sheet} flag={flag} → {location}");
+        }
+
+        private static void AddNumeric(int sheet, int flag, LocationID location, short minValue)
+        {
+            int key = MakeNumericKey(sheet, flag);
+
+            if (NumericFlagMap.ContainsKey(key))
+            {
+                Plugin.Log.LogWarning($"[LocationFlagMap] Duplicate numeric key seet={sheet} flag={flag} (existing={NumericFlagMap[key]}, new={location}) — keeping first");
+                return;
+            }
+
+            NumericFlagMap.Add(key, location);
+            NumericFlagMinValues[key] = minValue;
+            Plugin.Log.LogDebug($"[LocationFlagMap] Numeric seet={sheet} flag={flag} → {location} (minValue={minValue})");
         }
 
         private static void AddString(int sheet, string name, LocationID location)

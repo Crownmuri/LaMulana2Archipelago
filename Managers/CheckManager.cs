@@ -63,7 +63,7 @@ namespace LaMulana2Archipelago.Managers
             }
 
             LocationID location;
-            if (LocationFlagMap.TryGetNumeric(seet, flag, out location))
+            if (LocationFlagMap.TryGetNumeric(seet, flag, value, out location))
                 ReportLocation(location);
         }
 
@@ -274,6 +274,7 @@ namespace LaMulana2Archipelago.Managers
             _shopApLocationIds = null;
             PendingAnkhJewelName = null;
             ItemGrantStateGuard.IsPostExitTalkActive = false;
+            BossKillTracker.Reset();
             Plugin.Log.LogInfo("[CHECK] CheckManager reset");
         }
     }

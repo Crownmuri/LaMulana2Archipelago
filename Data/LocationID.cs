@@ -269,7 +269,7 @@ namespace LaMulana2RandomizerShared
 
         Fafnir,
         Kujata,
-        Jormangund,
+        Jormungand,
         Surtr,
         Vritra,
         AtenRa,

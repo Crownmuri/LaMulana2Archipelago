@@ -473,6 +473,9 @@ namespace LaMulana2Archipelago
             // Keep tracing (useful forever, cheap)
             Log.LogInfo($"[Scene] Loaded '{scene.name}' (buildIndex={scene.buildIndex}) mode={mode}");
 
+            // Drives the guardian-kill state machine; safe to call always.
+            Managers.BossKillTracker.NotifySceneLoaded(scene.name);
+
             if (ArchipelagoClient == null ||
                 (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode))
                 return;

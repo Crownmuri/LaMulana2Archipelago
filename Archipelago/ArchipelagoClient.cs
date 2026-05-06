@@ -2,9 +2,12 @@ using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
+using Archipelago.MultiClient.Net.Models;
 using Archipelago.MultiClient.Net.Packets;
+using Newtonsoft.Json.Linq;
 using LaMulana2Archipelago.Managers;
 using LaMulana2Archipelago.Utils;
+using LaMulana2RandomizerShared;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -191,9 +194,15 @@ namespace LaMulana2Archipelago.Archipelago
                 UnityEngine.Object.Destroy(SceneRandomizer.Instance.gameObject);
 
             Patches.ItemPotPatch.Reset();
+            Patches.VirtualFlagManager.Reset();
             CheckManager.Reset();
             ItemQueue.Clear();
             ServerData?.ClearSessionCache();
+            if (ServerData != null)
+            {
+                ServerData.CheckedLocations.Clear();
+                ServerData.Index = 0;
+            }
 
             // Rebuild the default flag map from legacy seed.lm2r or defaults
             // so the mod returns to its pre-activation state.
@@ -402,6 +411,20 @@ namespace LaMulana2Archipelago.Archipelago
             // from the previous session is still non-null, so NeedSlotData=false,
             // and the new server returns empty SlotData → NRE in HandleConnectResult.
             ServerData?.ClearSessionCache();
+
+            // Wipe slot-specific state so reconnecting as a different slot in the
+            // same game session doesn't leak the previous slot's progress.
+            // VirtualFlagManager holds in-memory sheet-31 flags (incl. shop sold-out
+            // state for AP slots). CheckedLocations and Index are slot-keyed.
+            // CheckManager.reportedLocations and ItemPotPatch state are session-scoped.
+            Patches.VirtualFlagManager.Reset();
+            Patches.ItemPotPatch.Reset();
+            CheckManager.Reset();
+            if (ServerData != null)
+            {
+                ServerData.CheckedLocations.Clear();
+                ServerData.Index = 0;
+            }
         }
 
         // =============================
@@ -437,6 +460,53 @@ namespace LaMulana2Archipelago.Archipelago
             });
 
             Plugin.Log.LogInfo($"[AP] Location confirmed: {locationId}");
+        }
+
+        /// <summary>
+        /// Mirror a guardian kill to AP datastorage. Boss locations are
+        /// event-only in the AP world (loc.address = None), so the
+        /// SendLocationCheck call doesn't reach the server's checked_locations
+        /// broadcast. PopTracker reads these slot-scoped keys via SetNotify
+        /// to mark the boss as dead.
+        ///
+        /// Key format: lamulana2_kill_{LocationID enum name}_{team}_{slot}
+        /// Value: 1 (idempotent set)
+        /// </summary>
+        public void RecordBossKill(LocationID guardian)
+        {
+            if (!Authenticated || session == null) return;
+
+            try
+            {
+                var conn = session.ConnectionInfo;
+                string key = $"lamulana2_kill_{guardian}_{conn.Team}_{conn.Slot}";
+
+                // Send a raw Set packet rather than relying on DataStorage indexer
+                // semantics. Equivalent to the Python ctx.send_msg pattern other
+                // AP clients use; lets PopTracker pick up the change via its
+                // SetNotify subscription on the same key.
+                var packet = new SetPacket
+                {
+                    Key = key,
+                    DefaultValue = JToken.FromObject(0),
+                    WantReply = false,
+                    Operations = new[]
+                    {
+                        new OperationSpecification
+                        {
+                            OperationType = OperationType.Replace,
+                            Value = JToken.FromObject(1)
+                        }
+                    }
+                };
+
+                session.Socket.SendPacketAsync(packet);
+                Plugin.Log.LogInfo($"[AP] Datastorage Set sent: {key} = 1");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[AP] Datastorage write failed for {guardian}: {ex.Message}");
+            }
         }
 
         // 3. Replace your existing GetItemAtLocation method:
