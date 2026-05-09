@@ -8,9 +8,9 @@ Current version no longer runs on the original mod and can be run by simply plac
 - Remove the Monomod tools from the Managed folder, specifically `MonoMod.Utils.dll`.
 
 ## Installing La-Mulana 2 Archipelago v.0.7.0.0+
-1. Get the latest release of the AP Mod from https://github.com/Crownmuri/LaMulana2Archipelago/releases
-2. Put the contents of the zip file into your La-Mulana 2 root folder (`..\Steam\steamapps\common\La-Mulana 2`)
-For Linux users, additional settings are required to (run Bepinex through Proton/Wine)[https://docs.bepinex.dev/articles/advanced/proton_wine.html]. 
+1. Get the latest release of the AP Mod from https://github.com/Crownmuri/LaMulana2Archipelago/releases 
+2. Put the contents of the zip file into your La-Mulana 2 root folder (`..\Steam\steamapps\common\La-Mulana 2`) <p>
+For Linux users, additional settings are required to [run BepInEx through Proton/Wine](https://docs.bepinex.dev/articles/advanced/proton_wine.html). 
 
 ## Preparing the AP world and AP seed
 1. Download the La-Mulana 2 APWorld and YAML template here: https://github.com/Crownmuri/Archipelago/releases (you may also generate a YAML template with the latest version of AP)
