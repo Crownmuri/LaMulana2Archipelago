@@ -35,6 +35,24 @@ namespace LaMulana2Archipelago.Managers
         private static MemState Mem => _mem ??= LoadMem();
         private static MasterState Master => _master ??= LoadMaster();
 
+        // SeedKey() resolves to "noseed" until ServerData.RoomSeed is populated
+        // (AP connect) or set to "offline" (ActivateOffline). Any persistence
+        // before that point would land in noseed_* files and stomp ServerData.Index,
+        // so all destructive entry points short-circuit until we have a real key.
+        private static bool IsActive =>
+            ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode;
+
+        // Called by ArchipelagoClient on connect/disconnect/offline toggle so
+        // any cached state captured against an old (or "noseed") SeedKey is
+        // discarded; the next access reloads from the file that matches the
+        // current seed.
+        public static void InvalidateCaches()
+        {
+            _slot = null;
+            _mem = null;
+            _master = null;
+        }
+
         private static int _restoreItemsRemaining = 0;
         public static bool IsRestoringItem => _restoreItemsRemaining > 0;
 
@@ -63,6 +81,8 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void RecordGranted(ArchipelagoClient.QueuedApItem item)
         {
+            if (!IsActive) return;
+
             var m = Master;
 
             // Idempotent: skip if we've already recorded this index.
@@ -89,6 +109,8 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnMemSave()
         {
+            if (!IsActive) return;
+
             var mem = Mem;
 
             // memSave fires during the death→continue flow before the player
@@ -103,6 +125,16 @@ namespace LaMulana2Archipelago.Managers
             int newIdx = ArchipelagoClient.ServerData.Index;
             if (newIdx == mem.CheckpointIndex) return;
 
+            // The checkpoint only advances. A drop without PendingRestore set
+            // means ServerData.Index got out of sync upstream (e.g. a
+            // reconnect zeroed it and OnMemLoad didn't run before this fired).
+            // Refusing the regress preserves the player's actual progress.
+            if (newIdx < mem.CheckpointIndex)
+            {
+                Plugin.Log.LogWarning($"[Shadow] memSave: refusing to regress checkpoint {mem.CheckpointIndex} -> {newIdx}");
+                return;
+            }
+
             mem.CheckpointIndex = newIdx;
             PersistMem(mem);
             Plugin.Log.LogInfo($"[Shadow] Mem checkpoint advanced -> {mem.CheckpointIndex}");
@@ -115,20 +147,40 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnDataSave()
         {
+            if (!IsActive) return;
+
             int newIdx = ArchipelagoClient.ServerData.Index;
 
             var st = Slot;
             if (st.CheckpointIndex != newIdx)
             {
-                st.CheckpointIndex = newIdx;
-                PersistSlot(st);
-                Plugin.Log.LogInfo($"[Shadow] Slot {_currentSlot} checkpoint -> {st.CheckpointIndex}");
+                if (newIdx < st.CheckpointIndex)
+                {
+                    Plugin.Log.LogWarning($"[Shadow] dataSave: refusing to regress slot {_currentSlot} checkpoint {st.CheckpointIndex} -> {newIdx}");
+                }
+                else
+                {
+                    st.CheckpointIndex = newIdx;
+                    PersistSlot(st);
+                    Plugin.Log.LogInfo($"[Shadow] Slot {_currentSlot} checkpoint -> {st.CheckpointIndex}");
+                }
             }
 
             var mem = Mem;
             bool memDirty = false;
-            if (mem.CheckpointIndex != newIdx) { mem.CheckpointIndex = newIdx; memDirty = true; }
-            if (mem.PendingRestore)            { mem.PendingRestore = false;    memDirty = true; }
+            if (mem.CheckpointIndex != newIdx)
+            {
+                if (newIdx < mem.CheckpointIndex)
+                {
+                    Plugin.Log.LogWarning($"[Shadow] dataSave: refusing to regress mem checkpoint {mem.CheckpointIndex} -> {newIdx}");
+                }
+                else
+                {
+                    mem.CheckpointIndex = newIdx;
+                    memDirty = true;
+                }
+            }
+            if (mem.PendingRestore) { mem.PendingRestore = false; memDirty = true; }
             if (memDirty) PersistMem(mem);
         }
 
@@ -141,6 +193,8 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnDeath()
         {
+            if (!IsActive) return;
+
             FlagPendingRestore("Death");
         }
 
@@ -152,6 +206,29 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnMemLoad()
         {
+            if (!IsActive) return;
+
+            // memLoad reverts in-memory state to the last memSave checkpoint,
+            // so ServerData.Index must follow. Without this, a Disconnect
+            // (which zeroes Index) → reconnect → title-Continue would leave
+            // Index stuck at 0 while mem.CheckpointIndex still reads the
+            // saved value; the next memSave (any autosave) would then
+            // clobber the checkpoint back to 0 and the AP item queue would
+            // re-grant every item the player already had.
+            //
+            // OnFileLoad does the equivalent for the dataLoad path. The
+            // death-restore path also lands here via Shadow_MemLoad_Patch,
+            // and is idempotent (Index already equals CheckpointIndex when
+            // OnDeath flagged the restore; queue is typically empty).
+            var mem = Mem;
+            int oldIndex = ArchipelagoClient.ServerData.Index;
+            if (oldIndex != mem.CheckpointIndex)
+            {
+                ArchipelagoClient.ServerData.Index = mem.CheckpointIndex;
+                Plugin.Log.LogInfo($"[Shadow] memLoad: Index sync {oldIndex} -> {mem.CheckpointIndex}");
+            }
+            DrainProcessedItems(mem.CheckpointIndex);
+
             FlagPendingRestore("memLoad");
         }
 
@@ -168,12 +245,41 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
+        /// Call when the player starts a New Game from the title (L2System.gameStat).
+        /// Resets the in-memory checkpoint to 0 and re-queues every master item, so a
+        /// fresh L2 run replays the full AP item history. Without this, staging.json
+        /// carries the previous session's CheckpointIndex into the new game and the
+        /// player ends up with none of their AP items.
+        /// </summary>
+        public static void OnNewGame()
+        {
+            if (!IsActive) return;
+
+            var mem = Mem;
+            mem.CheckpointIndex = 0;
+            mem.PendingRestore = false;
+            PersistMem(mem);
+
+            int oldIndex = ArchipelagoClient.ServerData.Index;
+            if (oldIndex != 0)
+            {
+                ArchipelagoClient.ServerData.Index = 0;
+                Plugin.Log.LogInfo($"[Shadow] New game: Index reset {oldIndex} -> 0");
+            }
+
+            DrainProcessedItems(0);
+            EnqueueMasterItemsAfter(0);
+        }
+
+        /// <summary>
         /// Call on explicit hardload from the title menu. Resets the in-memory
         /// checkpoint to the slot's hardsave state, then re-queues every master
         /// item received after that checkpoint.
         /// </summary>
         public static void OnFileLoad()
         {
+            if (!IsActive) return;
+
             var st = Slot;
 
             // Hardload wipes the in-memory autosave state — reset memCheckpoint

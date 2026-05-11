@@ -53,6 +53,19 @@ namespace LaMulana2Archipelago.Patches
         }
     }
 
+    // gameStat is the new-game entry point from the title's Start option.
+    // The Continue / Load paths use memLoad / dataLoad and don't reach here,
+    // so this hook fires only for a fresh run and is the only place where
+    // staging needs to be wiped without a slot file backing it.
+    [HarmonyPatch(typeof(L2System), nameof(L2System.gameStat))]
+    internal static class Shadow_GameStat_Patch
+    {
+        static void Postfix()
+        {
+            ShadowSaveManager.OnNewGame();
+        }
+    }
+
     // memLoad reverts the in-memory state to the last memSave (autosave)
     // checkpoint. It fires from three call sites:
     //   - Title.cs Continue button

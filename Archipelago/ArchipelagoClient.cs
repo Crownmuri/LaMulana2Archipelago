@@ -92,6 +92,11 @@ namespace LaMulana2Archipelago.Archipelago
 
         private static bool GoalReported;
 
+        // Set when the player has reached a goal scene but the CLIENT_GOAL packet
+        // hasn't landed yet (e.g. socket silently closed). Persists across a
+        // reconnect so HandleConnectResult can retry the send.
+        public static bool GoalPending;
+
         /// <summary>
         /// Set this to true BEFORE connecting on a brand-new game start so that
         /// any items the server already has on record are skipped (their index is
@@ -160,6 +165,12 @@ namespace LaMulana2Archipelago.Archipelago
             ApplyStandaloneFromSlotData(slotData);
 
             OfflineMode = true;
+
+            // Any shadow state cached against the pre-activation "noseed" key
+            // must be discarded so the next file load resolves against
+            // ..._offline_* files.
+            ShadowSaveManager.InvalidateCaches();
+
             Plugin.Log.LogInfo("[AP] Offline mode activated from seed.lm2r");
             return true;
         }
@@ -209,6 +220,8 @@ namespace LaMulana2Archipelago.Archipelago
             LocationFlagMap.InitializeFromSeed();
 
             OfflineMode = false;
+            ShadowSaveManager.InvalidateCaches();
+
             Plugin.Log.LogInfo("[AP] Offline mode deactivated");
             return true;
         }
@@ -359,6 +372,12 @@ namespace LaMulana2Archipelago.Archipelago
                 Authenticated = true;
                 GoalReported = false;
 
+                // Discard any shadow state cached before RoomSeed was known
+                // (e.g. a file load that happened pre-connect resolved its
+                // SeedKey to "noseed"). Subsequent OnFileLoad calls will
+                // reload from the correct ..._<seed>_* files.
+                ShadowSaveManager.InvalidateCaches();
+
                 // Populate CheckedLocations from the server's authoritative list.
                 // Needed so VirtualFlagManager can correctly identify already-collected
                 // AP placeholder items after a fresh session start (their sheet-31 flags
@@ -379,6 +398,14 @@ namespace LaMulana2Archipelago.Archipelago
 
                 outText = $"Successfully connected to {ServerData.NormalizedUri} as {ServerData.SlotName}!";
                 ArchipelagoConsole.LogMessage(outText);
+
+                // If a previous CLIENT_GOAL send failed (socket dropped at credits),
+                // retry now that we're authenticated again.
+                if (GoalPending && !GoalReported)
+                {
+                    Plugin.Log.LogInfo("[AP] Retrying deferred CLIENT_GOAL after reconnect.");
+                    ReportGoalOnce();
+                }
             }
             else
             {
@@ -425,6 +452,10 @@ namespace LaMulana2Archipelago.Archipelago
                 ServerData.CheckedLocations.Clear();
                 ServerData.Index = 0;
             }
+
+            // RoomSeed is cleared above; cached shadow state is now keyed
+            // against a stale seed and must be dropped.
+            ShadowSaveManager.InvalidateCaches();
         }
 
         // =============================
@@ -509,6 +540,48 @@ namespace LaMulana2Archipelago.Archipelago
             }
         }
 
+        /// <summary>
+        /// Mirror the natural-dissonance count (flag [2,3]) to AP datastorage so
+        /// PopTracker can drive the Beherit consumable counter when
+        /// random_dissonance is OFF. Driven by DissonanceTracker, which guards
+        /// the random_dissonance==true mode (those grants come through onItem).
+        ///
+        /// Key format: lamulana2_dissonance_{team}_{slot}
+        /// Value: current cumulative count from flag[2,3].
+        /// </summary>
+        public void RecordDissonanceCount(int count)
+        {
+            if (!Authenticated || session == null) return;
+
+            try
+            {
+                var conn = session.ConnectionInfo;
+                string key = $"lamulana2_dissonance_{conn.Team}_{conn.Slot}";
+
+                var packet = new SetPacket
+                {
+                    Key = key,
+                    DefaultValue = JToken.FromObject(0),
+                    WantReply = false,
+                    Operations = new[]
+                    {
+                        new OperationSpecification
+                        {
+                            OperationType = OperationType.Replace,
+                            Value = JToken.FromObject(count)
+                        }
+                    }
+                };
+
+                session.Socket.SendPacketAsync(packet);
+                Plugin.Log.LogInfo($"[AP] Datastorage Set sent: {key} = {count}");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[AP] Datastorage write failed for dissonance count: {ex.Message}");
+            }
+        }
+
         // 3. Replace your existing GetItemAtLocation method:
         public ScoutedItem GetItemAtLocation(long locationId)
         {
@@ -565,6 +638,11 @@ namespace LaMulana2Archipelago.Archipelago
         public void ReportGoalOnce()
         {
             if (GoalReported) return;
+
+            // Record intent up-front so any retry path (reconnect, Ending2
+            // fallback) knows we still owe the server a CLIENT_GOAL.
+            GoalPending = true;
+
             if (!Authenticated || session == null) return;
 
             GoalReported = true;
@@ -574,12 +652,17 @@ namespace LaMulana2Archipelago.Archipelago
                 // Protocol: StatusUpdate -> CLIENT_GOAL (30)
                 session.Socket.SendPacketAsync(new StatusUpdatePacket { Status = (ArchipelagoClientState)30 });
                 Plugin.Log.LogInfo("[AP] Goal reached (CLIENT_GOAL sent)");
+                GoalPending = false;
             }
             catch (System.Exception e)
             {
                 Plugin.Log.LogError($"[AP] Failed to send CLIENT_GOAL: {e}");
-                // Allow retry if it failed to send.
+                // Send failed (commonly because the socket silently closed).
+                // Tear the session down so the next Connect() rebuilds it;
+                // GoalPending stays true so HandleConnectResult retries the
+                // CLIENT_GOAL once we're reconnected.
                 GoalReported = false;
+                Disconnect();
             }
         }
         public void SendMessage(string message)
@@ -671,6 +754,7 @@ namespace LaMulana2Archipelago.Archipelago
         {
             ItemQueue.Clear();
             GoalReported = false;
+            GoalPending = false;
             Patches.ItemPotPatch.Reset();
         }
     }

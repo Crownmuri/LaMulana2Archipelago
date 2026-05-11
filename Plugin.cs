@@ -65,6 +65,12 @@ namespace LaMulana2Archipelago
         private const string GoalSceneName = "Ending1";
         private const int GoalSceneBuildIndex = 48;
 
+        // Backup trigger: if the CLIENT_GOAL send at Ending1 failed (e.g.
+        // socket silently closed), retry on Ending2 — kicking a reconnect
+        // if we're no longer authenticated.
+        private const string GoalSceneFallback = "Ending2";
+        private const int GoalSceneFallbackBuildIndex = 49;
+
         private bool _bootstrapStarted = false;
         private bool _bootstrapFinished = false;
 
@@ -476,20 +482,40 @@ namespace LaMulana2Archipelago
             // Drives the guardian-kill state machine; safe to call always.
             Managers.BossKillTracker.NotifySceneLoaded(scene.name);
 
-            if (ArchipelagoClient == null ||
-                (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode))
-                return;
+            // Mirror current flag[2,3] (natural dissonance count) to AP
+            // datastorage so PopTracker picks up the value after save loads
+            // and reconnects, where setFlagData isn't replayed by the engine.
+            Managers.DissonanceTracker.NotifySceneLoaded();
 
-            // Exact trigger: credits roll
-            if (scene.name == GoalSceneName || scene.buildIndex == GoalSceneBuildIndex)
+            if (ArchipelagoClient == null) return;
+
+            bool isEnding1 = scene.name == GoalSceneName || scene.buildIndex == GoalSceneBuildIndex;
+            bool isEnding2 = scene.name == GoalSceneFallback || scene.buildIndex == GoalSceneFallbackBuildIndex;
+
+            // Goal scene handling runs even if the socket has dropped — we
+            // need to record intent (GoalPending) and possibly kick a reconnect
+            // so the deferred CLIENT_GOAL can land.
+            if (isEnding1 || isEnding2)
             {
-                Log.LogInfo($"[AP] Credits scene reached ('{scene.name}'), reporting goal.");
+                Log.LogInfo($"[AP] {(isEnding1 ? "Credits" : "Post-credits")} scene reached ('{scene.name}'), reporting goal.");
                 ArchipelagoClient.ReportGoalOnce();
+
+                // If we still owe the server a goal packet and we're not
+                // currently connected, kick a reconnect. HandleConnectResult
+                // will retry ReportGoalOnce on success.
+                if (ArchipelagoClient.GoalPending && !ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
+                {
+                    Log.LogInfo("[AP] Goal still pending and not authenticated — kicking reconnect.");
+                    ArchipelagoClient.Connect();
+                }
 
                 // Stop processing items once the run is over.
                 gameplayActive = false;
                 gameplayActivationTime = float.MaxValue;
             }
+
+            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
+                return;
 
             // Standalone scene randomization (chests, entrances, NPCs, etc.)
             if (Managers.SceneRandomizer.Instance != null)

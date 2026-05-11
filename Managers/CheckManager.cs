@@ -275,6 +275,7 @@ namespace LaMulana2Archipelago.Managers
             PendingAnkhJewelName = null;
             ItemGrantStateGuard.IsPostExitTalkActive = false;
             BossKillTracker.Reset();
+            DissonanceTracker.Reset();
             Plugin.Log.LogInfo("[CHECK] CheckManager reset");
         }
     }

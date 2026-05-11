@@ -155,6 +155,10 @@ namespace LaMulana2Archipelago.Patches
             // ankh-used transition so the scene tracker can confirm the kill
             // on field exit.
             BossKillTracker.NotifyFlagSet(seet_no, flag_no, data);
+
+            // Natural-dissonance count → PopTracker datastorage. Filters
+            // internally to flag [2,3] and to random_dissonance==false seeds.
+            DissonanceTracker.NotifyFlagSet(seet_no, flag_no, data);
         }
     }
 
