@@ -1932,6 +1932,9 @@ namespace LaMulana2Archipelago.Managers
 
             // Fix Giltoriyo early dialogue exit
             talkDataBase.cellData[3][6][1][0] = "[@setf,5,62,=,2]\n[@setf,1,7,=,0]\n[@anim,talk,1]\n[@p,1st-4]";
+
+            // Charon will always accept all your money
+            talkDataBase.cellData[73][6][1][0] = "[@setf,0,1,=,0]\n[@setf,1,9,=,1]\n[@anim,talk,1]\n[@nobu]";
         }
 
         // ================================================================
