@@ -495,6 +495,11 @@ namespace LaMulana2Archipelago.Managers
 
                 ChangeChestItemFlags(newChest, newItemID);
 
+                // Even if SetActive(false) loses a race
+                // (dynamic re-spawns, parent re-enables, late-init chests like
+                // Maat's Feather), sta=7 + null itemObj keeps it non-interactive.
+                Traverse.Create(oldChest).Field("sta").SetValue(7);
+                oldChest.itemObj = null;
                 oldChest.curseMode = false;
                 objectsToDeactivate.Add(oldChest.gameObject);
             }
