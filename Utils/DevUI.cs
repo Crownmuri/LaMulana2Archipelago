@@ -255,7 +255,7 @@ namespace LaMulana2Archipelago.Utils
             var pots = FindObjectsOfType<ItemPotScript>();
             foreach (var pot in pots)
             {
-                if (pot == null || pot.exItemPrefab == null) continue;
+                if (pot == null || !pot.isActiveAndEnabled || pot.exItemPrefab == null) continue;
 
                 AbstractItemBase component = pot.exItemPrefab.GetComponent<AbstractItemBase>();
                 if (component == null) continue;
