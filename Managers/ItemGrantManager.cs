@@ -262,9 +262,22 @@ namespace LaMulana2Archipelago.Managers
 
                 bool isMSX3p = itemId == ItemID.MobileSuperx3P;
 
+                // Maps are tracked by per-area flags (sheet=2, flag=111..130).
+                // The shared BoxName "Map" makes sys.setItem write to a name lookup
+                // that doesn't correspond to any per-area flag, so we have to stamp
+                // info.ItemFlag manually — same shape as Sacred Orbs / numbered
+                // Crystal Skulls. Local chest pickups don't hit this path because
+                // their itemGetFlags already stamp the right (sheet, flag) directly.
+                bool isMap = itemId >= ItemID.Map1 && itemId <= ItemID.Map20;
+
                 if (isSacredOrb)
                 {
                     Plugin.Log.LogInfo($"[ITEM] Sacred Orb: ItemID={itemId} sheet={info.ItemSheet} flag={info.ItemFlag}");
+                }
+
+                if (isMap)
+                {
+                    Plugin.Log.LogInfo($"[ITEM] Map: ItemID={itemId} sheet={info.ItemSheet} flag={info.ItemFlag}");
                 }
 
                 //if (!ShadowSaveManager.IsApplying || RestoreWithAnimations)
@@ -355,6 +368,14 @@ namespace LaMulana2Archipelago.Managers
                         sys.setFlagData(0, 2, (short)(orbCount + 1));
 
                         // CALCU.EQR: stamp this specific orb's flag
+                        sys.setFlagData(info.ItemSheet, info.ItemFlag, 1);
+                    }
+
+                    if (isMap)
+                    {
+                        // CALCU.EQR: stamp this specific area's map flag.
+                        // Matches the original randomizer's CreateGetFlags fall-through:
+                        //   sheet=2, flag=111..130, data=1
                         sys.setFlagData(info.ItemSheet, info.ItemFlag, 1);
                     }
 

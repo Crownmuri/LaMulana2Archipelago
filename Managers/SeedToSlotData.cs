@@ -12,9 +12,19 @@ namespace LaMulana2Archipelago.Managers
     /// they would an AP slot_data payload.
     ///
     /// Binary layout mirrors Archipelago\worlds\lamulana2\seed.py write_seed_file.
+    ///
+    /// If a companion seed.lm2ap file is present next to seed.lm2r, its AP-only
+    /// settings (guardian_specific_ankhs, potsanity, ap_chest_color, death_link,
+    /// logic_difficulty, costume_clip, dlc_item_logic, life_sigil_to_awaken_hom,
+    /// random_research) plus pot placements and pot_flag_map are merged in,
+    /// letting the mod replay AP seeds solo with the same behavior as online.
     /// </summary>
     internal static class SeedToSlotData
     {
+        // ASCII "LM2A" — must match LM2AP_MAGIC in seed.py.
+        private static readonly byte[] Lm2apMagic = new byte[] { (byte)'L', (byte)'M', (byte)'2', (byte)'A' };
+        private const int Lm2apSupportedVersion = 1;
+
         public static string SeedPath
         {
             get
@@ -22,6 +32,17 @@ namespace LaMulana2Archipelago.Managers
                 string path = Path.Combine(Paths.GameRootPath, "LaMulana2Randomizer");
                 path = Path.Combine(path, "Seed");
                 path = Path.Combine(path, "seed.lm2r");
+                return path;
+            }
+        }
+
+        public static string ApSeedPath
+        {
+            get
+            {
+                string path = Path.Combine(Paths.GameRootPath, "LaMulana2Randomizer");
+                path = Path.Combine(path, "Seed");
+                path = Path.Combine(path, "seed.lm2ap");
                 return path;
             }
         }
@@ -60,6 +81,7 @@ namespace LaMulana2Archipelago.Managers
 
                     // Offline has no AP items; reuse the item chest color so the
                     // runtime never tints a chest "AP blue" when there is no AP peer.
+                    // Overridden by .lm2ap if present.
                     dict["ap_chest_color"] = dict["item_chest_color"];
 
                     // Starting items
@@ -134,11 +156,25 @@ namespace LaMulana2Archipelago.Managers
                     dict["soul_gate_pairs"] = soulGates;
                 }
 
-                // Features that exist only in AP slot_data — keep them explicit
-                // so GetSlotBool/GetSlotDict return deterministic offline defaults.
+                // Features that exist only in AP slot_data — start with
+                // deterministic offline defaults so GetSlotBool/GetSlotDict
+                // behave predictably when the .lm2ap companion is missing.
                 dict["potsanity"] = 0;
                 dict["death_link"] = 0;
                 dict["guardian_specific_ankhs"] = 0;
+
+                // Merge the AP-extended companion file if it exists. Failure to
+                // load is non-fatal: a stock LM2 randomizer seed has no .lm2ap.
+                if (File.Exists(ApSeedPath))
+                {
+                    string apError;
+                    if (!TryMergeApSeed(dict, out apError))
+                    {
+                        // Surface the parse error to logs but keep the legacy
+                        // seed usable rather than failing the whole load.
+                        Plugin.Log.LogWarning("[SeedToSlotData] " + apError);
+                    }
+                }
 
                 slotData = dict;
                 return true;
@@ -146,6 +182,87 @@ namespace LaMulana2Archipelago.Managers
             catch (Exception ex)
             {
                 error = "Failed reading seed.lm2r: " + ex;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Reads seed.lm2ap (AP-extended settings + pot data) and merges its
+        /// values into the slot_data dict. Layout mirrors write_ap_seed_file
+        /// in seed.py.
+        /// </summary>
+        private static bool TryMergeApSeed(Dictionary<string, object> dict, out string error)
+        {
+            error = null;
+            try
+            {
+                using (var br = new BinaryReader(File.Open(ApSeedPath, FileMode.Open, FileAccess.Read, FileShare.Read)))
+                {
+                    byte[] magic = br.ReadBytes(4);
+                    if (magic.Length != 4
+                        || magic[0] != Lm2apMagic[0]
+                        || magic[1] != Lm2apMagic[1]
+                        || magic[2] != Lm2apMagic[2]
+                        || magic[3] != Lm2apMagic[3])
+                    {
+                        error = "seed.lm2ap has bad magic header; expected LM2A";
+                        return false;
+                    }
+
+                    int version = br.ReadInt32();
+                    if (version != Lm2apSupportedVersion)
+                    {
+                        error = $"seed.lm2ap version {version} is not supported (expected {Lm2apSupportedVersion})";
+                        return false;
+                    }
+
+                    // --- AP-only settings ---
+                    dict["guardian_specific_ankhs"]  = br.ReadBoolean() ? 1 : 0;
+                    dict["potsanity"]                = br.ReadBoolean() ? 1 : 0;
+                    dict["ap_chest_color"]           = br.ReadInt32();
+                    dict["logic_difficulty"]         = br.ReadInt32();
+                    dict["costume_clip"]             = br.ReadBoolean() ? 1 : 0;
+                    dict["dlc_item_logic"]           = br.ReadBoolean() ? 1 : 0;
+                    dict["life_sigil_to_awaken_hom"] = br.ReadBoolean() ? 1 : 0;
+                    dict["random_research"]          = br.ReadBoolean() ? 1 : 0;
+                    dict["death_link"]               = br.ReadBoolean() ? 1 : 0;
+
+                    // --- Pot placements: same shape as item_placements so the
+                    //     runtime can treat them uniformly. ItemPotPatch keys
+                    //     pickups off pot_flag_map; the placements list is for
+                    //     anything that needs (location, item) per pot.
+                    int potCount = br.ReadInt32();
+                    var potPlacements = new JArray();
+                    for (int i = 0; i < potCount; i++)
+                    {
+                        int loc = br.ReadInt32();
+                        int item = br.ReadInt32();
+                        potPlacements.Add(new JObject
+                        {
+                            ["location"] = loc,
+                            ["item"] = item,
+                        });
+                    }
+                    dict["pot_placements"] = potPlacements;
+
+                    // --- Pot flag map: keyed by stringified LocationID to match
+                    //     the AP slot_data shape that ItemPotPatch.Initialize
+                    //     consumes via GetSlotDict.
+                    int flagCount = br.ReadInt32();
+                    var potFlagMap = new Dictionary<string, object>();
+                    for (int i = 0; i < flagCount; i++)
+                    {
+                        int locationIdValue = br.ReadInt32();
+                        int potFlagNo = br.ReadInt32();
+                        potFlagMap[locationIdValue.ToString()] = potFlagNo;
+                    }
+                    dict["pot_flag_map"] = potFlagMap;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "Failed reading seed.lm2ap: " + ex;
                 return false;
             }
         }
