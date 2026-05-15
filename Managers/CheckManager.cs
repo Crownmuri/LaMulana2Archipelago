@@ -169,13 +169,29 @@ namespace LaMulana2Archipelago.Managers
 
                 // Don't overwrite a dialog label that was already primed this frame
                 // (e.g. two pickups on the same frame — show the first, skip the second).
-                else if (ItemDialogPatch.PendingDisplayLabel != null)
+                // A prime from a *previous* frame is stale: the dialog never opened
+                // to consume it (e.g. AP placeholder chest whose item dialog was
+                // skipped), so we discard it and prime fresh for this pickup.
+                else if (ItemDialogPatch.PendingDisplayLabel != null
+                         && ItemDialogPatch.LastPrimedFrame == UnityEngine.Time.frameCount)
                 {
                     Plugin.Log.LogInfo("[CHECK] Skipping dialog prime — another label already pending");
                 }
 
                 else if (!kataribeHandled && !chestFillerHandled && !potFillerHandled)
                 {
+                    // If a stale prime from a previous frame survived (dialog
+                    // never opened to consume it), wipe all of its sidecar
+                    // state so it can't leak into this pickup's dialog.
+                    if (ItemDialogPatch.PendingDisplayLabel != null)
+                    {
+                        Plugin.Log.LogWarning("[CHECK] Discarding stale dialog label: \""
+                            + ItemDialogPatch.PendingDisplayLabel + "\"");
+                        ItemDialogPatch.PendingDisplayLabel = null;
+                        ItemDialogPatch.PendingSenderName = null;
+                        ItemDialogPatch.PendingRecipientName = null;
+                    }
+
                     var scouted = client.GetItemAtLocation(apLocation);
 
                     if (scouted != null)

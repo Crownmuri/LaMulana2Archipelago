@@ -5,6 +5,7 @@ using LaMulana2Archipelago.Archipelago;
 using LaMulana2Archipelago.Managers;
 using System;
 using System.Reflection;
+using UnityEngine;
 
 namespace LaMulana2Archipelago.Patches
 {
@@ -36,7 +37,24 @@ namespace LaMulana2Archipelago.Patches
         // ---------------------------------------------------------------
         // Set by Plugin.Update before each AP item grant.
         // ---------------------------------------------------------------
-        public static string PendingDisplayLabel { get; set; }
+        private static string _pendingDisplayLabel;
+
+        public static string PendingDisplayLabel
+        {
+            get => _pendingDisplayLabel;
+            set
+            {
+                _pendingDisplayLabel = value;
+                if (!string.IsNullOrEmpty(value))
+                    LastPrimedFrame = Time.frameCount;
+            }
+        }
+
+        // Frame at which PendingDisplayLabel was last set to a non-empty value.
+        // Used by CheckManager to detect a stale prime leaked from a prior pickup
+        // whose dialog never opened (e.g. AP placeholder chest with no dialog).
+        public static int LastPrimedFrame { get; private set; } = -1;
+
         public static string PendingSenderName { get; set; }
         public static string PendingRecipientName { get; set; }
 
