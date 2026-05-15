@@ -32,6 +32,11 @@ namespace LaMulana2Archipelago.Managers
         private List<LocationID> cursedChests = new();
         private Dictionary<ExitID, ExitID> exitToExitMap = new();
         private Dictionary<ExitID, int> soulGateValueMap = new();
+        // Per-location display name. Populated by AP slot_data["location_labels"]
+        // (online) or seed.lm2ap (offline). Used to label items in places where
+        // the vanilla BoxName doesn't carry the AP-specific suffix, e.g.
+        // "Ankh Jewel (Vritra)".
+        private Dictionary<LocationID, string> locationLabelMap = new();
 
         // Settings
         private bool randomSoulGates;
@@ -84,6 +89,7 @@ namespace LaMulana2Archipelago.Managers
             cursedChests.Clear();
             exitToExitMap.Clear();
             soulGateValueMap.Clear();
+            locationLabelMap.Clear();
 
             // Item placements
             if (slotData.TryGetValue("item_placements", out object rawPl) && rawPl is JArray placements)
@@ -93,6 +99,39 @@ namespace LaMulana2Archipelago.Managers
                     var loc = (LocationID)(int)entry["location"];
                     var item = (ItemID)(int)entry["item"];
                     locationToItemMap[loc] = item;
+                }
+            }
+
+            // Pot placements (offline lm2ap path — online sends pots inside
+            // item_placements, but SeedToSlotData splits them into a separate
+            // key so the legacy seed.lm2r reader stays unchanged).
+            if (slotData.TryGetValue("pot_placements", out object rawPot) && rawPot is JArray potPlacements)
+            {
+                foreach (var entry in potPlacements)
+                {
+                    var loc = (LocationID)(int)entry["location"];
+                    var item = (ItemID)(int)entry["item"];
+                    locationToItemMap[loc] = item;
+                }
+            }
+
+            // Per-location display labels — accept both the online JObject form
+            // (string keys, JValue/string values) and the offline Dictionary
+            // form produced by SeedToSlotData.
+            if (slotData.TryGetValue("location_labels", out object rawLabels))
+            {
+                if (rawLabels is JObject labelObj)
+                {
+                    foreach (var prop in labelObj.Properties())
+                    {
+                        if (int.TryParse(prop.Name, out int locInt))
+                            locationLabelMap[(LocationID)locInt] = (string)prop.Value;
+                    }
+                }
+                else if (rawLabels is IDictionary<int, string> labelDict)
+                {
+                    foreach (var kvp in labelDict)
+                        locationLabelMap[(LocationID)kvp.Key] = kvp.Value;
                 }
             }
 
@@ -251,6 +290,19 @@ namespace LaMulana2Archipelago.Managers
         {
             locationToItemMap.TryGetValue(locationID, out ItemID id);
             return id;
+        }
+
+        /// <summary>
+        /// AP-supplied display name for the item at this location, or null if
+        /// the slot_data / lm2ap file didn't carry a label for it. Prefer this
+        /// over ItemDB.GetItemInfo().BoxName when you need to show the player
+        /// the AP-specific name (e.g. "Ankh Jewel (Vritra)" rather than the
+        /// vanilla "Ankh Jewel").
+        /// </summary>
+        public string GetLabelForLocation(LocationID locationID)
+        {
+            locationLabelMap.TryGetValue(locationID, out string name);
+            return name;
         }
 
         private LocationID GetLocationID(string objName)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using BepInEx;
 using Newtonsoft.Json.Linq;
 
@@ -23,7 +24,9 @@ namespace LaMulana2Archipelago.Managers
     {
         // ASCII "LM2A" — must match LM2AP_MAGIC in seed.py.
         private static readonly byte[] Lm2apMagic = new byte[] { (byte)'L', (byte)'M', (byte)'2', (byte)'A' };
-        private const int Lm2apSupportedVersion = 1;
+        // v1 had no location_labels section; v2 appends it after pot_flag_map.
+        // Both versions remain readable: v1 simply leaves location_labels empty.
+        private const int Lm2apSupportedVersion = 2;
 
         public static string SeedPath
         {
@@ -210,9 +213,9 @@ namespace LaMulana2Archipelago.Managers
                     }
 
                     int version = br.ReadInt32();
-                    if (version != Lm2apSupportedVersion)
+                    if (version < 1 || version > Lm2apSupportedVersion)
                     {
-                        error = $"seed.lm2ap version {version} is not supported (expected {Lm2apSupportedVersion})";
+                        error = $"seed.lm2ap version {version} is not supported (expected 1..{Lm2apSupportedVersion})";
                         return false;
                     }
 
@@ -257,6 +260,25 @@ namespace LaMulana2Archipelago.Managers
                         potFlagMap[locationIdValue.ToString()] = potFlagNo;
                     }
                     dict["pot_flag_map"] = potFlagMap;
+
+                    // --- Location labels (v2+): LocationID → display name as
+                    //     it should appear in-game. Lets the offline path show
+                    //     foreign-player items by name and lets own items keep
+                    //     guardian-specific Ankh names instead of falling back
+                    //     to the vanilla BoxName.
+                    var locationLabels = new Dictionary<int, string>();
+                    if (version >= 2)
+                    {
+                        int labelCount = br.ReadInt32();
+                        for (int i = 0; i < labelCount; i++)
+                        {
+                            int locationIdValue = br.ReadInt32();
+                            int byteCount = br.ReadInt32();
+                            byte[] nameBytes = br.ReadBytes(byteCount);
+                            locationLabels[locationIdValue] = Encoding.UTF8.GetString(nameBytes);
+                        }
+                    }
+                    dict["location_labels"] = locationLabels;
                 }
                 return true;
             }

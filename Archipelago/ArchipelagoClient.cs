@@ -171,6 +171,12 @@ namespace LaMulana2Archipelago.Archipelago
             // ..._offline_* files.
             ShadowSaveManager.InvalidateCaches();
 
+            // L2ShopDataBase constructed before offline activation, so its
+            // ctor postfix ran with no slot_data and skipped Apply. Trigger
+            // the same Reapply() the online scout-cache callback uses, now
+            // that OfflineMode is true and seed.lm2ap labels are loaded.
+            LaMulana2Archipelago.Patches.ShopDialogPatch.Reapply();
+
             Plugin.Log.LogInfo("[AP] Offline mode activated from seed.lm2r");
             return true;
         }

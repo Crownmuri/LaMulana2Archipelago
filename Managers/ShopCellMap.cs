@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using LaMulana2RandomizerShared;
 
 namespace LaMulana2Archipelago.Managers
 {
@@ -10,6 +12,41 @@ namespace LaMulana2Archipelago.Managers
 
     public static class ShopCellMap
     {
+        /// <summary>
+        /// Converts an AP location name (e.g. "[VOD C-4] Nebur Shop 1",
+        /// "[GOG B-4] Hiner Shop 4 (3 Guardians)") to the matching
+        /// LocationID enum value. Used in offline mode where the AP
+        /// session can't resolve location names.
+        ///
+        /// Returns LocationID.None when no enum entry matches.
+        /// </summary>
+        public static LocationID ResolveLocationId(string apLocationName)
+        {
+            if (string.IsNullOrEmpty(apLocationName)) return LocationID.None;
+
+            // Strip the leading "[AREA] " tag.
+            int closeIdx = apLocationName.IndexOf("] ", StringComparison.Ordinal);
+            string trimmed = closeIdx >= 0
+                ? apLocationName.Substring(closeIdx + 2)
+                : apLocationName;
+
+            // Strip any trailing parenthesized suffix " (...)" so
+            // "Hiner Shop 4 (3 Guardians)" → "Hiner Shop 4".
+            int parenIdx = trimmed.IndexOf(" (", StringComparison.Ordinal);
+            if (parenIdx >= 0) trimmed = trimmed.Substring(0, parenIdx);
+
+            // LocationID enum members are pascalcase with no spaces.
+            string enumName = trimmed.Replace(" ", string.Empty);
+
+            // net35: no Enum.TryParse. IsDefined gates Parse so unknown names
+            // (and inadvertent numeric strings) don't slip through.
+            if (string.IsNullOrEmpty(enumName) || !Enum.IsDefined(typeof(LocationID), enumName))
+                return LocationID.None;
+
+            return (LocationID)Enum.Parse(typeof(LocationID), enumName);
+        }
+
+
         // Key: (shopId, pageId, cellId)  →  Value: AP location name (must match your world's location names exactly)
         public static readonly Dictionary<ShopCell, string> CellToLocation = new()
         {

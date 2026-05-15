@@ -3,6 +3,7 @@ using L2Base;
 using L2Word;
 using LaMulana2Archipelago.Archipelago;
 using LaMulana2Archipelago.Managers;
+using LaMulana2RandomizerShared;
 using System.Collections.Generic;
 using TMPro;
 
@@ -50,7 +51,7 @@ namespace LaMulana2Archipelago.Patches
         {
             _cachedInstance = __instance;
 
-            if (ArchipelagoClient.Authenticated)
+            if (ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode)
                 Apply(__instance);
         }
 
@@ -83,16 +84,40 @@ namespace LaMulana2Archipelago.Patches
             var client = ArchipelagoClientProvider.Client;
             if (client == null) return;
 
+            bool offline = ArchipelagoClient.OfflineMode && !ArchipelagoClient.Authenticated;
+
             // Group entries by ShopId, sorted by PageId to determine UI slot order (0,1,2).
             var byShop = new Dictionary<int, List<ShopSlotEntry>>();
 
             foreach (var kvp in ShopCellMap.CellToLocation)
             {
-                string apText = GetApItemText(client, kvp.Value);
-                if (apText == null) continue;
+                string apText;
+                long apLocationIdValue;
 
-                long? apLocationId = client.GetLocationIdByName(kvp.Value);
-                if (apLocationId == null) continue;
+                if (offline)
+                {
+                    // Offline: AP session can't resolve names. Parse the AP
+                    // location name to LocationID, then pull the label out of
+                    // the seed.lm2ap location_labels via SceneRandomizer.
+                    LocationID locId = ShopCellMap.ResolveLocationId(kvp.Value);
+                    if (locId == LocationID.None) continue;
+
+                    string apLabel = SceneRandomizer.Instance?.GetLabelForLocation(locId);
+                    if (string.IsNullOrEmpty(apLabel)) continue;
+
+                    apText = apLabel;
+                    apLocationIdValue = 430000L + (int)locId;
+                }
+                else
+                {
+                    apText = GetApItemText(client, kvp.Value);
+                    if (apText == null) continue;
+
+                    long? apLocationId = client.GetLocationIdByName(kvp.Value);
+                    if (apLocationId == null) continue;
+
+                    apLocationIdValue = apLocationId.Value;
+                }
 
                 int shopId = kvp.Key.ShopId;
                 if (!byShop.ContainsKey(shopId))
@@ -103,7 +128,7 @@ namespace LaMulana2Archipelago.Patches
                     PageId = kvp.Key.PageId,
                     Cell = kvp.Key,
                     DisplayName = apText,
-                    ApLocationId = apLocationId.Value,
+                    ApLocationId = apLocationIdValue,
                 });
             }
 
