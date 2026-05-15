@@ -255,24 +255,28 @@ namespace LaMulana2Archipelago.Patches
             string internalLabel = "AP Item";
             ItemID? ownItemId = null;
             ItemInfo ownItemInfo = null;
-            if (scouted != null && scouted.IsOwnItem)
+
+            // Try the local placement map first — this works in offline mode
+            // (no AP session, no scout cache) and also covers online cases
+            // where the scout result hasn't arrived yet.
+            // PotFiller IDs (1001-1049) and AP placeholder IDs (410001+) must
+            // fall through to the AP path / "AP Item" label, since they don't
+            // correspond to a vanilla LM2 item.
+            if (Managers.SceneRandomizer.Instance != null)
             {
-                // Get the unique mapped ID from SceneRandomizer first
-                if (Managers.SceneRandomizer.Instance != null)
-                {
-                    ItemID mappedId = Managers.SceneRandomizer.Instance.GetItemIDForLocation(locId);
-                    if (mappedId != ItemID.None)
-                    {
-                        ownItemId = mappedId;
-                    }
-                }
+                ItemID mappedId = Managers.SceneRandomizer.Instance.GetItemIDForLocation(locId);
+                if (mappedId != ItemID.None && (int)mappedId < 1000)
+                    ownItemId = mappedId;
+            }
 
-                // Fallback to AP calculation if not found in the placement map
-                if (ownItemId == null)
-                {
-                    ownItemId = (ItemID)(int)(scouted.ItemId - 420000);
-                }
+            // AP-server fallback: if the local map didn't resolve and we have
+            // a scouted own item, derive the ItemID from the AP code so we
+            // can still show the right sprite/label.
+            if (ownItemId == null && scouted != null && scouted.IsOwnItem)
+                ownItemId = (ItemID)(int)(scouted.ItemId - 420000);
 
+            if (ownItemId.HasValue)
+            {
                 ownItemInfo = ItemDB.GetItemInfo(ownItemId.Value);
                 // Use BoxName (valid vanilla name) for the label — ShopName
                 // variants like "Map7" or "Sacred Orb0" crash the vanilla
@@ -280,6 +284,18 @@ namespace LaMulana2Archipelago.Patches
                 if (ownItemInfo != null && !string.IsNullOrEmpty(ownItemInfo.BoxName))
                     internalLabel = ownItemInfo.BoxName;
             }
+
+            // NOTE: We deliberately do NOT override internalLabel with the AP
+            // location_labels string. The LM2 engine uses AbstractItemBase.itemLabel
+            // as a flag-table key during pickup (pl.setGetItem → setFlagData),
+            // and AP labels frequently diverge from any registered LM2 item name
+            // — even for own items (e.g. "Secret Treasure of Life" vs the
+            // engine's "Secret Treasure"). A divergent label lands on an
+            // unregistered flag and crashes with an out-of-range index.
+            // Display names (AP-style, guardian-specific Ankhs, foreign items)
+            // are surfaced through ItemDialogPatch.PendingDisplayLabel, which
+            // CheckManager.ReportLocation primes from the scout cache or the
+            // seed.lm2ap label fallback.
 
             spawnedItem.itemLabel = internalLabel;
             spawnedItem.itemValue = 1;
@@ -310,8 +326,13 @@ namespace LaMulana2Archipelago.Patches
             getFlags.Add(new L2FlagBoxEnd { seet_no1 = seetNo, flag_no1 = potFlagNo, calcu = CALCU.EQR, data = 1 });
             spawnedItem.itemGetFlags = getFlags.ToArray();
 
-            // Pass internalLabel to properly resolve the sprite
-            SetItemSprite(spawned, sys, scouted, internalLabel);
+            // Pass internalLabel to properly resolve the sprite.
+            // `isOwnItem` is true when either the scout says so OR the local
+            // placement map produced a vanilla ItemID — the latter is what
+            // lets offline mode (no scout cache) still show the real sprite
+            // instead of falling back to the AP map icon for every pot.
+            bool isOwnItem = (scouted != null && scouted.IsOwnItem) || ownItemId.HasValue;
+            SetItemSprite(spawned, sys, isOwnItem, internalLabel);
 
             spawnedItem.initTask();
             spawnedItem.setTreasureBoxOut();
@@ -319,14 +340,14 @@ namespace LaMulana2Archipelago.Patches
             return true;
         }
 
-        private static void SetItemSprite(GameObject itemObj, L2System sys, ArchipelagoClient.ScoutedItem scouted, string internalLabel)
+        private static void SetItemSprite(GameObject itemObj, L2System sys, bool isOwnItem, string internalLabel)
         {
             var renderer = itemObj.GetComponent<SpriteRenderer>();
             if (renderer == null) return;
 
             try
             {
-                if (scouted == null || !scouted.IsOwnItem)
+                if (!isOwnItem)
                 {
                     if (ApSpriteLoader.IsLoaded) renderer.sprite = ApSpriteLoader.MapSprite;
                     else

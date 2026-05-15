@@ -192,8 +192,19 @@ namespace LaMulana2Archipelago.Managers
                             : scouted.ItemName;
                         Plugin.Log.LogInfo("[CHECK] Dialog label primed: \"" + label + "\"");
                     }
-                    // We intentionally DO NOT have an 'else' block here.
-                    // If the item isn't in the AP cache, we let the base game use the real LM2 item name!
+                    else if (SceneRandomizer.Instance != null)
+                    {
+                        // No scout cache (offline mode or pre-scout race): fall back
+                        // to the seed.lm2ap location_labels so AP-specific names like
+                        // "Ankh Jewel (Vritra)" still show in the dialog. Display-only;
+                        // the engine's itemLabel keeps its vanilla flag-safe value.
+                        string apLabel = SceneRandomizer.Instance.GetLabelForLocation(location);
+                        if (!string.IsNullOrEmpty(apLabel))
+                        {
+                            ItemDialogPatch.PendingDisplayLabel = apLabel;
+                            Plugin.Log.LogInfo("[CHECK] Dialog label primed from seed.lm2ap: \"" + apLabel + "\"");
+                        }
+                    }
 
                     PendingAnkhJewelName = null;
                     if (itemAtLocation >= ItemID.AnkhJewel1 && itemAtLocation <= ItemID.AnkhJewel9)

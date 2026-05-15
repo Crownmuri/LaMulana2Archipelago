@@ -35,7 +35,7 @@ namespace LaMulana2Archipelago.Patches
         [HarmonyPatch(typeof(KataribeScript), "calldialog")]
         private static void CalldialogPrefix(KataribeScript __instance)
         {
-            if (!ArchipelagoClient.Authenticated) return;
+            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode) return;
 
             // Mirror the game's own condition — only act when the player confirms.
             // calldialog is called every frame; without this gate we prime on every frame.
@@ -117,20 +117,38 @@ namespace LaMulana2Archipelago.Patches
                 }
             }
 
-            // Don't prime if this location was already reported (dedup).
-            // CheckManager will still send the check; we only skip the dialog prime.
+            // Prefer the scout cache (online) and fall back to seed.lm2ap's
+            // location_labels in offline mode, where the cache is empty.
+            // Either way we mark LastPrimedApLocationId so CheckManager skips
+            // the late prime and we avoid the "another label already pending"
+            // collision on a same-frame pickup.
             var scouted = client.GetItemAtLocation(apLocationId);
-            if (scouted == null) return;
+            string label;
 
-            bool isForOtherPlayer = scouted.PlayerName != ArchipelagoClient.ServerData.SlotName;
+            if (scouted != null)
+            {
+                bool isForOtherPlayer = scouted.PlayerName != ArchipelagoClient.ServerData.SlotName;
 
-            ItemDialogPatch.PendingDisplayLabel = scouted.ItemName;
-            if (isForOtherPlayer)
-                ItemDialogPatch.PendingRecipientName = scouted.PlayerName;
+                ItemDialogPatch.PendingDisplayLabel = scouted.ItemName;
+                if (isForOtherPlayer)
+                    ItemDialogPatch.PendingRecipientName = scouted.PlayerName;
 
-            string label = isForOtherPlayer
-                ? scouted.ItemName + " (" + scouted.PlayerName + ")"
-                : scouted.ItemName;
+                label = isForOtherPlayer
+                    ? scouted.ItemName + " (" + scouted.PlayerName + ")"
+                    : scouted.ItemName;
+            }
+            else if (SceneRandomizer.Instance != null)
+            {
+                string apLabel = SceneRandomizer.Instance.GetLabelForLocation(location);
+                if (string.IsNullOrEmpty(apLabel)) return;
+
+                ItemDialogPatch.PendingDisplayLabel = apLabel;
+                label = apLabel;
+            }
+            else
+            {
+                return;
+            }
 
             LastPrimedApLocationId = apLocationId;
             Plugin.Log.LogInfo("[KataribePatch] Dialog label primed early: \"" + label + "\"");

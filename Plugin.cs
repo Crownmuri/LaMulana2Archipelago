@@ -193,7 +193,21 @@ namespace LaMulana2Archipelago
 
         private void Update()
         {
-            if (!ArchipelagoClient.Authenticated)
+            // Re-scan only if cache is stale (scene transitions null it out).
+            if (_cachedSys == null)
+                _cachedSys = UnityEngine.Object.FindObjectOfType<L2System>();
+            if (_cachedSys == null)
+                return;
+
+            // Create DevUI once we have L2System — independent of AP auth so it
+            // works in offline (seed.lm2r) play and pure vanilla too.
+            if (_devUI == null)
+            {
+                _devUI = gameObject.AddComponent<DevUI>();
+                _devUI.Initialise(_cachedSys);
+            }
+
+            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
                 return;
 
             if (Patches.GuardianSpecificAnkhPatch.SlotRefresh)
@@ -211,19 +225,6 @@ namespace LaMulana2Archipelago
                     }
                 }
                 Log.LogInfo("[AP] Guardian Specific Ankhs setting received. Refreshed active Ankh scripts.");
-            }
-
-            // Re-scan only if cache is stale (scene transitions null it out).
-            if (_cachedSys == null)
-                _cachedSys = UnityEngine.Object.FindObjectOfType<L2System>();
-            if (_cachedSys == null)
-                return;
-
-            // Create DevUI once we have L2System
-            if (_devUI == null)
-            {
-                _devUI = gameObject.AddComponent<DevUI>();
-                _devUI.Initialise(_cachedSys);
             }
 
             // Must have system before we can compute gameplayActive safely
