@@ -181,6 +181,7 @@ namespace LaMulana2Archipelago.Managers
             startFieldName = startingArea switch
             {
                 AreaID.RoY => "field00",
+                AreaID.VoD => "field01",
                 AreaID.AnnwfnMain => "field02",
                 AreaID.IBMain => "field03",
                 AreaID.ITLeft => "field04",
@@ -1559,7 +1560,7 @@ namespace LaMulana2Archipelago.Managers
 
         private void CreateStartingFieldObjects(string field)
         {
-            if (startingArea == AreaID.VoD || !field.Equals(startFieldName))
+            if (!field.Equals(startFieldName))
                 return;
 
             Vector3 tabletPosition = Vector3.zero;
@@ -1572,6 +1573,10 @@ namespace LaMulana2Archipelago.Managers
                     hotSpring.Init(sys);
                 }
             }
+
+            // VoD already has its native shops nearby — skip the "Start Shop" placement.
+            if (startingArea == AreaID.VoD)
+                return;
 
             StartInfo startInfo = StartDB.GetStartInfo(startingArea);
             if (startInfo == null) return;
