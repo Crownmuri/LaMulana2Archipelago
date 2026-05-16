@@ -1,4 +1,5 @@
 using L2Base;
+using UnityEngine;
 
 namespace LaMulana2Archipelago.Managers
 {
@@ -15,6 +16,17 @@ namespace LaMulana2Archipelago.Managers
         /// Set/cleared by TalkSessionPatch. Must be reset on scene transitions.
         /// </summary>
         public static bool IsPostExitTalkActive = false;
+
+        /// <summary>
+        /// Realtime timestamp until which grants are blocked after an NPC talk
+        /// script terminates ([@out] or [@exit] fires).
+        /// </summary>
+        public static float PostTalkGraceUntil = 0f;
+
+        /// <summary>
+        /// Grace window after a talk script ends. 
+        /// </summary>
+        public const float PostTalkGraceSeconds = 1.0f;
 
         public static bool IsSafe(L2System sys, NewPlayer pl)
         {
@@ -67,6 +79,16 @@ namespace LaMulana2Archipelago.Managers
             if (IsPostExitTalkActive)
             {
             //    Plugin.Log.LogDebug("[GRANT] Blocked: IsPostExitTalkActive");
+                return false;
+            }
+
+            // Brief grace window after a talk script terminates. A talk script
+            // can write a cutscene-trigger flag and then [@out] in the same
+            // session; the field doesn't push the player into ANIME_MODE /
+            // EVENTWAIT / SysFlag 4128 until its next Update sees the flag.
+            if (Time.realtimeSinceStartup < PostTalkGraceUntil)
+            {
+            //    Plugin.Log.LogDebug("[GRANT] Blocked: PostTalkGraceUntil");
                 return false;
             }
 

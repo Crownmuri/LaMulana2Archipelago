@@ -301,6 +301,7 @@ namespace LaMulana2Archipelago.Managers
             _shopApLocationIds = null;
             PendingAnkhJewelName = null;
             ItemGrantStateGuard.IsPostExitTalkActive = false;
+            ItemGrantStateGuard.PostTalkGraceUntil = 0f;
             BossKillTracker.Reset();
             DissonanceTracker.Reset();
             Plugin.Log.LogInfo("[CHECK] CheckManager reset");
