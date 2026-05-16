@@ -25,8 +25,9 @@ namespace LaMulana2Archipelago.Managers
         // ASCII "LM2A" — must match LM2AP_MAGIC in seed.py.
         private static readonly byte[] Lm2apMagic = new byte[] { (byte)'L', (byte)'M', (byte)'2', (byte)'A' };
         // v1 had no location_labels section; v2 appends it after pot_flag_map.
-        // Both versions remain readable: v1 simply leaves location_labels empty.
-        private const int Lm2apSupportedVersion = 2;
+        // v3 appends greedy_charon after location_labels.
+        // All versions remain readable: missing sections fall back to defaults.
+        private const int Lm2apSupportedVersion = 3;
 
         public static string SeedPath
         {
@@ -165,6 +166,7 @@ namespace LaMulana2Archipelago.Managers
                 dict["potsanity"] = 0;
                 dict["death_link"] = 0;
                 dict["guardian_specific_ankhs"] = 0;
+                dict["greedy_charon"] = 0;
 
                 // Merge the AP-extended companion file if it exists. Failure to
                 // load is non-fatal: a stock LM2 randomizer seed has no .lm2ap.
@@ -279,6 +281,13 @@ namespace LaMulana2Archipelago.Managers
                         }
                     }
                     dict["location_labels"] = locationLabels;
+
+                    // --- v3+ QoL toggles: greedy_charon overrides the default
+                    //     set in TryLoad. v1/v2 readers keep the default (0).
+                    if (version >= 3)
+                    {
+                        dict["greedy_charon"] = br.ReadBoolean() ? 1 : 0;
+                    }
                 }
                 return true;
             }

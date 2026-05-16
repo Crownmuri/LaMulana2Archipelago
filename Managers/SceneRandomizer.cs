@@ -42,6 +42,7 @@ namespace LaMulana2Archipelago.Managers
         private bool randomSoulGates;
         private bool randomDissonance;
         private bool autoPlaceSkull;
+        private bool greedyCharon;
         private int echidna;
         private int requiredGuardians;
         private int itemChestColour;
@@ -197,6 +198,7 @@ namespace LaMulana2Archipelago.Managers
             requiredGuardians = serverData.GetSlotInt("required_guardians", 5);
             echidna = serverData.GetSlotInt("echidna", 4);
             autoPlaceSkull = serverData.GetSlotBool("auto_place_skull", true);
+            greedyCharon = serverData.GetSlotBool("greedy_charon", true);
             itemChestColour = serverData.GetSlotInt("item_chest_color", 0);
             weightChestColour = serverData.GetSlotInt("filler_chest_color", 4);
             apChestColour = serverData.GetSlotInt("ap_chest_color", 1);
@@ -2025,8 +2027,11 @@ namespace LaMulana2Archipelago.Managers
             // Fix Giltoriyo early dialogue exit
             talkDataBase.cellData[3][6][1][0] = "[@setf,5,62,=,2]\n[@setf,1,7,=,0]\n[@anim,talk,1]\n[@p,1st-4]";
 
-            // Charon will always accept all your money
-            talkDataBase.cellData[73][6][1][0] = "[@setf,0,1,=,0]\n[@setf,1,9,=,1]\n[@anim,talk,1]\n[@nobu]";
+            // Charon will always accept all your money (opt-in via greedy_charon)
+            if (greedyCharon)
+            {
+                talkDataBase.cellData[73][6][1][0] = "[@setf,0,1,=,0]\n[@setf,1,9,=,1]\n[@anim,talk,1]\n[@nobu]";
+            }
         }
 
         // ================================================================

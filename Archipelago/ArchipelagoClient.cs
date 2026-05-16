@@ -286,6 +286,7 @@ namespace LaMulana2Archipelago.Archipelago
             Plugin.Log.LogInfo($"[AP]   echidna             = {ServerData.GetSlotInt("echidna", 4)}");
             Plugin.Log.LogInfo($"[AP]   auto_scan_tablets   = {ServerData.GetSlotBool("auto_scan_tablets")}");
             Plugin.Log.LogInfo($"[AP]   auto_place_skull    = {ServerData.GetSlotBool("auto_place_skull", true)}");
+            Plugin.Log.LogInfo($"[AP]   greedy_charon       = {ServerData.GetSlotBool("greedy_charon", true)}");
             Plugin.Log.LogInfo($"[AP]   remove_it_statue    = {ServerData.GetSlotBool("remove_it_statue", true)}");
             Plugin.Log.LogInfo($"[AP]   guardian_specific_ankhs = {guardianAnkhs}");
             Plugin.Log.LogInfo($"[AP]   death_link          = {ServerData.GetSlotBool("death_link")}");
