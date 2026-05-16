@@ -550,13 +550,43 @@ namespace LaMulana2Archipelago.Managers
 
                 // Even if SetActive(false) loses a race
                 // (dynamic re-spawns, parent re-enables, late-init chests like
-                // Maat's Feather), sta=7 + null itemObj keeps it non-interactive.
+                // Maat's Feather), sta=7 + null itemObj keeps it non-interactive,
+                // and HideGameObject strips every visual/audible component so the
+                // ghost chest can never bleed through behind the prefab.
                 Traverse.Create(oldChest).Field("sta").SetValue(7);
                 oldChest.itemObj = null;
                 oldChest.curseMode = false;
+                HideGameObject(oldChest.gameObject);
                 objectsToDeactivate.Add(oldChest.gameObject);
             }
             return objectsToDeactivate;
+        }
+
+        /// <summary>
+        /// Makes a GameObject completely invisible/inaudible without destroying it.
+        /// Used on superseded vanilla chests: if SetActive(false) loses a race or
+        /// the parent re-enables them, the open animation/shine particles must not
+        /// render behind our replacement prefab.
+        /// </summary>
+        private static void HideGameObject(GameObject go)
+        {
+            if (go == null) return;
+
+            foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
+                r.enabled = false;
+
+            foreach (ParticleSystem ps in go.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                ParticleSystem.EmissionModule emission = ps.emission;
+                emission.enabled = false;
+            }
+
+            foreach (Animator a in go.GetComponentsInChildren<Animator>(true))
+                a.enabled = false;
+
+            foreach (Light l in go.GetComponentsInChildren<Light>(true))
+                l.enabled = false;
         }
 
         private void ChangeChestItemFlags(TreasureBoxScript chest, ItemID itemID)
