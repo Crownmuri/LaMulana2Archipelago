@@ -28,6 +28,18 @@ namespace LaMulana2Archipelago.Managers
         private const int CrystalSkullNumberedFlagMin = 140;
         private const int CrystalSkullNumberedFlagMax = 151;
 
+        // Story items that contribute to the vanilla difficulty/progress tally
+        // (sheet 3, flag 30). Must mirror SceneRandomizer.CreateGetFlags exactly.
+        // Ankh Jewels are handled separately via range check.
+        private static readonly ItemID[] DifficultyTallyStoryItems =
+        {
+            ItemID.DjedPillar,  ItemID.Mjolnir, ItemID.AncientBattery, ItemID.LampofTime, ItemID.PochetteKey,
+            ItemID.PyramidCrystal, ItemID.Vessel, ItemID.EggofCreation, ItemID.GiantsFlute, ItemID.CogofAntiquity, ItemID.MulanaTalisman,
+            ItemID.HolyGrail, ItemID.Gloves, ItemID.DinosaurFigure, ItemID.GaleFibula, ItemID.FlameTorc, ItemID.PowerBand, ItemID.GrappleClaw,
+            ItemID.GaneshaTalisman, ItemID.MaatsFeather, ItemID.Feather, ItemID.FreysShip, ItemID.Harp, ItemID.DestinyTablet, ItemID.SecretTreasureofLife,
+            ItemID.OriginSigil, ItemID.BirthSigil, ItemID.LifeSigil, ItemID.DeathSigil, ItemID.ClaydollSuit
+        };
+
         // If true: restored items will show GETITEM animation + SFX + dialogs just like normal grants.
         // If false: restore is silent (recommended default).
         private const bool RestoreWithAnimations = true;
@@ -270,6 +282,15 @@ namespace LaMulana2Archipelago.Managers
                 // their itemGetFlags already stamp the right (sheet, flag) directly.
                 bool isMap = itemId >= ItemID.Map1 && itemId <= ItemID.Map20;
 
+                // Vanilla difficulty/progress tally (sheet=3, flag=30) is bumped
+                // by CreateGetFlags for every Ankh Jewel and every story item.
+                // Chest/event pickups apply it via itemGetFlags; sys.setItem does
+                // not touch this counter, so AP grants must add it manually.
+                bool isAnkhJewelItem =
+                    itemId >= ItemID.AnkhJewel1 && itemId <= ItemID.AnkhJewel9;
+                bool isDifficultyTallyStoryItem =
+                    Array.IndexOf(DifficultyTallyStoryItems, itemId) > -1;
+
                 if (isSacredOrb)
                 {
                     Plugin.Log.LogInfo($"[ITEM] Sacred Orb: ItemID={itemId} sheet={info.ItemSheet} flag={info.ItemFlag}");
@@ -385,6 +406,22 @@ namespace LaMulana2Archipelago.Managers
                         // setItem("MSX3p",...) alone doesn't stamp the "MSX" flag the game checks
                         // (isHaveItem("MSX") == 2 for the upgraded variant).
                         sys.setFlagData(info.ItemSheet, info.ItemFlag, 2);
+                    }
+
+                    if (isAnkhJewelItem || isDifficultyTallyStoryItem)
+                    {
+                        // Mirror SceneRandomizer.CreateGetFlags: CALCU.ADD sheet=3 flag=30 += 4
+                        // (or += 2 for GrappleClaw / HolyGrail). Drives the vanilla
+                        // progress/difficulty tally that chest pickups already feed.
+                        short diffData = 4;
+                        if (itemId == ItemID.GrappleClaw || itemId == ItemID.HolyGrail)
+                            diffData = 2;
+
+                        short curDiff = 0;
+                        sys.getFlag(3, 30, ref curDiff);
+                        sys.setFlagData(3, 30, (short)(curDiff + diffData));
+
+                        Plugin.Log.LogInfo($"[ITEM] Difficulty tally: sheet=3 flag=30 += {diffData} -> {(short)(curDiff + diffData)} (ItemID={itemId})");
                     }
                 }
 
