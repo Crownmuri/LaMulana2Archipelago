@@ -50,6 +50,7 @@ namespace LaMulana2Archipelago.Managers
         private int apChestColour;
         private ItemID startingWeapon;
         private AreaID startingArea;
+        public AreaID StartingArea => startingArea;
         private string startFieldName;
         public bool StartingGame;
         public bool IsRandomising { get; private set; }

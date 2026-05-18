@@ -1,7 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using BepInEx;
+using L2Base;
 using LaMulana2Archipelago.Archipelago;
+using LaMulana2Archipelago.Managers;
+using LM2RandomiserMod;
 using UnityEngine;
 
 namespace LaMulana2Archipelago.Utils
@@ -23,6 +27,7 @@ namespace LaMulana2Archipelago.Utils
         private static Rect scroll;
         private static Rect text;
         private static Rect hideShowButton;
+        private static Rect warpStartButton;
 
         private static GUIStyle textStyle = new();
         private static string scrollText = "";
@@ -77,6 +82,11 @@ namespace LaMulana2Archipelago.Utils
             {
                 Hidden = !Hidden;
                 UpdateWindow();
+            }
+
+            if (GUI.Button(warpStartButton, "Warp to Start"))
+            {
+                WarpToStartingGrail();
             }
 
             // draw client/server commands entry
@@ -158,6 +168,10 @@ namespace LaMulana2Archipelago.Utils
             hideShowButton = new Rect(Screen.width / 2 + width / 2 + buttonWidth / 3, Screen.height * 0.004f, buttonWidth,
                 buttonHeight);
 
+            var buttonGap = (int)(Screen.width * 0.005f);
+            warpStartButton = new Rect(hideShowButton.x + buttonWidth + buttonGap, hideShowButton.y, buttonWidth,
+                buttonHeight);
+
             // draw server command text field and button
             width = (int)(Screen.width * 0.4f);
             var xPos = (int)(Screen.width / 2.0f - width / 2.0f);
@@ -169,6 +183,50 @@ namespace LaMulana2Archipelago.Utils
             var sendWidth = 100;
             yPos += height + 4;
             SendCommandButton = new Rect(xPos, yPos, sendWidth, height);
+        }
+
+        private static void WarpToStartingGrail()
+        {
+            try
+            {
+                var rando = SceneRandomizer.Instance;
+                if (rando == null)
+                {
+                    LogMessage("[WarpToStart] SceneRandomizer not ready.");
+                    return;
+                }
+
+                StartInfo startInfo = StartDB.GetStartInfo(rando.StartingArea);
+                if (startInfo == null)
+                {
+                    LogMessage($"[WarpToStart] No StartInfo for area {rando.StartingArea}.");
+                    return;
+                }
+
+                var sys = UnityEngine.Object.FindObjectOfType<L2System>();
+                if (sys == null || sys.getPlayer() == null)
+                {
+                    LogMessage("[WarpToStart] Game not loaded.");
+                    return;
+                }
+
+                L2SystemCore sysCore = sys.getL2SystemCore();
+                if (sysCore == null)
+                {
+                    LogMessage("[WarpToStart] L2SystemCore unavailable.");
+                    return;
+                }
+
+                sysCore.gameScreenFadeOut(10);
+                sysCore.setFadeInFlag(true);
+                sysCore.setJumpPosition(startInfo.FieldNo, startInfo.AnchorName, true, false);
+
+                LogMessage($"[WarpToStart] Warped to {rando.StartingArea} ({startInfo.AnchorName}).");
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"[WarpToStart] Error: {ex.Message}");
+            }
         }
     }
 }
