@@ -265,7 +265,7 @@ namespace LaMulana2Archipelago
             Patches.ItemDialogPatch.PendingDisplayLabel = q.ItemName;
             Patches.ItemDialogPatch.PendingSenderName = q.SenderName;
 
-            bool granted = ItemGrantManager.TryGrantItem(sys, pl, q.ItemId);
+            bool granted = ItemGrantManager.TryGrantItem(sys, pl, q.Index, q.ItemId);
 
             if (granted)
             {

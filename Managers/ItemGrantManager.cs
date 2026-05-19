@@ -13,8 +13,12 @@ namespace LaMulana2Archipelago.Managers
     {
         private const long BaseApItemId = 420000;
 
-        // Backoff so a failing item doesn't hard-freeze the game loop
-        private static readonly Dictionary<long, float> NextAttemptTime = new();
+        // Backoff so a failing item doesn't hard-freeze the game loop.
+        // Keyed by the AP queue Index (unique per delivery), NOT by apItemId —
+        // multiple deliveries of the same logical item (e.g. all 7 Progressive
+        // Beherits share apItemId 420175) must not share a backoff slot, or
+        // one transient failure would stall every queued sibling.
+        private static readonly Dictionary<int, float> NextAttemptTime = new();
         private static float GlobalCooldownUntil = 0f;
 
         // True when the most recent successful grant used the popup UI (coins,
@@ -44,7 +48,7 @@ namespace LaMulana2Archipelago.Managers
         // If false: restore is silent (recommended default).
         private const bool RestoreWithAnimations = true;
 
-        public static bool TryGrantItem(L2System sys, NewPlayer pl, long apItemId)
+        public static bool TryGrantItem(L2System sys, NewPlayer pl, int queueIndex, long apItemId)
         {
             float now = Time.realtimeSinceStartup;
 
@@ -52,8 +56,8 @@ namespace LaMulana2Archipelago.Managers
             //{
             if (now < GlobalCooldownUntil)
                 return false;
-            
-            if (NextAttemptTime.TryGetValue(apItemId, out float next) && now < next)
+
+            if (NextAttemptTime.TryGetValue(queueIndex, out float next) && now < next)
                 return false;
             //}
 
@@ -115,7 +119,7 @@ namespace LaMulana2Archipelago.Managers
                             break;
                     }
 
-                    FinishGrant(apItemId, now);
+                    FinishGrant(queueIndex, now);
                     return true;
                 }
 
@@ -163,7 +167,7 @@ namespace LaMulana2Archipelago.Managers
                             break;
                     }
 
-                    FinishGrant(apItemId, now);
+                    FinishGrant(queueIndex, now);
                     return true;
                 }
 
@@ -175,7 +179,7 @@ namespace LaMulana2Archipelago.Managers
                 {
                     LastGrantUsedPopupOnly = true;
                     GrantPotFiller(sys, gameId, apItemId);
-                    FinishGrant(apItemId, now);
+                    FinishGrant(queueIndex, now);
                     return true;
                 }
 
@@ -202,7 +206,7 @@ namespace LaMulana2Archipelago.Managers
                         GrantWeights(sys, weightAmount, boxName);
                     }
 
-                    FinishGrant(apItemId, now);
+                    FinishGrant(queueIndex, now);
                     return true;
                 }
 
@@ -254,7 +258,7 @@ namespace LaMulana2Archipelago.Managers
                     }
 
                     Plugin.Log.LogInfo($"[ITEM] AP Progressive Beherit granted (count={newCount}; unique itemid flag not set)");
-                    FinishGrant(apItemId, now);
+                    FinishGrant(queueIndex, now);
                     return true;
                 }
 
@@ -430,7 +434,7 @@ namespace LaMulana2Archipelago.Managers
                 // Record AP id only after success
                 //ShadowSaveManager.RecordApItemId(apItemId);
 
-                FinishGrant(apItemId, now);
+                FinishGrant(queueIndex, now);
                 return true;
             }
             catch (Exception ex)
@@ -438,9 +442,9 @@ namespace LaMulana2Archipelago.Managers
                 Plugin.Log.LogError("[ITEM] TryGrantItem exception: " + ex);
 
                 float delay = 1.0f;
-                if (NextAttemptTime.TryGetValue(apItemId, out float prevNext))
+                if (NextAttemptTime.TryGetValue(queueIndex, out float prevNext))
                     delay = Math.Min(8.0f, (prevNext - now) + 1.0f);
-                NextAttemptTime[apItemId] = now + delay;
+                NextAttemptTime[queueIndex] = now + delay;
                 GlobalCooldownUntil = now + 0.25f;
 
                 return false;
@@ -524,10 +528,10 @@ namespace LaMulana2Archipelago.Managers
             catch { }
         }
 
-        private static void FinishGrant(long apItemId, float now)
+        private static void FinishGrant(int queueIndex, float now)
         {
             GlobalCooldownUntil = now + 0.20f;
-            NextAttemptTime.Remove(apItemId);
+            NextAttemptTime.Remove(queueIndex);
         }
 
         // ─────────────────────────────────────────────────────────────────────────
