@@ -482,9 +482,13 @@ namespace LaMulana2Archipelago.Patches
         }
 
         /// <summary>
-        /// Tries to physically drop subweapon ammo via DropItemGenerator.
-        /// Falls back to silent addSubWeaponNum if the player doesn't own the weapon
-        /// or the drop generator is unavailable.
+        /// Physically drops subweapon ammo at the pot. Mirrors the tail of
+        /// DropItemGeneratorScript.dropSubWeapon but skips the isSubWeapon
+        /// gate so ammo still drops when the player doesn't own the weapon
+        /// (the pickup writes to the SUB_*_B ammo slot regardless).
+        /// Also covers GRENADE, which vanilla dropSubWeapon never handled.
+        /// Falls back to a silent addSubWeaponNum only if the prefab is
+        /// missing entirely.
         /// </summary>
         private static void DropOrGrantAmmo(L2System sys, Vector3 pos, SUBWEAPON sw,
             DropItemGeneratorScript.SubBltType subType, int amount)
@@ -497,15 +501,48 @@ namespace LaMulana2Archipelago.Patches
                     var dropGen = Traverse.Create(core).Property("dropItemGenerator").GetValue<DropItemGeneratorScript>()
                                ?? Traverse.Create(core).Field("dropItemGen").GetValue<DropItemGeneratorScript>();
 
-                    if (dropGen != null && dropGen.dropSubWeapon(subType, ref pos, amount))
-                        return; // physical drop succeeded
+                    if (dropGen != null)
+                    {
+                        GameObject prefab = null;
+                        switch (subType)
+                        {
+                            case DropItemGeneratorScript.SubBltType.SHURIKEN:        prefab = dropGen.shurikenBltPrefab;      break;
+                            case DropItemGeneratorScript.SubBltType.WHEEL_SHURIKEN:  prefab = dropGen.wheelShurikenBltPrefab; break;
+                            case DropItemGeneratorScript.SubBltType.FLARE:           prefab = dropGen.flareBltPrefab;         break;
+                            case DropItemGeneratorScript.SubBltType.YARI:            prefab = dropGen.yariBltPrefab;          break;
+                            case DropItemGeneratorScript.SubBltType.GRENADE:         prefab = dropGen.grenadeBltPrefab;       break;
+                            case DropItemGeneratorScript.SubBltType.MAKIBISHI:       prefab = dropGen.makibishiBltPrefab;     break;
+                            case DropItemGeneratorScript.SubBltType.CHAKRAM:         prefab = dropGen.chakramBltPrefab;       break;
+                        }
+
+                        if (prefab != null)
+                        {
+                            GameObject spawned = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
+                            var spawnedItem = spawned.GetComponent<AbstractItemBase>();
+                            if (spawnedItem != null)
+                            {
+                                spawnedItem.itemValue = amount;
+                                // Clear itemActiveFlag. The bullet prefab's
+                                // flag is "player owns this subweapon", which
+                                // AbstractItemBase re-checks every tick in
+                                // groundFirst and uses to mark the drop as
+                                // finished → kill the task. Empty array makes
+                                // L2System.checkStartFlag return true.
+                                spawnedItem.itemActiveFlag = new L2FlagBoxParent[0];
+                                spawnedItem.initTask();
+                            }
+                            return;
+                        }
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[POT] DropOrGrantAmmo physical drop failed for {subType}: {ex}");
+            }
 
-            // Fallback: grant silently. Use the "_B" ammo slot, not the
-            // weapon-have slot — addSubWeaponNum on SUB_SYURIKEN/SUB_BOM/
-            // SUB_CHAKURA only bumps a flag the game doesn't read for ammo.
+            // Last-resort silent grant. Use the "_B" ammo slot — addSubWeaponNum
+            // on SUB_SYURIKEN/SUB_BOM/SUB_CHAKURA only bumps the have-weapon flag.
             try
             {
                 SUBWEAPON ammoSw;
