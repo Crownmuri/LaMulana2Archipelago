@@ -1,5 +1,8 @@
 using HarmonyLib;
 using L2Base;
+using L2Hit;
+using L2Word;
+using L2STATUS;
 using LaMulana2Archipelago.Managers;
 using LaMulana2Archipelago.Archipelago;
 
@@ -11,11 +14,49 @@ namespace LaMulana2Archipelago.Patches
     [HarmonyPatch(typeof(L2System), nameof(L2System.dataLoad))]
     internal static class Shadow_DataLoad_Patch
     {
-        static void Prefix(int file_no)
+        static void Prefix(L2System __instance, int file_no)
         {
             ShadowSaveManager.SetCurrentSaveSlot(file_no);
             ArchipelagoClient.SetCurrentSaveSlot(file_no);
             ShadowSaveManager.OnFileLoad();
+
+            // Wipe inherited Status state before memLoad rebuilds it.
+            //
+            // The boot-time Demos.cs reInitSystem(false) lands before AP connects,
+            // so our StatusResetPatch is disabled and vanilla Status.resetPlayerStatus
+            // runs — which hardcodes haveMainWeapon(LWHIP, true) + setMainWeapon(LWHIP).
+            // memLoad's later setMainWeapon(saved) is gated on l2_main_have[saved];
+            // for a save that started with no main weapon (saved == NON), that gate
+            // is false, the assignment is skipped, and l2_eq_main stays LWHIP —
+            // leaving the player with a phantom whip equipped that isn't in inventory.
+            //
+            // clearItemsNum here gives loadInitFlagToItem a clean slate to rebuild
+            // l2_main_have / l2_sub_have / l2_use_have from the saved flags, after
+            // which setMainWeapon(saved) finally takes.
+            if (StatusResetPatch.Enabled)
+            {
+                var playerst = Traverse.Create(__instance).Field("playerst").GetValue<Status>();
+                if (playerst != null)
+                {
+                    playerst.clearItemsNum();
+
+                    // clearItemsNum wipes the Status data but not the StatusBar UI.
+                    // The boot reInitSystem(false) already called statusbar.setMain(LWHIP, 0),
+                    // so the whip icon is still drawn. If memLoad doesn't re-equip a main
+                    // weapon (because saved l2_eq_main == NON), setMainWeapon is gated by
+                    // l2_main_have and skips its statusbar.setMain call, and the whip icon
+                    // sticks. Reset the UI here so memLoad starts from a clean slate —
+                    // for non-NON saves, memLoad's setMainWeapon/setSubWeapon/setUseItem
+                    // will repaint the correct icons.
+                    var statusbar = Traverse.Create(playerst).Field("statusbar").GetValue<StatusBarIF>();
+                    if (statusbar != null)
+                    {
+                        statusbar.setMain(MAINWEAPON.NON, 0);
+                        statusbar.setSub(SUBWEAPON.NON, 0);
+                        statusbar.setUse(USEITEM.NON, 0);
+                    }
+                }
+            }
         }
     }
 
