@@ -601,6 +601,35 @@ namespace LaMulana2Archipelago.Managers
             {
                 displayLabel = weights == 1 ? "1 Weight" : $"{weights} Weights";
             }
+            else if ((messString[0].StartsWith("Whip") || messString[0].StartsWith("Shield"))
+                     && messString[0].Length > 4
+                     && messString[0][messString[0].Length - 1] >= '0'
+                     && messString[0][messString[0].Length - 1] <= '9')
+            {
+                // Moji-DB has "Whip"/"Whip2"/"Whip3" and "Shield"/"Shield2"/"Shield3"
+                // but never "Whip1"/"Shield1". Without renaming, vanilla StartSwitch
+                // calls getMojiText("02Items","Whip1",...) and crashes inside
+                // getMojiNameToNo. Compute the resulting level (current flag + 1)
+                // and rename so vanilla can resolve the entry.
+                var sys = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
+                if (sys != null)
+                {
+                    bool isWhip = messString[0].StartsWith("Whip");
+                    short data = 0;
+                    if (isWhip) sys.getFlag(2, "Whip", ref data);
+                    else        sys.getFlag(2, 196, ref data);
+
+                    string prefix = isWhip ? "Whip" : "Shield";
+                    messString[0] = data == 0 ? prefix
+                                  : data == 1 ? prefix + "2"
+                                              : prefix + "3";
+                }
+                else
+                {
+                    messString[0] = messString[0].StartsWith("Whip") ? "Whip" : "Shield";
+                }
+                return true; // let vanilla StartSwitch handle it
+            }
             else
             {
                 // Progressive item variants: the game only knows the base name.
@@ -743,8 +772,8 @@ namespace LaMulana2Archipelago.Managers
 
             if (name.StartsWith("Research") && name.Length > 8) return "Research";
             if (name.StartsWith("Beherit") && name.Length > 7) return "Beherit";
-            if (name.StartsWith("Whip") && name.Length > 4) return null; // handled by setItem rename
-            if (name.StartsWith("Shield") && name.Length > 6) return null; // handled by setItem rename
+            if (name.StartsWith("Whip") && name.Length > 4) return null; // handled inline in Prefix (needs L2System flag lookup)
+            if (name.StartsWith("Shield") && name.Length > 6) return null; // handled inline in Prefix (needs L2System flag lookup)
             if (name.StartsWith("Mantra") && name.Length > 6) return "Mantra";
             if (name.StartsWith("Ankh Jewel") && name.Length > 10) return "Ankh Jewel";
 
