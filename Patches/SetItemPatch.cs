@@ -82,7 +82,7 @@ namespace LaMulana2Archipelago.Patches
                     }
                     item_name = "Research";
                 }
-                else if (item_name.Contains("Beherit") && !item_name.Equals("Beherit"))
+                else if (item_name.Contains("Beherit"))
                 {
                     switch (item_name)
                     {
