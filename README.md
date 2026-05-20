@@ -1,4 +1,4 @@
-# La-Mulana 2 Archipelago v.0.7.5.0
+# La-Mulana 2 Archipelago v0.7.5
 Archipelago mod for La-Mulana 2 using BepInEx.
 Functions as a port of the original **[La-Mulana 2 Randomizer](https://github.com/Coookie93/LaMulana2Randomizer)** by **Coookie93**, with additional features for AP.
 
@@ -7,7 +7,7 @@ Current version no longer runs on the original mod and can be run by simply plac
 - Revert the Assembly-CSharp.dll to its original version (either through a backup or Steam verification)
 - Remove the Monomod tools from the Managed folder, specifically `MonoMod.Utils.dll`.
 
-## Installing La-Mulana 2 Archipelago v.0.7.0.0+
+## Installing La-Mulana 2 Archipelago v0.7.0+
 1. Get the latest release of the AP Mod from https://github.com/Crownmuri/LaMulana2Archipelago/releases 
 2. Put the contents of the zip file into your La-Mulana 2 root folder (`..\Steam\steamapps\common\La-Mulana 2`) <p>
 For Linux users, additional settings are required to [run BepInEx through Proton/Wine](https://docs.bepinex.dev/articles/advanced/proton_wine.html). 
