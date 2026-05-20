@@ -27,7 +27,7 @@ namespace LaMulana2Archipelago.Patches
             "Shuriken Ammo",
             "Rolling Shuriken Ammo",
             "Earth Spear Ammo",
-            "Flare Ammo",
+            "Flare Gun Ammo",
             "Bomb Ammo",
             "Chakram Ammo",
             "Caltrops Ammo",
