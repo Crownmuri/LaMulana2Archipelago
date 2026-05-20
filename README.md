@@ -1,4 +1,4 @@
-# La-Mulana 2 Archipelago v.0.7.2.0
+# La-Mulana 2 Archipelago v0.7.5
 Archipelago mod for La-Mulana 2 using BepInEx.
 Functions as a port of the original **[La-Mulana 2 Randomizer](https://github.com/Coookie93/LaMulana2Randomizer)** by **Coookie93**, with additional features for AP.
 
@@ -7,7 +7,7 @@ Current version no longer runs on the original mod and can be run by simply plac
 - Revert the Assembly-CSharp.dll to its original version (either through a backup or Steam verification)
 - Remove the Monomod tools from the Managed folder, specifically `MonoMod.Utils.dll`.
 
-## Installing La-Mulana 2 Archipelago v.0.7.0.0+
+## Installing La-Mulana 2 Archipelago v0.7.0+
 1. Get the latest release of the AP Mod from https://github.com/Crownmuri/LaMulana2Archipelago/releases 
 2. Put the contents of the zip file into your La-Mulana 2 root folder (`..\Steam\steamapps\common\La-Mulana 2`) <p>
 For Linux users, additional settings are required to [run BepInEx through Proton/Wine](https://docs.bepinex.dev/articles/advanced/proton_wine.html). 
@@ -49,7 +49,6 @@ For Linux users, additional settings are required to [run BepInEx through Proton
   - If you play with an AP generated seed, you can turn on the toggles for AP based filler rewards and restricting ankhs to be guardian specific.
 
 ## Issues
-- Minor: Only if AP is connected before L2ShopDatabase is constructed, it can patch in the NPC dialog confirmation text. But otherwise you can still rely on the item labels in the shop. 
 - Minor: Some text does not wrap nicely after patching in AP label names.
 - Minor: Death Link sometimes not sending out to other players
 - Fake items are currently overwritten as the new filler, so there are no actual traps at this point in development.
