@@ -246,6 +246,30 @@ namespace LaMulana2Archipelago
             if (!ItemGrantStateGuard.IsSafe(sys, pl))
                 return;
 
+            // Force the post-kill memSave once the kill is confirmed and the player is
+            // back, safe, AND alive. The HP check is what IsSafe misses: it blocks on
+            // player STATE == DEAD, but a suppressed death can leave HP at 0 while the
+            // state still reads non-DEAD — saving then would loop on Continue. While
+            // HP<=0 we hold the request and let game-over fire (refight, not a loop;
+            // NotifyGameOver clears it). Runs before DeathLinkHandler so the save
+            // commits before any queued kill.
+            if (Managers.BossKillTracker.IsMemSavePending)
+            {
+                if (sys.getPlayerHP() > 0)
+                {
+                    Managers.BossKillTracker.TryConsumeMemSaveRequest();
+                    var savePos = pl.getPlayerPositon();
+                    if (sys.memSave(savePos.x, savePos.y, -1))
+                        Log.LogInfo("[BossKillTracker] Forced post-kill memSave committed.");
+                    else
+                        Log.LogWarning("[BossKillTracker] Forced post-kill memSave returned false.");
+                }
+                else
+                {
+                    Log.LogWarning("[BossKillTracker] Post-kill save deferred: player HP<=0 (death beat the save); falling back to pre-fight checkpoint.");
+                }
+            }
+
             // DeathLink — kill player if a death is queued.
             ArchipelagoClient.DeathLinkHandler?.Update();
 
@@ -489,6 +513,12 @@ namespace LaMulana2Archipelago
             Managers.DissonanceTracker.NotifySceneLoaded();
 
             if (ArchipelagoClient == null) return;
+
+            // Clear DeathLink edge state on the freshly loaded field. DeathLinkHandler.Update()
+            // is gated off during death/transitions, so it can't reliably reset its own flags
+            // after a received-DeathLink kill; doing it here stops a stale suppression flag from
+            // swallowing the player's next genuine death.
+            ArchipelagoClient.DeathLinkHandler?.NotifySceneLoaded();
 
             bool isEnding1 = scene.name == GoalSceneName || scene.buildIndex == GoalSceneBuildIndex;
             bool isEnding2 = scene.name == GoalSceneFallback || scene.buildIndex == GoalSceneFallbackBuildIndex;

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HarmonyLib;
 using LaMulana2RandomizerShared;
 
 namespace LaMulana2Archipelago.Managers
@@ -54,6 +55,43 @@ namespace LaMulana2Archipelago.Managers
         private static LocationID? pendingGuardian;
         private static string originatingScene;
         private static string lastSceneName;
+
+        // The "guardian-finish window" spans boss-death → fanfare → auto-return →
+        // forced post-kill memSave. A DeathLink must be held across it: vanilla only
+        // memSaves at the ankh *before* the fight, so a death landing here would
+        // either loop (saved at 0 HP) or revert to the pre-fight checkpoint.
+        //   bossDefeatSequenceActive — front half: set when BossStageFinishEfx spawns
+        //     (the frame the guardian dies, before the fanfare's DUMMYINPUT flag),
+        //     handed off at the auto-return scene load.
+        //   memSaveRequested — tail half: set on kill-confirm, consumed by the forced
+        //     memSave in Plugin.Update.
+        // DeathLinkHandler ORs the engine's DUMMYINPUT (the fanfare) over both. None
+        // are set during the live fight, so a DeathLink still kills mid-battle.
+        private static bool bossDefeatSequenceActive;
+        private static bool memSaveRequested;
+
+        /// <summary>Gate for DeathLinkHandler: true across the whole guardian-finish window.</summary>
+        public static bool IsGuardianFinishInProgress => bossDefeatSequenceActive || memSaveRequested;
+
+        /// <summary>Tail half only — Plugin.Update peeks this so it forces the memSave after the auto-return, never mid-fanfare.</summary>
+        public static bool IsMemSavePending => memSaveRequested;
+
+        /// <summary>Opens the window when the guardian's death sequence begins (BossStageFinishEfx init).</summary>
+        public static void NotifyBossDefeatSequenceStarted()
+        {
+            if (!bossDefeatSequenceActive)
+                Plugin.Log.LogInfo("[BossKillTracker] Boss death sequence started — holding DeathLinks until post-kill save.");
+            bossDefeatSequenceActive = true;
+        }
+
+        /// <summary>True once after kill-confirm (resets on read); consuming it ends the window.</summary>
+        public static bool TryConsumeMemSaveRequest()
+        {
+            if (!memSaveRequested) return false;
+            memSaveRequested = false;
+            bossDefeatSequenceActive = false;
+            return true;
+        }
 
         /// <summary>
         /// Called from SetFlagDataFlagSystemPatch.Postfix on any numeric flag
@@ -115,30 +153,39 @@ namespace LaMulana2Archipelago.Managers
                 // the kill via SetNotify.
                 ArchipelagoClientProvider.Client?.RecordBossKill(guardian);
 
-                // TODO: trigger forced memSave once the planned feature lands.
-                // The check fires here regardless — server-side it's durable
-                // even if the client crashes before the next save.
+                // Hand the window's tail half to memSaveRequested. The AP check above
+                // is already server-side durable regardless of the local save.
+                memSaveRequested = true;
 
                 Clear();
             }
+
+            // Any scene load ends the efx-driven front half: the confirm above handed
+            // off to memSaveRequested, or the boss scene was left some other way (don't
+            // leave DeathLinks blocked forever).
+            bossDefeatSequenceActive = false;
 
             lastSceneName = sceneName;
         }
 
         /// <summary>
-        /// Called from GameOverTaskPatch when the death screen activates.
-        /// Resets pending state so the subsequent load-save scene transition
-        /// doesn't false-fire the check.
+        /// Called from GameOverTaskPatch when the death screen activates. Resets pending
+        /// state so the load-save scene transition doesn't false-fire the check, and
+        /// closes the window (the player will refight — vanilla).
         /// </summary>
         public static void NotifyGameOver()
         {
             if (pendingGuardian.HasValue)
                 Plugin.Log.LogInfo($"[BossKillTracker] Game over while armed for {pendingGuardian} — clearing");
+            memSaveRequested = false;
+            bossDefeatSequenceActive = false;
             Clear();
         }
 
         public static void Reset()
         {
+            memSaveRequested = false;
+            bossDefeatSequenceActive = false;
             Clear();
             lastSceneName = null;
         }
@@ -147,6 +194,14 @@ namespace LaMulana2Archipelago.Managers
         {
             pendingGuardian = null;
             originatingScene = null;
+        }
+
+        // Fafnir et al. instantiate BossStageFinishEfx the frame the guardian dies —
+        // the earliest reliable "death sequence started" signal, ahead of DUMMYINPUT.
+        [HarmonyPatch(typeof(BossStageFinishEfx), nameof(BossStageFinishEfx.Init))]
+        private static class BossFinishEfxPatch
+        {
+            static void Postfix() => NotifyBossDefeatSequenceStarted();
         }
     }
 }

@@ -84,10 +84,17 @@ namespace LaMulana2Archipelago.Utils
                 UpdateWindow();
             }
 
+            // Disabled (greyed out) outside gameplay and whenever the in-game
+            // grail warp is blocked (boss fights, final-boss escape sequence).
+            //
+            // To only offer the warp on shuffled-grail seeds, wrap this block in
+            // `if (IsGrailShuffled()) { ... }` (helper kept below for reference).
+            GUI.enabled = CanWarpToStart();
             if (GUI.Button(warpStartButton, "Warp to Start"))
             {
                 WarpToStartingGrail();
             }
+            GUI.enabled = true;
 
             // draw client/server commands entry
             if (Hidden || !ArchipelagoClient.Authenticated) return;
@@ -183,6 +190,60 @@ namespace LaMulana2Archipelago.Utils
             var sendWidth = 100;
             yPos += height + 4;
             SendCommandButton = new Rect(xPos, yPos, sendWidth, height);
+        }
+
+        // Cached L2System. Unity nulls destroyed objects across scene loads, so
+        // the `== null` re-scan below transparently refreshes a stale reference
+        // (same pattern as Plugin._cachedSys).
+        private static L2System _sys;
+
+        /// <summary>
+        /// "Warp to Start" is disabled in three situations:
+        ///   * outside gameplay — the Opening / title / ending scenes;
+        ///   * inside a boss arena ("field00Boss".."field14Boss", "lastBoss").
+        ///     getHolyLive() only flips false once the fight actually starts
+        ///     (GurdianStarter), so the scene name is what guards the whole time
+        ///     the player is standing in the arena; and
+        ///   * whenever the game itself has made the grail unusable, tracked via
+        ///     getHolyLive(). This catches the post-final-boss escape sequence
+        ///     (HolyGrailCancellerScript) and any other scripted no-warp window.
+        /// </summary>
+        private static bool CanWarpToStart()
+        {
+            // Not during opening / title / ending.
+            string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (scene.IsNullOrWhiteSpace()
+                || scene == "Opening" || scene == "title"
+                || scene == "Ending1" || scene == "Ending2")
+                return false;
+
+            // Not inside a boss arena (covers the full stay, pre- and post-fight).
+            if (scene == "lastBoss"
+                || (scene.StartsWith("field") && scene.EndsWith("Boss")))
+                return false;
+
+            if (_sys == null)
+                _sys = UnityEngine.Object.FindObjectOfType<L2System>();
+            if (_sys == null || _sys.getPlayer() == null) return false;
+
+            // Mirror the game's own grail gate (escape sequence, etc.).
+            return _sys.getHolyLive();
+        }
+
+        /// <summary>
+        /// The warp is only offered when the Holy Grail is shuffled into the
+        /// item pool (random_grail = shuffled) — the configuration where a
+        /// player can get stranded with no grail and needs an escape hatch.
+        /// random_grail isn't a top-level slot_data field, but it's equivalent
+        /// to the grail being absent from the starting items, which
+        /// GameFlagResetsPatch loads (in standalone mode) for both AP and
+        /// offline seeds.
+        /// </summary>
+        private static bool IsGrailShuffled()
+        {
+            return Patches.GameFlagResetsPatch.Enabled
+                && !Patches.GameFlagResetsPatch.StartingItems
+                    .Contains((int)LaMulana2RandomizerShared.ItemID.HolyGrail);
         }
 
         private static void WarpToStartingGrail()
