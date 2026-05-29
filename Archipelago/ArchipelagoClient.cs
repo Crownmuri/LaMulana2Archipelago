@@ -135,6 +135,17 @@ namespace LaMulana2Archipelago.Archipelago
 
         public DeathLinkHandler DeathLinkHandler { get; private set; }
 
+        // =============================
+        // Game Difficulty (Normal / Hard / Hardest)
+        // =============================
+        // Initialized from slot_data on connect / offline activation. Drives
+        // the title-screen Difficulty cycle in Plugin.OnGUI and is re-applied
+        // by GameDifficultyPatch on every save-load / new-game hook. ApplyTo
+        // shifts G_Difficulty by (toggleState - saveState) * StepSize and
+        // marks hard1/hard2, preserving natural progression and Voluspa.
+
+        public static GameDifficultyHandler GameDifficultyHandler { get; private set; }
+
 
         // =============================
         // Connection
@@ -163,6 +174,11 @@ namespace LaMulana2Archipelago.Archipelago
 
             ServerData.SetupSession(slotData, "offline");
             ApplyStandaloneFromSlotData(slotData);
+
+            // Slot value pins the per-seed authority (slotState); the
+            // title-screen cycle can still override the live toggle.
+            GameDifficultyHandler = new GameDifficultyHandler(
+                ServerData.GetSlotInt("game_difficulty", 0));
 
             OfflineMode = true;
 
@@ -224,6 +240,8 @@ namespace LaMulana2Archipelago.Archipelago
             // Rebuild the default flag map from legacy seed.lm2r or defaults
             // so the mod returns to its pre-activation state.
             LocationFlagMap.InitializeFromSeed();
+
+            GameDifficultyHandler = null;
 
             OfflineMode = false;
             ShadowSaveManager.InvalidateCaches();
@@ -376,6 +394,10 @@ namespace LaMulana2Archipelago.Archipelago
 
                 Plugin.Log.LogInfo("[AP] DeathLink service initialized");
 
+                GameDifficultyHandler = new GameDifficultyHandler(
+                    ServerData.GetSlotInt("game_difficulty", 0));
+                Plugin.Log.LogInfo($"[AP] Game difficulty initial = {GameDifficultyHandler.State} (offset={GameDifficultyHandler.Level})");
+
                 Authenticated = true;
                 GoalReported = false;
 
@@ -440,6 +462,8 @@ namespace LaMulana2Archipelago.Archipelago
             attemptingConnection = false;
             GoalReported = false;
             ItemQueue.Clear();
+
+            GameDifficultyHandler = null;
 
             // Ensure next Connect() re-requests slot_data. Without this, slotData
             // from the previous session is still non-null, so NeedSlotData=false,

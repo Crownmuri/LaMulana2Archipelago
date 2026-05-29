@@ -428,10 +428,12 @@ namespace LaMulana2Archipelago.Managers
         private static string SeedKey()
         {
             var ap = ArchipelagoClient.ServerData;
-            string uri = Sanitize((ap != null && ap.Uri != null) ? ap.Uri : "offline");
             string slot = Sanitize((ap != null && ap.SlotName != null) ? ap.SlotName : "noslot");
             string seed = Sanitize((ap != null && ap.RoomSeed != null) ? ap.RoomSeed : "noseed");
-            return $"{uri}_{slot}_{seed}";
+            // NOTE: the URI is deliberately NOT part of the key. archipelago.gg
+            // reassigns the game-room port on re-host, and a port change must not
+            // start a fresh save (it used to: see LegacyPortKeyedMigration below).
+            return $"{slot}_{seed}";
         }
 
         private static string SlotPath()
@@ -465,6 +467,7 @@ namespace LaMulana2Archipelago.Managers
 
         private static SlotState LoadSlot()
         {
+            LegacyPortKeyedMigration.EnsureMigrated(); // remove with LegacyPortKeyedMigration
             try
             {
                 string path = SlotPath();
@@ -527,6 +530,7 @@ namespace LaMulana2Archipelago.Managers
 
         private static MemState LoadMem()
         {
+            LegacyPortKeyedMigration.EnsureMigrated(); // remove with LegacyPortKeyedMigration
             try
             {
                 string path = MemPath();
@@ -588,6 +592,7 @@ namespace LaMulana2Archipelago.Managers
 
         private static MasterState LoadMaster()
         {
+            LegacyPortKeyedMigration.EnsureMigrated(); // remove with LegacyPortKeyedMigration
             try
             {
                 string path = MasterPath();
@@ -628,6 +633,97 @@ namespace LaMulana2Archipelago.Managers
             try { File.WriteAllText(MasterPath(), JsonConvert.SerializeObject(m, Formatting.Indented)); }
             catch (Exception e) { Plugin.Log.LogWarning($"[Shadow] PersistMaster failed: {e}"); }
         }
+
+        // ###########################################################################
+        // ### LEGACY PORT-KEYED FILE MIGRATION — TEMPORARY, SAFE TO DELETE       ####
+        // ###########################################################################
+        //
+        // Through the URI-keyed era, shadow files were named
+        //     LM2AP_Shadow_{uri}_{slot}_{seed}_{suffix}.json
+        // because SeedKey() included the full URI (port included). A server port
+        // change (archipelago.gg reassigns game-room ports on re-host) therefore
+        // produced a brand-new key and re-granted the player every item.
+        //
+        // The key is now {slot}_{seed}:
+        //     LM2AP_Shadow_{slot}_{seed}_{suffix}.json
+        // This one-time pass renames any old port-keyed files for the current
+        // slot+seed onto the new naming so in-flight games survive the upgrade.
+        //
+        // TO REMOVE once a mandatory-upgrade version has shipped:
+        //   1. delete this entire region (the LegacyPortKeyedMigration class), and
+        //   2. delete the three `LegacyPortKeyedMigration.EnsureMigrated();` calls
+        //      at the top of LoadSlot / LoadMem / LoadMaster.
+        // Nothing else references it. See REMOVE_LEGACY_PORT_MIGRATION.txt in the
+        // GitRepos root for the full rationale.
+        //
+        private static class LegacyPortKeyedMigration
+        {
+            // Per-key guard so the scan runs at most once per slot+seed. A new
+            // connection changes SeedKey(), so the next access re-runs for it.
+            private static string _migratedKey;
+
+            public static void EnsureMigrated()
+            {
+                if (!IsActive) return; // wait until we have a real slot+seed key
+
+                string newKey = SeedKey();
+                if (_migratedKey == newKey) return;
+                _migratedKey = newKey;
+
+                try
+                {
+                    if (!Directory.Exists(Paths.ConfigPath)) return;
+
+                    // Legacy name: LM2AP_Shadow_{uri}_{newKey}_{suffix}.json
+                    // New name:    LM2AP_Shadow_{newKey}_{suffix}.json
+                    // We anchor on the exact "_{newKey}_" segment so a slot or
+                    // seed containing underscores is still matched correctly.
+                    const string prefix = "LM2AP_Shadow_";
+                    string anchor = "_" + newKey + "_";
+
+                    // Newest-first so that if several old ports left files for the
+                    // same suffix, the most recently written one wins the rename
+                    // and the staler duplicates are skipped (not clobbered).
+                    var files = Directory.GetFiles(Paths.ConfigPath, prefix + "*.json");
+                    Array.Sort(files, (a, b) =>
+                        File.GetLastWriteTimeUtc(b).CompareTo(File.GetLastWriteTimeUtc(a)));
+
+                    int renamed = 0;
+                    foreach (string path in files)
+                    {
+                        string name = Path.GetFileNameWithoutExtension(path); // LM2AP_Shadow_...
+                        string body = name.Substring(prefix.Length);          // {uri}_{newKey}_{suffix} OR {newKey}_{suffix}
+
+                        // Already on the new scheme.
+                        if (body.StartsWith(newKey + "_", StringComparison.Ordinal)) continue;
+
+                        // Legacy file for some other slot/seed.
+                        int at = body.LastIndexOf(anchor, StringComparison.Ordinal);
+                        if (at < 0) continue;
+
+                        string suffix = body.Substring(at + anchor.Length); // master / staging / lm2slotN
+                        if (suffix.Length == 0) continue;
+
+                        string newPath = Path.Combine(Paths.ConfigPath, $"{prefix}{newKey}_{suffix}.json");
+                        if (File.Exists(newPath)) continue; // don't clobber an existing new-scheme file
+
+                        File.Move(path, newPath);
+                        renamed++;
+                        Plugin.Log.LogInfo($"[Shadow] Migrated legacy file '{Path.GetFileName(path)}' -> '{Path.GetFileName(newPath)}'");
+                    }
+
+                    if (renamed > 0)
+                        Plugin.Log.LogInfo($"[Shadow] Legacy port-keyed migration: {renamed} file(s) renamed for {newKey}.");
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log.LogWarning($"[Shadow] Legacy port-keyed migration failed: {e}");
+                }
+            }
+        }
+        // ###########################################################################
+        // ### END LEGACY PORT-KEYED FILE MIGRATION                               ####
+        // ###########################################################################
 
         // ==========================
         // Data model

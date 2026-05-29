@@ -17,8 +17,9 @@ namespace LaMulana2Archipelago.Managers
     /// If a companion seed.lm2ap file is present next to seed.lm2r, its AP-only
     /// settings (guardian_specific_ankhs, potsanity, ap_chest_color, death_link,
     /// logic_difficulty, costume_clip, dlc_item_logic, life_sigil_to_awaken_hom,
-    /// random_research) plus pot placements and pot_flag_map are merged in,
-    /// letting the mod replay AP seeds solo with the same behavior as online.
+    /// random_research, game_difficulty) plus pot placements and pot_flag_map
+    /// are merged in, letting the mod replay AP seeds solo with the same
+    /// behavior as online.
     /// </summary>
     internal static class SeedToSlotData
     {
@@ -26,8 +27,9 @@ namespace LaMulana2Archipelago.Managers
         private static readonly byte[] Lm2apMagic = new byte[] { (byte)'L', (byte)'M', (byte)'2', (byte)'A' };
         // v1 had no location_labels section; v2 appends it after pot_flag_map.
         // v3 appends greedy_charon after location_labels.
+        // v4 appends game_difficulty int32 after greedy_charon.
         // All versions remain readable: missing sections fall back to defaults.
-        private const int Lm2apSupportedVersion = 3;
+        private const int Lm2apSupportedVersion = 4;
 
         public static string SeedPath
         {
@@ -167,6 +169,7 @@ namespace LaMulana2Archipelago.Managers
                 dict["death_link"] = 0;
                 dict["guardian_specific_ankhs"] = 0;
                 dict["greedy_charon"] = 0;
+                dict["game_difficulty"] = 0;
 
                 // Merge the AP-extended companion file if it exists. Failure to
                 // load is non-fatal: a stock LM2 randomizer seed has no .lm2ap.
@@ -287,6 +290,13 @@ namespace LaMulana2Archipelago.Managers
                     if (version >= 3)
                     {
                         dict["greedy_charon"] = br.ReadBoolean() ? 1 : 0;
+                    }
+
+                    // --- v4+ Difficulty: game_difficulty (0=normal, 1=hard, 2=hardest).
+                    //     Pre-v4 seeds default to 0 set in TryLoad.
+                    if (version >= 4)
+                    {
+                        dict["game_difficulty"] = br.ReadInt32();
                     }
                 }
                 return true;

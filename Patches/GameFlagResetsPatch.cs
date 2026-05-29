@@ -187,6 +187,11 @@ namespace LaMulana2Archipelago.Patches
                     break;
             }
 
+            // Apply AP Game Difficulty before quickLoadJump so the starting
+            // scene's mobs see the right G_Difficulty when they cache
+            // nowGameLevel in resetParameter.
+            Archipelago.ArchipelagoClient.GameDifficultyHandler?.ApplyTo(__instance);
+
             // --- Intercept the first transition to starting region ---
             if (Managers.SceneRandomizer.Instance != null && Managers.SceneRandomizer.Instance.IsRandomising)
             {

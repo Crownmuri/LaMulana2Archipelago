@@ -361,7 +361,7 @@ namespace LaMulana2Archipelago
             if (ArchipelagoClient.Authenticated)
             {
                 GUI.Label(new Rect(150, 522, 400, 20), "Status: Connected", guiStyle); // APDisplayInfo + " Status: Connected"
-                Rect disconnectRect = new Rect(16, 510, 100, 20);
+                Rect disconnectRect = new Rect(16, 510, 125, 20);
 
                 if (GUI.Button(disconnectRect, "Disconnect"))
                 {
@@ -372,12 +372,12 @@ namespace LaMulana2Archipelago
                 // ===== DeathLink toggle button =====
                 if (ArchipelagoClient.DeathLinkHandler != null)
                 {
-                    Rect deathLinkRect = new Rect(disconnectRect.x, disconnectRect.yMin - 20, 100, 20);
+                    Rect deathLinkRect = new Rect(disconnectRect.x, disconnectRect.yMin - 20, 125, 20);
 
                     bool enabled = ArchipelagoClient.DeathLinkHandler.IsEnabled;
 
                     Color oldColor = GUI.color;
-                    GUI.color = enabled ? Color.green : Color.red;
+                    GUI.color = enabled ? Color.red : Color.green;
 
                     string label = enabled ? "DeathLink ON" : "DeathLink OFF";
 
@@ -385,6 +385,28 @@ namespace LaMulana2Archipelago
                     {
                         ArchipelagoClient.DeathLinkHandler.ToggleDeathLink();
                     }
+
+                    GUI.color = oldColor;
+                }
+
+                // Difficulty cycle button: Normal → Hard → Hardest → Normal.
+                // Initial state from the seed's game_difficulty slot value.
+                var diffHandler = Archipelago.ArchipelagoClient.GameDifficultyHandler;
+                if (diffHandler != null)
+                {
+                    Rect hardModeRect = new Rect(disconnectRect.x, disconnectRect.yMin - 40, 125, 20);
+                    var diffState = diffHandler.State;
+
+                    Color oldColor = GUI.color;
+                    GUI.color = diffState switch
+                    {
+                        Archipelago.GameDifficultyHandler.DifficultyState.Hard    => Color.yellow,
+                        Archipelago.GameDifficultyHandler.DifficultyState.Hardest => Color.red,
+                        _                                                        => Color.green,
+                    };
+
+                    if (GUI.Button(hardModeRect, $"Difficulty: {diffState}"))
+                        diffHandler.ToggleHardMode();
 
                     GUI.color = oldColor;
                 }
@@ -422,7 +444,7 @@ namespace LaMulana2Archipelago
                 ArchipelagoClient.ServerData.Password =
                     GUI.TextField(new Rect(150, 490, 150, 20), ArchipelagoClient.ServerData.Password);
 
-                Rect connectRect = new Rect(16, 510, 100, 20);
+                Rect connectRect = new Rect(16, 510, 125, 20);
 
                 if (GUI.Button(connectRect, "Connect") &&
                     !string.IsNullOrEmpty(ArchipelagoClient.ServerData.SlotName))
@@ -503,6 +525,25 @@ namespace LaMulana2Archipelago
 
             // Keep tracing (useful forever, cheap)
             Log.LogInfo($"[Scene] Loaded '{scene.name}' (buildIndex={scene.buildIndex}) mode={mode}");
+
+            // Difficulty diagnostic — confirms what mobs in this scene will
+            // observe when they run resetParameter. If this disagrees with
+            // the title-screen toggle, something is rewriting G_Difficulty
+            // between the GameFlagResetsPatch / GameStat hooks and scene
+            // activation. Cheap log; remove later if it ever gets noisy.
+            try
+            {
+                var sysProbe = _cachedSys ?? UnityEngine.Object.FindObjectOfType<L2System>();
+                if (sysProbe != null)
+                {
+                    int gl = sysProbe.getGameLevel();
+                    Log.LogInfo($"[Difficulty] scene='{scene.name}' getGameLevel={gl}");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Log.LogWarning($"[Difficulty] probe failed on scene '{scene.name}': {ex.Message}");
+            }
 
             // Drives the guardian-kill state machine; safe to call always.
             Managers.BossKillTracker.NotifySceneLoaded(scene.name);
