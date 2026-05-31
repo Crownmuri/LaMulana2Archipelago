@@ -290,6 +290,35 @@ namespace LaMulana2Archipelago.Managers
             return BaseApLocationId + (int)location;
         }
 
+        /// <summary>
+        /// Returns true when the AP item at the world location identified by
+        /// (<paramref name="sheet"/>, <paramref name="flag"/>) carries the AP
+        /// progression (Advancement) flag. Used by world-drop sprite patches to
+        /// choose the "up arrow" progressive icon. Returns false when unknown —
+        /// offline, the flag isn't mapped to a location, or the location hasn't
+        /// been scouted yet — so callers fall back to the plain icon.
+        /// </summary>
+        public static bool IsApItemProgression(int sheet, int flag)
+        {
+            if (!LocationFlagMap.TryGetNumeric(sheet, flag, out LocationID location))
+                return false;
+
+            return IsApItemProgressionAt(location);
+        }
+
+        /// <summary>
+        /// Same as <see cref="IsApItemProgression"/> but for callers that already
+        /// hold the resolved <see cref="LocationID"/> (pots, free-standing items).
+        /// </summary>
+        public static bool IsApItemProgressionAt(LocationID location)
+        {
+            var client = ArchipelagoClientProvider.Client;
+            if (client == null) return false;
+
+            var scouted = client.GetItemAtLocation(ToApLocationId(location));
+            return scouted != null && scouted.IsProgression;
+        }
+
         // =====================================================================
         // Reset
         // =====================================================================

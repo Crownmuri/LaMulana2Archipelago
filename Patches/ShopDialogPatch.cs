@@ -20,6 +20,11 @@ namespace LaMulana2Archipelago.Patches
         // "shopId:slotIndex" → AP location id (used for shop-entry auto-collect)
         private static readonly Dictionary<string, long> _slotApLocationIds = new Dictionary<string, long>();
 
+        // "shopId:slotIndex" → whether the AP item in that slot is progression (Advancement).
+        // Drives the "up arrow" progressive shop icon. False/absent when unknown (offline,
+        // not yet scouted, or non-AP slot).
+        private static readonly Dictionary<string, bool> _slotIsProgression = new Dictionary<string, bool>();
+
         // Ownworld refill items that auto-check the shop location on shop entry.
         // See Archipelago/worlds/lamulana2/ids.py (ItemID 182-190).
         private static readonly HashSet<string> _autoCollectItemNames = new HashSet<string>
@@ -41,6 +46,7 @@ namespace LaMulana2Archipelago.Patches
             public ShopCell Cell;
             public string DisplayName;
             public long ApLocationId;
+            public bool IsProgression;
         }
 
         // ── Constructor: cache instance, apply if already connected ──────────
@@ -67,6 +73,7 @@ namespace LaMulana2Archipelago.Patches
             // Clear the old (empty) data
             _slotDisplayNames.Clear();
             _slotApLocationIds.Clear();
+            _slotIsProgression.Clear();
 
             // Re-run the logic now that the ScoutedLocationsCache is full
             Apply(_cachedInstance);
@@ -80,6 +87,7 @@ namespace LaMulana2Archipelago.Patches
         {
             _slotDisplayNames.Clear();
             _slotApLocationIds.Clear();
+            _slotIsProgression.Clear();
 
             var client = ArchipelagoClientProvider.Client;
             if (client == null) return;
@@ -93,6 +101,7 @@ namespace LaMulana2Archipelago.Patches
             {
                 string apText;
                 long apLocationIdValue;
+                bool isProgression = false;
 
                 if (offline)
                 {
@@ -117,6 +126,11 @@ namespace LaMulana2Archipelago.Patches
                     if (apLocationId == null) continue;
 
                     apLocationIdValue = apLocationId.Value;
+
+                    // Progression status comes from the scouted item flags. Offline
+                    // seeds have no flag data, so the plain icon is used there.
+                    var scouted = client.GetItemAtLocation(apLocationIdValue);
+                    isProgression = scouted != null && scouted.IsProgression;
                 }
 
                 int shopId = kvp.Key.ShopId;
@@ -129,6 +143,7 @@ namespace LaMulana2Archipelago.Patches
                     Cell = kvp.Key,
                     DisplayName = apText,
                     ApLocationId = apLocationIdValue,
+                    IsProgression = isProgression,
                 });
             }
 
@@ -159,6 +174,7 @@ namespace LaMulana2Archipelago.Patches
                     string cacheKey = kvp.Key + ":" + slot;
                     _slotDisplayNames[cacheKey] = entry.DisplayName;
                     _slotApLocationIds[cacheKey] = entry.ApLocationId;
+                    _slotIsProgression[cacheKey] = entry.IsProgression;
                 }
             }
 
@@ -205,6 +221,30 @@ namespace LaMulana2Archipelago.Patches
                 if (_slotApLocationIds.TryGetValue(cacheKey, out apLocationId))
                     CheckManager.NotifyApLocationId(apLocationId);
             }
+        }
+
+        // ── Public helper: progression lookup for the shop icon patch ─────────
+
+        /// <summary>
+        /// Resolves whether the AP item shown in the given shop slot is a progression
+        /// (Advancement) item, using the same shopId/slot key the name override uses.
+        /// Returns false when unknown (offline, not yet scouted, or non-AP slot).
+        /// </summary>
+        public static bool TryGetSlotProgression(ShopScript instance, int slot, out bool isProgression)
+        {
+            isProgression = false;
+            if (_slotIsProgression.Count == 0 || instance == null) return false;
+
+            var t = Traverse.Create(instance);
+            var sys = t.Field("sys").GetValue<L2System>();
+            string sheetName = t.Field("sheet_name").GetValue<string>();
+            if (sys == null || string.IsNullOrEmpty(sheetName)) return false;
+
+            var shopDb = sys.getMojiScript(mojiScriptType.shop);
+            if (shopDb == null) return false;
+
+            int shopId = sys.mojiSheetNameToNo(sheetName, shopDb);
+            return _slotIsProgression.TryGetValue(shopId + ":" + slot, out isProgression);
         }
 
         // ── Helper ───────────────────────────────────────────────────────────

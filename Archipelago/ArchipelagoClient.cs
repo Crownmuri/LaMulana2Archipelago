@@ -655,7 +655,8 @@ namespace LaMulana2Archipelago.Archipelago
                                 ItemId = kvp.Value.ItemId,
                                 ItemName = kvp.Value.ItemName,
                                 PlayerName = session.Players.GetPlayerName(kvp.Value.Player),
-                                IsOwnItem = kvp.Value.Player == session.ConnectionInfo.Slot
+                                IsOwnItem = kvp.Value.Player == session.ConnectionInfo.Slot,
+                                Flags = kvp.Value.Flags
                             };
                         }
                     }
@@ -713,6 +714,16 @@ namespace LaMulana2Archipelago.Archipelago
             public string ItemName;
             public string PlayerName;
             public bool IsOwnItem;
+
+            /// <summary>AP item classification flags (Advancement / NeverExclude / Trap).</summary>
+            public ItemFlags Flags;
+
+            /// <summary>
+            /// True when the item carries the AP progression (Advancement) flag —
+            /// i.e. something the logic considers important. Drives the "up arrow"
+            /// progressive icon.
+            /// </summary>
+            public bool IsProgression => (Flags & ItemFlags.Advancement) != 0;
         }
         public long? GetLocationIdByName(string locationName)
         {

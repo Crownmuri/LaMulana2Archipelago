@@ -3,8 +3,8 @@ using L2Base;
 using L2Flag;
 using LaMulana2Archipelago.Archipelago;
 using LaMulana2Archipelago.Managers;
-#if LEGACY
 using LaMulana2RandomizerShared;
+#if LEGACY
 using LM2RandomiserMod;
 #endif
 using System;
@@ -36,7 +36,16 @@ namespace LaMulana2Archipelago.Patches
 
                 if (ApSpriteLoader.IsLoaded)
                 {
-                    sr.sprite = ApSpriteLoader.MapSprite;
+                    // This postfix also fires for pot pickups (TrySpawnItemPickup
+                    // calls setTreasureBoxOut), so resolve the item's world flag to
+                    // its AP location instead of assuming a chest's sheet 31. Both
+                    // chest (sheet 31) and pot (pot sheet) flags are registered in
+                    // LocationFlagMap, so progression items show the "up arrow" icon
+                    // for either source.
+                    bool isProgression = TryGetApLocation(__instance, out LocationID location)
+                        && CheckManager.IsApItemProgressionAt(location);
+
+                    sr.sprite = ApSpriteLoader.GetMapSprite(isProgression);
                 }
                 else
                 {
@@ -46,6 +55,32 @@ namespace LaMulana2Archipelago.Patches
                 }
             }
             catch { }
+        }
+
+        // The item's itemActiveFlag carries the (sheet, flag) pair that identifies
+        // its AP location — sheet 31 for chests, the pot sheet for pot pickups.
+        // Return the first box that LocationFlagMap can resolve to a location.
+        static bool TryGetApLocation(AbstractItemBase item, out LocationID location)
+        {
+            location = LocationID.None;
+
+            var active = item.itemActiveFlag;
+            if (active == null) return false;
+
+            foreach (var parent in active)
+            {
+                if (parent == null || parent.BOX == null) continue;
+
+                foreach (var box in parent.BOX)
+                {
+                    if (box == null) continue;
+
+                    if (LocationFlagMap.TryGetNumeric(box.seet_no1, box.flag_no1, out location))
+                        return true;
+                }
+            }
+
+            return false;
         }
     }
 

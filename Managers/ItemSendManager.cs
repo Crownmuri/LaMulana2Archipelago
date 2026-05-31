@@ -845,8 +845,14 @@ namespace LaMulana2Archipelago.Managers
                 {
                     if (baseName.StartsWith("AP Item"))
                     {
+                        // Show the "up arrow" progressive icon when this slot holds a
+                        // progression (Advancement) item, so the player can tell at a
+                        // glance whether it's worth buying.
+                        bool isProgression;
+                        Patches.ShopDialogPatch.TryGetSlotProgression(__instance, idx, out isProgression);
+
                         if (ApSpriteLoader.IsLoaded)
-                            chosenSprite = ApSpriteLoader.ShopSprite;
+                            chosenSprite = ApSpriteLoader.GetShopSprite(isProgression);
                         else
                         {
                             var data = L2SystemCore.getItemData("Holy Grail");

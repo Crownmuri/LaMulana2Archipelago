@@ -743,8 +743,9 @@ namespace LaMulana2Archipelago.Managers
                     // Assign correct sprite
                     if (isApItem)
                     {
+                        bool isProgression = CheckManager.IsApItemProgressionAt(locationID);
                         item.gameObject.GetComponent<SpriteRenderer>().sprite = ApSpriteLoader.IsLoaded
-                            ? ApSpriteLoader.MapSprite
+                            ? ApSpriteLoader.GetMapSprite(isProgression)
                             : L2SystemCore.getMapIconSprite(L2SystemCore.getItemData("Holy Grail"));
                     }
                     else

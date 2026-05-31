@@ -27,8 +27,34 @@ namespace LaMulana2Archipelago
         /// <summary>Sprite for UI Image contexts (shop slots).</summary>
         public static Sprite ShopSprite { get; private set; }
 
+        /// <summary>
+        /// Progression ("up arrow") variant for SpriteRenderer contexts.
+        /// Null when "ap-iconp.png" is absent — callers then fall back to <see cref="MapSprite"/>.
+        /// </summary>
+        public static Sprite MapSpriteProgression { get; private set; }
+
+        /// <summary>
+        /// Progression ("up arrow") variant for UI Image contexts (shop slots).
+        /// Null when "ap-iconp.png" is absent — callers then fall back to <see cref="ShopSprite"/>.
+        /// </summary>
+        public static Sprite ShopSpriteProgression { get; private set; }
+
         /// <summary>True once at least the map sprite has been created successfully.</summary>
         public static bool IsLoaded => MapSprite != null;
+
+        /// <summary>
+        /// Map-context sprite for an AP item, choosing the progression ("up arrow")
+        /// variant when the item carries the AP Advancement flag and that icon loaded.
+        /// </summary>
+        public static Sprite GetMapSprite(bool progression)
+            => (progression && MapSpriteProgression != null) ? MapSpriteProgression : MapSprite;
+
+        /// <summary>
+        /// Shop-context sprite for an AP item, choosing the progression ("up arrow")
+        /// variant when the item carries the AP Advancement flag and that icon loaded.
+        /// </summary>
+        public static Sprite GetShopSprite(bool progression)
+            => (progression && ShopSpriteProgression != null) ? ShopSpriteProgression : ShopSprite;
 
         /// <summary>
         /// Loads icon PNGs from <paramref name="pluginDir"/> and creates the
@@ -48,6 +74,12 @@ namespace LaMulana2Archipelago
 
             // Shop sprite — used by UI Image (shop slots)
             ShopSprite = LoadSprite(pluginDir, "ap-icon.png", "AP_Icon_Shop", 100f);
+
+            // Progression variants ("up arrow") — optional. When "ap-iconp.png" is
+            // missing these stay null and GetMapSprite/GetShopSprite fall back to
+            // the plain icon, so the feature degrades cleanly on older installs.
+            MapSpriteProgression = LoadSprite(pluginDir, "ap-iconp.png", "AP_Icon_Map_Prog", 25f);
+            ShopSpriteProgression = LoadSprite(pluginDir, "ap-iconp.png", "AP_Icon_Shop_Prog", 100f);
         }
 
         private static Sprite LoadSprite(string dir, string fileName, string spriteName, float ppu)
