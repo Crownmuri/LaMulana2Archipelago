@@ -42,23 +42,27 @@ namespace LaMulana2Archipelago
 
         /// <summary>
         /// Sheet-31 flag layout for real game items:
-        ///   ChestWeight01-40  → flags  0-39
-        ///   FakeItem01-40     → flags 40-79
-        ///   NPCMoney01-10     → flags 80-89
-        ///   FakeScan01-15     → flags 90-104
+        ///   ChestWeight01-100 → flags   0-99
+        ///   FakeItem01-100    → flags 100-199
+        ///   NPCMoney01-10     → flags 200-209
+        ///   FakeScan01-15     → flags 210-224
         ///
-        /// AP placeholder flags start at 105 (FlagOffset). Sheet 31 with
-        /// flag >= 105 is fully virtualised by VirtualFlagManager (a
+        /// AP placeholder flags start at 225 (FlagOffset). Sheet 31 with
+        /// flag >= 225 is fully virtualised by VirtualFlagManager (a
         /// Dictionary&lt;int, short&gt;), so the upper bound is unbounded — do
         /// NOT clamp here, or distinct foreign-item locations will collide
         /// once a seed has more than ~149 of them.
+        ///
+        /// NOTE: VirtualFlagManager (SetFlagDataPatch) keys its boundary off
+        /// this constant, so the two stay in sync. Do not reintroduce a magic
+        /// number there.
         /// </summary>
-        private const int FlagOffset = 105;
+        internal const int FlagOffset = 225;
 
         /// <summary>
         /// Converts a placeholder ID to the sheet-31 flag index used to track
         /// whether this location has been collected.
-        /// ID 410001 → flag 106, ID 410002 → flag 107, etc.
+        /// ID 410001 → flag 226, ID 410002 → flag 227, etc.
         /// </summary>
         public static int ToFlagIndex(int id) =>
             id - Placeholder + FlagOffset;
@@ -75,24 +79,24 @@ namespace LaMulana2Archipelago.Managers
 
             int idx = -1, type = -1;
 
-            if (itemId >= 191 && itemId <= 230) { idx = itemId - 191; type = 0; } // ChestWeight
-            else if (itemId >= 231 && itemId <= 270) { idx = itemId - 231; type = 0; } // FakeItem
-            else if (itemId >= 271 && itemId <= 280) { idx = itemId - 271; type = 1; } // NPCMoney
-            else if (itemId >= 281 && itemId <= 295) { idx = itemId - 281; type = 2; } // FakeScan
+            if (itemId >= 191 && itemId <= 290) { idx = itemId - 191; type = 0; } // ChestWeight
+            else if (itemId >= 291 && itemId <= 390) { idx = itemId - 291; type = 0; } // FakeItem
+            else if (itemId >= 391 && itemId <= 400) { idx = itemId - 391; type = 1; } // NPCMoney
+            else if (itemId >= 401 && itemId <= 415) { idx = itemId - 401; type = 2; } // FakeScan
             else return;
 
-            if (type == 0) // 40-item distribution
+            if (type == 0) // 100-item distribution
             {
-                if (idx < 3) coinAmount = 1;
-                else if (idx < 9) coinAmount = 10;
-                else if (idx < 17) coinAmount = 30;
-                else if (idx < 20) coinAmount = 50;
-                else if (idx < 22) coinAmount = 80;
-                else if (idx < 23) coinAmount = 100;
-                else if (idx < 27) weightAmount = 1;
-                else if (idx < 37) weightAmount = 5;
-                else if (idx < 39) weightAmount = 10;
-                else weightAmount = 20;
+                if (idx < 15) coinAmount = 1;          // 0-14
+                else if (idx < 35) coinAmount = 10;    // 15-34
+                else if (idx < 50) coinAmount = 30;    // 35-49
+                else if (idx < 56) coinAmount = 50;    // 50-55
+                else if (idx < 59) coinAmount = 80;    // 56-58
+                else if (idx < 60) coinAmount = 100;   // 59
+                else if (idx < 84) weightAmount = 1;   // 60-83
+                else if (idx < 96) weightAmount = 5;   // 84-95
+                else if (idx < 99) weightAmount = 10;  // 96-98
+                else weightAmount = 20;                // 99
             }
             else if (type == 1) // 10-item distribution
             {
@@ -148,7 +152,7 @@ namespace LaMulana2Archipelago.Managers
         static bool TryRemapFillerName(ItemID id, out string newBoxName)
         {
             int raw = (int)id;
-            if ((raw >= 191 && raw <= 295))
+            if ((raw >= 191 && raw <= 415))
             {
                 FillerRewardMap.GetReward(raw, out _, out _, out newBoxName);
                 return true;
@@ -473,67 +477,6 @@ namespace LaMulana2Archipelago.Managers
             }
         }
     }
-
-#if LEGACY
-    // =========================================================================
-    // L2Rando.CreateSetItemString — safe shop display for AP placeholders
-    // (Legacy mode only — requires original randomizer's L2Rando)
-    // =========================================================================
-    [HarmonyPatch(typeof(L2Rando), "CreateSetItemString")]
-    internal static class CreateSetItemStringApPatch
-    {
-        static bool Prefix(object __instance, LocationID locationID, ref string __result)
-        {
-            var shopMap = Traverse.Create(__instance)
-                .Field("shopToItemMap")
-                .GetValue<Dictionary<LocationID, ShopItem>>();
-
-            if (shopMap == null) return true;
-
-            ShopItem shopItem;
-            if (!shopMap.TryGetValue(locationID, out shopItem)) return true;
-
-            int itemId = (int)shopItem.ID;
-            bool isApPlaceholder = ApItemIDs.IsApPlaceholder(itemId);
-            bool isFiller = (itemId >= 191 && itemId <= 295); // all filler ranges
-
-            if (!isApPlaceholder && !isFiller) return true;
-
-            int flagIndex;
-            string itemName;
-            int mult = shopItem.Multiplier;
-
-            if (isApPlaceholder)
-            {
-                flagIndex = ApItemIDs.ToFlagIndex(itemId);
-                itemName = "AP Item";
-                mult = shopItem.Multiplier < 5 ? 10 : shopItem.Multiplier;
-            }
-            else // filler item
-            {
-                // Map filler ID to its sheet‑31 flag (see ApItemIDs comment)
-                if (itemId >= 191 && itemId <= 230)          // ChestWeight
-                    flagIndex = itemId - 191;
-                else if (itemId >= 231 && itemId <= 270)     // FakeItem
-                    flagIndex = itemId - 231 + 40;
-                else if (itemId >= 271 && itemId <= 280)     // NPCMoney
-                    flagIndex = itemId - 271 + 80;
-                else /* 281–295 */                           // FakeScan
-                    flagIndex = itemId - 281 + 90;
-
-                // Get display name (e.g., "Coin30")
-                FillerRewardMap.GetReward(itemId, out _, out _, out string boxName);
-                itemName = boxName;
-                mult = shopItem.Multiplier = 0;
-            }
-
-            __result = $"[@sitm,item,{itemName} {flagIndex},{mult * 10},1]";
-
-            Plugin.Log.LogDebug($"[AP] Shop {locationID}: {itemName} {flagIndex} -> sitm '{itemName} {flagIndex}'");
-            return false;
-        }
-    }
-#endif
 
     // =========================================================================
     // ItemDialog.StartSwitch — safe handling for all special item names

@@ -190,7 +190,9 @@ namespace LaMulana2Archipelago.Managers
                 }
 
                 // ── Dynamic Filler variant check ────────────────────────────────────
-                if ((gameId >= 191 && gameId <= 270) || (gameId >= 271 && gameId <= 295))
+                // Filler ItemIDs: ChestWeight (191-290), FakeItem (291-390),
+                // NPCMoney (391-400), FakeScan (401-415).
+                if (gameId >= 191 && gameId <= 415)
                 {
                     LastGrantUsedPopupOnly = true;
 

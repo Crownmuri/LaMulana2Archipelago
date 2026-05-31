@@ -389,7 +389,7 @@ namespace LaMulana2Archipelago
                     GUI.color = oldColor;
                 }
 
-                // Difficulty cycle button: Normal → Hard → Hardest → Normal.
+                // Difficulty toggle button: Normal ↔ Hard.
                 // Initial state from the seed's game_difficulty slot value.
                 var diffHandler = Archipelago.ArchipelagoClient.GameDifficultyHandler;
                 if (diffHandler != null)
@@ -400,9 +400,8 @@ namespace LaMulana2Archipelago
                     Color oldColor = GUI.color;
                     GUI.color = diffState switch
                     {
-                        Archipelago.GameDifficultyHandler.DifficultyState.Hard    => Color.yellow,
-                        Archipelago.GameDifficultyHandler.DifficultyState.Hardest => Color.red,
-                        _                                                        => Color.green,
+                        Archipelago.GameDifficultyHandler.DifficultyState.Hard => Color.red,
+                        _                                                      => Color.green,
                     };
 
                     if (GUI.Button(hardModeRect, $"Difficulty: {diffState}"))

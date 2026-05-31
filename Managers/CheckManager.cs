@@ -146,9 +146,9 @@ namespace LaMulana2Archipelago.Managers
             if (SeedFlagMapBuilder.LocationToItem.TryGetValue(location, out itemAtLocation))
             {
                 int raw = (int)itemAtLocation;
-                // Filler ranges: ChestWeight (191-230), FakeItem (231-270), NPCMoney (271-280), FakeScan (281-295)
+                // Filler ranges: ChestWeight (191-290), FakeItem (291-390), NPCMoney (391-400), FakeScan (401-415)
                 // FakeItem freestanding filler shows only a pop-up + SFX (no dialog), so skip dialog priming.
-                isFillerItem = (raw >= 191 && raw <= 270);
+                isFillerItem = (raw >= 191 && raw <= 390);
             }
 
             if (!IsShopLocation(apLocation, client))

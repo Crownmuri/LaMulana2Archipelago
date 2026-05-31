@@ -34,7 +34,7 @@ namespace LaMulana2Archipelago.Patches
 
                 int flagNo = Traverse.Create(__instance).Field("flagNo").GetValue<int>();
 
-                if (flagNo < 40 || flagNo > 79) return true;
+                if (flagNo < 100 || flagNo > 199) return true;
 
                 // If this FakeItem isn't currently "active" (spawned/visible), let original handle
                 // The original checks sys.checkStartFlag(activeFlags) and overlap.
@@ -68,7 +68,7 @@ namespace LaMulana2Archipelago.Patches
                     return true; // not picked up this frame
 
                 // --- Filler Logic ---
-                // FakeItems in AP use Sheet 31, Flags 231-270 (mapped from ItemIDs 231-270)
+                // FakeItems in AP use Sheet 31, Flags 100-199 (mapped from ItemIDs 291-390)
                 int itemId = flagNo + 191;
                 FillerRewardMap.GetReward(itemId, out int coinAmount, out int weightAmount, out string label);
 

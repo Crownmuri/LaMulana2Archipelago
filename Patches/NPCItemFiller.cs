@@ -11,8 +11,8 @@ namespace LaMulana2Archipelago.Patches
     internal static class NpcMoneyFlagPatch
     {
         private const int NpcMoneySheet = 31;
-        private const int NpcMoneyFlagMin = 80;
-        private const int NpcMoneyFlagMax = 89;
+        private const int NpcMoneyFlagMin = 200;
+        private const int NpcMoneyFlagMax = 209;
 
         static bool Prefix(int seet_no, int flag_no, short data)
         {

@@ -18,7 +18,7 @@ namespace LaMulana2Archipelago.Patches
 
         public static short GetFlag(int flagno)
         {
-            int itemId = flagno - 105 + ApItemIDs.Placeholder;
+            int itemId = flagno - ApItemIDs.FlagOffset + ApItemIDs.Placeholder;
             foreach (var kvp in SeedFlagMapBuilder.LocationToItem)
             {
                 if ((int)kvp.Value == itemId)
@@ -83,7 +83,7 @@ namespace LaMulana2Archipelago.Patches
         // Verified: getFlag uses "seetno" and "flagno"
         static bool Prefix(L2FlagSystem __instance, int seetno, int flagno, ref short data, ref bool __result)
         {
-            if (seetno == 31 && flagno >= 105)
+            if (seetno == 31 && flagno >= ApItemIDs.FlagOffset)
             {
                 data = VirtualFlagManager.GetFlag(flagno);
                 __result = true;
@@ -127,7 +127,7 @@ namespace LaMulana2Archipelago.Patches
         static bool Prefix(L2FlagSystem __instance, int seet_no, int flag_no, short data, out short __state)
         {
             __state = 0;
-            if (seet_no == 31 && flag_no >= 105)
+            if (seet_no == 31 && flag_no >= ApItemIDs.FlagOffset)
             {
                 VirtualFlagManager.SetFlag(flag_no, data);
                 return false;
@@ -195,7 +195,7 @@ namespace LaMulana2Archipelago.Patches
         // Verified parameter names in L2FlagSystem.cs: seet_no, flag_no
         static bool Prefix(L2FlagSystem __instance, int seet_no, int flag_no, ref L2FlagBase flgBase, ref bool __result)
         {
-            if (seet_no == 31 && flag_no >= 105)
+            if (seet_no == 31 && flag_no >= ApItemIDs.FlagOffset)
             {
                 flgBase = VirtualFlagManager.GetOrCreateBase(flag_no);
                 __result = true;
@@ -249,7 +249,7 @@ namespace LaMulana2Archipelago.Patches
         // Verified parameter names in L2FlagSystem.cs: seet_no1, flag_no1
         static bool Prefix(int seet_no1, int flag_no1, short value, CALCU cul)
         {
-            if (seet_no1 == 31 && flag_no1 >= 105)
+            if (seet_no1 == 31 && flag_no1 >= ApItemIDs.FlagOffset)
             {
                 short current = VirtualFlagManager.GetFlag(flag_no1);
                 short nextValue = current;

@@ -1763,7 +1763,7 @@ namespace LaMulana2Archipelago.Managers
                 ItemInfo info = ItemDB.GetItemInfo(shopItem.ID);
                 int itemIdRaw = (int)shopItem.ID;
                 bool isApPlaceholder = itemIdRaw >= 410000;
-                bool isFiller = itemIdRaw >= 191 && itemIdRaw <= 295;
+                bool isFiller = itemIdRaw >= 191 && itemIdRaw <= 415;
 
                 // AP placeholders have no ItemDB entry — use defaults
                 string shopType = info?.ShopType ?? "item";
@@ -1781,10 +1781,21 @@ namespace LaMulana2Archipelago.Managers
                 }
                 else if (isFiller)
                 {
-                    if (itemIdRaw >= 191 && itemIdRaw <= 230) flagIndex = itemIdRaw - 191;
-                    else if (itemIdRaw >= 231 && itemIdRaw <= 270) flagIndex = itemIdRaw - 231 + 40;
-                    else if (itemIdRaw >= 271 && itemIdRaw <= 280) flagIndex = itemIdRaw - 271 + 80;
-                    else flagIndex = itemIdRaw - 281 + 90;
+                    // ChestWeight01-100 (IDs 191-290) -> Flags 0-99
+                    if (itemIdRaw >= 191 && itemIdRaw <= 290)
+                        flagIndex = itemIdRaw - 191;
+
+                    // FakeItem01-100 (IDs 291-390) -> Flags 100-199
+                    else if (itemIdRaw >= 291 && itemIdRaw <= 390)
+                        flagIndex = itemIdRaw - 291 + 100;
+
+                    // NPCMoney01-10 (IDs 391-400) -> Flags 200-209
+                    else if (itemIdRaw >= 391 && itemIdRaw <= 400)
+                        flagIndex = itemIdRaw - 391 + 200;
+
+                    // FakeScan01-15 (IDs 401-415) -> Flags 210-224
+                    else
+                        flagIndex = itemIdRaw - 401 + 210;
 
                     itemName = $"{info?.BoxName ?? "Weight"} {flagIndex}";
                 }

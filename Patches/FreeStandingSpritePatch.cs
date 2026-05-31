@@ -26,10 +26,10 @@ namespace LaMulana2Archipelago.Patches
                 var mb = __instance as MonoBehaviour;
                 if (mb == null) return;
 
-                // Expand range to match SeedFlagMapBuilder: Flags 40..79 are FakeItems
+                // Expand range to match SeedFlagMapBuilder: Flags 100..199 are FakeItems
                 int flagNo = 0;
                 try { flagNo = Traverse.Create(__instance).Field("flagNo").GetValue<int>(); } catch { }
-                if (flagNo < 40 || flagNo > 79) return;
+                if (flagNo < 100 || flagNo > 199) return;
                 
                 var sr = mb.GetComponent<SpriteRenderer>();
                 if (sr == null) return;

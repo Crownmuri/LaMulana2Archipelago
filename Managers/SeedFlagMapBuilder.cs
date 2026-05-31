@@ -23,25 +23,25 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
-        /// FakeItem script sets sheet=31 flag=0..39
+        /// ChestWeight container flags: sheet=31 flag=0..99
         /// Reserve mapping for filler purposes.
         /// </summary>
         public static readonly Dictionary<int, LocationID> ChestWeightFlagToLocation = new Dictionary<int, LocationID>();
 
         /// <summary>
-        /// FakeItem script sets sheet=31 flag=40..79
+        /// FakeItem script sets sheet=31 flag=100..199
         /// Reserve mapping for filler purposes.
         /// </summary>
         public static readonly Dictionary<int, LocationID> FakeItemFlagToLocation = new Dictionary<int, LocationID>();
 
         /// <summary>
-        /// NPCMoney script sets sheet=31 flag=80..89 (NPCMoney01..10).
+        /// NPCMoney script sets sheet=31 flag=200..209 (NPCMoney01..10).
         /// Reserve mapping for filler purposes.
         /// </summary>
         public static readonly Dictionary<int, LocationID> NpcMoneyFlagToLocation = new Dictionary<int, LocationID>();
 
         /// <summary>
-        /// FakeScan script sets sheet=31 flag=90..94 (FakeScan01..15).
+        /// FakeScan script sets sheet=31 flag=210..224 (FakeScan01..15).
         /// Reserve mapping for filler purposes.
         /// </summary>
         public static readonly Dictionary<int, LocationID> FakeScanFlagToLocation = new Dictionary<int, LocationID>();
@@ -293,7 +293,7 @@ namespace LaMulana2Archipelago.Managers
             // 1) Seed-derived maps (container flags)
             if (IsSeedChestWeight(item, info))
             {
-                if (info.ItemSheet == 31 && info.ItemFlag >= 0 && info.ItemFlag <= 39)
+                if (info.ItemSheet == 31 && info.ItemFlag >= 0 && info.ItemFlag <= 99)
                 {
                     ChestWeightFlagToLocation[info.ItemFlag] = location;
                     chestWeightMapped++;
@@ -302,7 +302,7 @@ namespace LaMulana2Archipelago.Managers
 
             if (IsSeedFakeItem(item, info))
             {
-                if (info.ItemSheet == 31 && info.ItemFlag >= 40 && info.ItemFlag <= 79)
+                if (info.ItemSheet == 31 && info.ItemFlag >= 100 && info.ItemFlag <= 199)
                 {
                     FakeItemFlagToLocation[info.ItemFlag] = location;
                     fakeItemMapped++;
@@ -311,7 +311,7 @@ namespace LaMulana2Archipelago.Managers
 
             if (IsSeedNpcMoney(item, info))
             {
-                if (info.ItemSheet == 31 && info.ItemFlag >= 80 && info.ItemFlag <= 89)
+                if (info.ItemSheet == 31 && info.ItemFlag >= 200 && info.ItemFlag <= 209)
                 {
                     NpcMoneyFlagToLocation[info.ItemFlag] = location;
                     npcMoneyMapped++;
@@ -320,7 +320,7 @@ namespace LaMulana2Archipelago.Managers
 
             if (IsSeedFakeScan(item, info))
             {
-                if (info.ItemSheet == 31 && info.ItemFlag >= 80 && info.ItemFlag <= 89)
+                if (info.ItemSheet == 31 && info.ItemFlag >= 210 && info.ItemFlag <= 224)
                 {
                     FakeScanFlagToLocation[info.ItemFlag] = location;
                     fakeScanMapped++;
@@ -374,8 +374,8 @@ namespace LaMulana2Archipelago.Managers
                 name.StartsWith("ChestWeight", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Fallback: sheet31 flags 0..39 are ChestWeight container flags
-            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 0 && info.ItemFlag <= 39);
+            // Fallback: sheet31 flags 0..99 are ChestWeight container flags
+            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 0 && info.ItemFlag <= 99);
         }
 
         private static bool IsSeedFakeItem(ItemID item, ItemInfo info)
@@ -386,8 +386,8 @@ namespace LaMulana2Archipelago.Managers
                 name.StartsWith("FakeItem", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Fallback: sheet31 flags 40..79 are FakeItem container flags
-            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 40 && info.ItemFlag <= 79);
+            // Fallback: sheet31 flags 100..199 are FakeItem container flags
+            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 100 && info.ItemFlag <= 199);
         }
 
         private static bool IsSeedNpcMoney(ItemID item, ItemInfo info)
@@ -397,8 +397,8 @@ namespace LaMulana2Archipelago.Managers
                 name.StartsWith("NPCMoney", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Fallback: sheet31 flags 80..89 are NPCMoney container flags
-            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 80 && info.ItemFlag <= 89);
+            // Fallback: sheet31 flags 200..209 are NPCMoney container flags
+            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 200 && info.ItemFlag <= 209);
         }
         private static bool IsSeedFakeScan(ItemID item, ItemInfo info)
         {
@@ -407,8 +407,8 @@ namespace LaMulana2Archipelago.Managers
                 name.StartsWith("FakeScan", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Fallback: sheet31 flags 90..94 are FakeScan container flags
-            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 90 && info.ItemFlag <= 94);
+            // Fallback: sheet31 flags 210..224 are FakeScan container flags
+            return (info != null && info.ItemSheet == 31 && info.ItemFlag >= 210 && info.ItemFlag <= 224);
         }
 
         private static bool IsNonUniqueFiller(ItemInfo info)
