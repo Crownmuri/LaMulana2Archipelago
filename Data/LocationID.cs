@@ -252,7 +252,7 @@ namespace LaMulana2RandomizerShared
         Scylla,
         GlasyaLabolas,
         Griffin,
-        VucubCaquiz,
+        VucubCaquix,
         Jalandhara,
         Sekhmet,
         AngraMainyu,
@@ -386,7 +386,7 @@ namespace LaMulana2RandomizerShared
         field04A1 = 485,      // [IT A-2] Altar of Life Item Pot
         field04B1 = 486,      // [IT B-2] Fireside Elevator Coin Pot
         field04A2 = 487,      // [IT A-3] Altar of Life Approach Coin Pot
-        field04B2 = 488,      // [IT B-3] Below Frontside Grail Coin Pot
+        field04B2 = 488,      // [IT B-3] Below Frontside Grail Item Pot
         field04C2 = 489,      // [IT C-3] Surtr's Antechamber Item Pot
         field04B3_1 = 490,    // [IT B-4] Vedfolnir Left Item Pot
         field04B3_2 = 491,    // [IT B-4] Vedfolnir Right Item Pot
@@ -446,7 +446,7 @@ namespace LaMulana2RandomizerShared
         field06_2C0 = 545,    // [SFGB C-1] Corridor of Blood Right Weight Pot
         field06add1 = 546,    // [SFG A-4] Left Snow Drop Coin Pot
         // field07xx
-        field07C0 = 547,      // [GOTD C-1] Unicorn Reward Coin Pot
+        field07C0 = 547,      // [GOTD C-1] Unicorn Coin Pot
         field07C1 = 548,      // [GOTD C-2] Pre-Unicorn Weight Pot
         field07C1s = 549,     // [GOTD C-2] Pre-Unicorn Item Pot
         field07B2 = 550,      // [GOTD B-3] Aytum's Coin Pot

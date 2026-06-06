@@ -123,45 +123,45 @@ namespace LaMulana2Archipelago.Managers
                     return true;
                 }
 
-                // Ammo bundle AP items (310-316). IDs match items.py AP_FILLER:
-                //   310 ShurikenBundle         -> 10 shuriken         (SUB_SYURIKEN)
-                //   311 RollingShurikenBundle  -> 10 rolling shuriken (SUB_KURUMA)
-                //   312 EarthSpearBundle       -> 10 earth spears     (SUB_DAICHI)
-                //   313 FlareBundle            -> 10 flares           (SUB_HATUDAN)
-                //   314 CaltropsBundle         -> 10 caltrops         (SUB_MAKIBI)
-                //   315 ChakramBundle          ->  1 chakram          (SUB_CHAKURA)
-                //   316 BombBundle             ->  3 bombs            (SUB_BOM)
-                if (gameId >= 310 && gameId <= 316)
+                // Ammo bundle AP items (911-917). IDs match ItemID.cs / ids.py:
+                //   911 ShurikenBundle         -> 10 shuriken         (SUB_SYURIKEN)
+                //   912 RollingShurikenBundle  -> 10 rolling shuriken (SUB_KURUMA)
+                //   913 EarthSpearBundle       -> 10 earth spears     (SUB_DAICHI)
+                //   914 FlareBundle            -> 10 flares           (SUB_HATUDAN)
+                //   915 CaltropsBundle         -> 10 caltrops         (SUB_MAKIBI)
+                //   916 ChakramBundle          ->  1 chakram          (SUB_CHAKURA)
+                //   917 BombBundle             ->  3 bombs            (SUB_BOM)
+                if (gameId >= 911 && gameId <= 917)
                 {
                     LastGrantUsedPopupOnly = true;
 
                     switch (gameId)
                     {
-                        case 310:
+                        case 911:
                             Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 10 shuriken (AP {apItemId})");
                             GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_SYURIKEN, 10);
                             break;
-                        case 311:
+                        case 912:
                             Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 10 rolling shuriken (AP {apItemId})");
                             GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_KURUMA, 10);
                             break;
-                        case 312:
+                        case 913:
                             Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 10 earth spears (AP {apItemId})");
                             GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_DAICHI, 10);
                             break;
-                        case 313:
+                        case 914:
                             Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 10 flares (AP {apItemId})");
                             GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_HATUDAN, 10);
                             break;
-                        case 314:
+                        case 915:
                             Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 10 caltrops (AP {apItemId})");
                             GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_MAKIBI, 10);
                             break;
-                        case 315:
+                        case 916:
                             Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 1 chakram (AP {apItemId})");
                             GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_CHAKURA, 1);
                             break;
-                        case 316:
+                        case 917:
                             Plugin.Log.LogInfo($"[ITEM] AP ammo: granting 3 bombs (AP {apItemId})");
                             GrantAmmo(sys, L2Hit.SUBWEAPON.SUB_BOM, 3);
                             break;
@@ -359,19 +359,7 @@ namespace LaMulana2Archipelago.Managers
                         sys.getFlag(3, 30, ref skullTally);
                         sys.setFlagData(3, 30, (short)(skullTally + 4));
 
-#if LEGACY
-                        var l2Rando = UnityEngine.Object.FindObjectOfType<L2Rando>();
-                        bool autoPlace = false;
-                        if (l2Rando != null)
-                        {
-                            var f = l2Rando.GetType().GetField("autoPlaceSkull",
-                                System.Reflection.BindingFlags.Instance |
-                                System.Reflection.BindingFlags.NonPublic);
-                            if (f != null) autoPlace = (bool)f.GetValue(l2Rando);
-                        }
-#else
                         bool autoPlace = LaMulana2Archipelago.Patches.GameFlagResetsPatch.AutoPlaceSkull;
-#endif
                         if (autoPlace)
                         {
                             int nibiruFlag = (int)itemId - (int)ItemID.SacredOrb4;
