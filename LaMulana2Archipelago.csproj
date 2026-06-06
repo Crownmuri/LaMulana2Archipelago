@@ -12,9 +12,6 @@
         <RootNamespace>LaMulana2Archipelago</RootNamespace>
     </PropertyGroup>
 
-    <!-- To build against the pre-patched (original randomizer) Assembly-CSharp.dll,
-         add LEGACY to DefineConstants below. This enables compatibility patches
-         that target L2Rando/FakeItem from the original randomizer. -->
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <DebugSymbols>true</DebugSymbols>
         <DebugType>full</DebugType>
@@ -95,12 +92,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <!-- LEGACY BUILD: Uncomment to use external DLLs instead of inlined Data/ files.
-      <Reference Include="LaMulana2RandomizerShared">
-        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\LaMulana2RandomizerShared.dll</HintPath>
-        <Private>False</Private>
-      </Reference>
-      -->
       <Reference Include="Assembly-CSharp">
         <HintPath>..\..\..\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
         <Private>False</Private>
