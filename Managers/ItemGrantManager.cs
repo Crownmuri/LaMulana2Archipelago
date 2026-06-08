@@ -68,49 +68,50 @@ namespace LaMulana2Archipelago.Managers
             {
                 int gameId = (int)(apItemId - BaseApItemId);
 
-                // Recognize explicit coin/weight AP IDs 300-309 (coins: 300-305, weights: 306-309)
-                if (gameId >= 300 && gameId <= 309)
+                // Recognize explicit coin/weight AP IDs 901-910 (coins: 901-906, weights: 907-910).
+                // These match ids.py in the apworld (AP Trash block, contiguous with ammo 911-917).
+                if (gameId >= 901 && gameId <= 910)
                 {
                     LastGrantUsedPopupOnly = true;
                     switch (gameId)
                     {
-                        case 300:
+                        case 901:
                             Plugin.Log.LogInfo($"[ITEM] AP coins: granting 1 coin (AP {apItemId})");
                             GrantCoins(sys, 1, "Coin1");
                             break;
-                        case 301:
+                        case 902:
                             Plugin.Log.LogInfo($"[ITEM] AP coins: granting 10 coins (AP {apItemId})");
                             GrantCoins(sys, 10, "Coin10");
                             break;
-                        case 302:
+                        case 903:
                             Plugin.Log.LogInfo($"[ITEM] AP coins: granting 30 coins (AP {apItemId})");
                             GrantCoins(sys, 30, "Coin30");
                             break;
-                        case 303:
+                        case 904:
                             Plugin.Log.LogInfo($"[ITEM] AP coins: granting 50 coins (AP {apItemId})");
                             GrantCoins(sys, 50, "Coin50");
                             break;
-                        case 304:
+                        case 905:
                             Plugin.Log.LogInfo($"[ITEM] AP coins: granting 80 coins (AP {apItemId})");
                             GrantCoins(sys, 80, "Coin80");
                             break;
-                        case 305:
+                        case 906:
                             Plugin.Log.LogInfo($"[ITEM] AP coins: granting 100 coins (AP {apItemId})");
                             GrantCoins(sys, 100, "Coin100");
                             break;
-                        case 306:
+                        case 907:
                             Plugin.Log.LogInfo($"[ITEM] AP weights: granting 1 weight (AP {apItemId})");
                             GrantWeights(sys, 1, "Weight1");
                             break;
-                        case 307:
+                        case 908:
                             Plugin.Log.LogInfo($"[ITEM] AP weights: granting 5 weights (AP {apItemId})");
                             GrantWeights(sys, 5, "Weight5");
                             break;
-                        case 308:
+                        case 909:
                             Plugin.Log.LogInfo($"[ITEM] AP weights: granting 10 weights (AP {apItemId})");
                             GrantWeights(sys, 10, "Weight10");
                             break;
-                        case 309:
+                        case 910:
                             Plugin.Log.LogInfo($"[ITEM] AP weights: granting 20 weights (AP {apItemId})");
                             GrantWeights(sys, 20, "Weight20");
                             break;

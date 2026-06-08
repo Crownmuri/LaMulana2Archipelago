@@ -411,15 +411,24 @@ namespace LaMulana2Archipelago.Patches
 
         private static void DropFiller(L2System sys, ItemPotScript pot, string itemName)
         {
+            Vector3 pos = Traverse.Create(pot).Field("actionPosition").GetValue<Vector3>();
+            pos.y += 1.5f;
+            DropFillerAt(sys, pos, itemName);
+        }
+
+        /// <summary>
+        /// Position-based filler grant, shared with glossary chips. Parses the AP
+        /// item name ("30 Coins", "1 Weight", "10 Shuriken", …) and physically
+        /// drops the coins/weights/ammo at pos. No-op if the name isn't filler.
+        /// </summary>
+        internal static void DropFillerAt(L2System sys, Vector3 pos, string itemName)
+        {
             try
             {
                 string rewardType;
                 int amount;
                 if (!TryParseReward(itemName, out rewardType, out amount))
                     return;
-
-                Vector3 pos = Traverse.Create(pot).Field("actionPosition").GetValue<Vector3>();
-                pos.y += 1.5f;
 
                 switch (rewardType)
                 {
@@ -567,7 +576,7 @@ namespace LaMulana2Archipelago.Patches
         /// Parses AP item names like "10 Coins", "1 Weight", "10 Shuriken", "3 Bombs", "1 Chakram"
         /// into a reward type and amount.
         /// </summary>
-        private static bool TryParseReward(string itemName, out string rewardType, out int amount)
+        internal static bool TryParseReward(string itemName, out string rewardType, out int amount)
         {
             rewardType = null;
             amount = 0;

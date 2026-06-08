@@ -227,6 +227,7 @@ namespace LaMulana2Archipelago.Archipelago
                 UnityEngine.Object.Destroy(SceneRandomizer.Instance.gameObject);
 
             Patches.ItemPotPatch.Reset();
+            Managers.GlossaryManager.Reset();
             Patches.VirtualFlagManager.Reset();
             CheckManager.Reset();
             ItemQueue.Clear();
@@ -316,6 +317,10 @@ namespace LaMulana2Archipelago.Archipelago
             // Initialize Potsanity (pot_flag_map from slot_data); offline seeds
             // set potsanity=0 so this is a no-op in that path.
             Patches.ItemPotPatch.Initialize();
+
+            // Initialize Glossanity (glossary_flag_map from slot_data); registers
+            // (sheet 20, bookFlagNo) → LocationID. glossanity=0 → no-op.
+            Managers.GlossaryManager.Initialize();
         }
 
         public void Connect()
@@ -477,6 +482,7 @@ namespace LaMulana2Archipelago.Archipelago
             // CheckManager.reportedLocations and ItemPotPatch state are session-scoped.
             Patches.VirtualFlagManager.Reset();
             Patches.ItemPotPatch.Reset();
+            Managers.GlossaryManager.Reset();
             CheckManager.Reset();
             if (ServerData != null)
             {
@@ -798,6 +804,7 @@ namespace LaMulana2Archipelago.Archipelago
             GoalReported = false;
             GoalPending = false;
             Patches.ItemPotPatch.Reset();
+            Managers.GlossaryManager.Reset();
         }
     }
 }
