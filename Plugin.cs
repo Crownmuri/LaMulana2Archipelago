@@ -72,7 +72,6 @@ namespace LaMulana2Archipelago
         private const int GoalSceneFallbackBuildIndex = 49;
 
         private bool _bootstrapStarted = false;
-        private bool _bootstrapFinished = false;
 
         private void Start()
         {
@@ -106,8 +105,6 @@ namespace LaMulana2Archipelago
             // on startup. This avoids a spurious localhost:38281 attempt (and its
             // noisy retry logs) for players who are launching into offline play or
             // who host their server somewhere other than the default.
-
-            _bootstrapFinished = true;
         }
 
         private void Awake()
@@ -591,13 +588,6 @@ namespace LaMulana2Archipelago
             // Standalone scene randomization (chests, entrances, NPCs, etc.)
             if (Managers.SceneRandomizer.Instance != null)
                 Managers.SceneRandomizer.Instance.OnSceneLoaded(scene);
-        }
-        private IEnumerator BeginHarvest()
-        {
-            yield return null; // let Opening finish settling
-            var sys = UnityEngine.Object.FindObjectOfType<L2Base.L2System>();
-            if (sys != null)
-                Managers.PrefabHarvester.StartHarvest(sys);
         }
 
         [HarmonyPatch(typeof(NewPlayer), "hitCallBack")]

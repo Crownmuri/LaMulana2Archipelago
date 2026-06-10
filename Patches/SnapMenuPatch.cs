@@ -144,6 +144,12 @@ namespace LaMulana2Archipelago.Patches
                     sys.setEffectFlag(SceneRandomizer.Instance.CreateGetFlags(itemID, itemInfo));
             }
 
+            // Fire the AP location check. AP placeholders carry sheet 31, which the guard
+            // above deliberately skips, so a mural holding an AP / glossary item would never
+            // report otherwise. NotifyLocation also delivers an own glossary ROM directly
+            // (CheckManager → DeliverGlossaryRom). Dedup-safe on re-scan.
+            CheckManager.NotifyLocation(locationID);
+
             // Set up fields for the binary text animation (state 5→6→dialog)
             t.Field("SnapShotTargetSc").SetValue(snapTarget);
             t.Field("GetItemID").SetValue(getItemID);

@@ -8,6 +8,7 @@ using L2Flag;
 using L2Hit;
 using L2MobTask;
 using L2Word;
+using LaMulana2Archipelago.Archipelago;
 using LaMulana2RandomizerShared;
 using LM2RandomiserMod;
 using Newtonsoft.Json.Linq;
@@ -383,6 +384,25 @@ namespace LaMulana2Archipelago.Managers
         /// which means Start() does nothing — the chest renders purely from
         /// its inherited prefab visual state, as the original intended.
         /// </summary>
+        /// <summary>
+        /// Chest color by item type. Own glossary ROMs / pot filler are written as AP
+        /// placeholders (≥410000) so the location machinery fires their check, but they are
+        /// OUR items — show them in the filler color, not the AP (other-world) color. A genuine
+        /// foreign item is also a placeholder but scouts as NOT-own → AP color. (Offline has no
+        /// scout, so placeholders fall back to the AP color there.)
+        /// </summary>
+        private int ChestColourForItem(LocationID locationID, ItemID itemID)
+        {
+            if ((int)itemID >= 410000)
+            {
+                var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)locationID);
+                return (scouted != null && scouted.IsOwnItem) ? weightChestColour : apChestColour;
+            }
+            if (itemID >= ItemID.ChestWeight01)
+                return weightChestColour;
+            return itemChestColour;
+        }
+
         private TreasureBoxScript CreateChest(int colour, Vector3 position, Quaternion rotation)
         {
             string key = colour switch
@@ -413,6 +433,14 @@ namespace LaMulana2Archipelago.Managers
                 ItemID.GaneshaTalisman, ItemID.MaatsFeather, ItemID.Feather, ItemID.FreysShip, ItemID.Harp, ItemID.DestinyTablet, ItemID.SecretTreasureofLife,
                 ItemID.OriginSigil, ItemID.BirthSigil, ItemID.LifeSigil, ItemID.DeathSigil, ItemID.ClaydollSuit};
             List<L2FlagBoxEnd> getFlags = new List<L2FlagBoxEnd>();
+
+            // AP-delivered items (glossary ROMs, pot filler) carry NO local flags — the AP
+            // echo delivers them (DeliverGlossaryRom / pot-filler branch). Returning empty
+            // keeps them decoupled: a glossary ROM at a shop/chest/talk must NOT set its own
+            // book flag locally (that would unlock the entry without receiving the ROM).
+            if ((itemID >= ItemID.PotFiller01 && itemID <= ItemID.PotFiller307)
+                || (itemID >= ItemID.Glossary000 && itemID <= ItemID.Glossary251))
+                return getFlags.ToArray();
 
             short data;
             if (itemID >= ItemID.SacredOrb0 && itemID <= ItemID.SacredOrb9)
@@ -517,9 +545,7 @@ namespace LaMulana2Archipelago.Managers
                 if (!locationToItemMap.TryGetValue(locationID, out ItemID newItemID)) continue;
 
                 // Determine correct color based on item type (AP items use AP color)
-                int colorToUse = itemChestColour;
-                if ((int)newItemID >= 410000) colorToUse = apChestColour;
-                else if (newItemID >= ItemID.ChestWeight01) colorToUse = weightChestColour;
+                int colorToUse = ChestColourForItem(locationID, newItemID);
 
                 // Swap the chest prefab
                 TreasureBoxScript newChest = CreateChest(colorToUse, oldChest.transform.position, oldChest.transform.rotation);
@@ -888,15 +914,9 @@ namespace LaMulana2Archipelago.Managers
 
             Plugin.Log.LogInfo($"[SceneRando] DissonanceChests: creating chest for {locationID} → item {itemID} (int={(int)itemID})");
 
-            // Choose chest color by item type — AP check must come first since
-            // AP item IDs (410000+) are numerically above ChestWeight01.
-            int colorToUse;
-            if ((int)itemID >= 410000)
-                colorToUse = apChestColour;
-            else if (itemID >= ItemID.ChestWeight01)
-                colorToUse = weightChestColour;
-            else
-                colorToUse = itemChestColour;
+            // Choose chest color by item type (own glossary/pot-filler placeholders use the
+            // filler color, not the AP color — they are our own items, not another world's).
+            int colorToUse = ChestColourForItem(locationID, itemID);
 
             // Original L2Rando uses the blue chest prefab's rotation for dissonance chests.
             Quaternion rot = PrefabHarvester.CachedPrefabs.TryGetValue("blueChest", out GameObject blueRef)
@@ -1905,6 +1925,12 @@ namespace LaMulana2Archipelago.Managers
             if (shopToItemMap.TryGetValue(locationID, out ShopItem shopItem))
             {
                 ItemInfo info = ItemDB.GetItemInfo(shopItem.ID);
+
+                // AP placeholders, glossary ROMs and other items with no ItemDB entry
+                // are delivered by the AP check/echo, not by the shop's local get-flag
+                // string — so emit nothing (and avoid an NRE on info.BoxName).
+                if (info == null)
+                    return flagString;
 
                 if (info.BoxName.Equals("Crystal S"))
                     flagString = "\n[@take,Crystal S,02item,1]";

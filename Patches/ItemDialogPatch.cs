@@ -239,7 +239,14 @@ namespace LaMulana2Archipelago.Patches
             if (ItemDialogApItemPatch.WasApPlaceholder
                 && ApSpriteLoader.IsLoaded && con.Icon != null)
             {
-                con.Icon.sprite = ApSpriteLoader.MapSprite;
+                // Glossary entries are our own items — show the pixelated chip icon (or R Book
+                // if the chip sprite hasn't been harvested yet), not the AP icon. Identified by
+                // id at dialog setup (ItemDialogApItemPatch), so it survives renaming the items.
+                var chip = ItemDialogApItemPatch.CurrentApPickupIsGlossary
+                    ? GlossaryChipSprite.DialogIcon() : null;
+                con.Icon.sprite = chip != null
+                    ? chip
+                    : ApSpriteLoader.GetMapSprite(ItemDialogApItemPatch.CurrentApPickupIsProgression);
                 con.Icon.gameObject.SetActive(true);
             }
         }

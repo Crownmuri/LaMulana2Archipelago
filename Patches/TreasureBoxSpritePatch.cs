@@ -31,6 +31,18 @@ namespace LaMulana2Archipelago.Patches
                 if (sr == null) sr = __instance.GetComponentInChildren<SpriteRenderer>(true);
                 if (sr == null) return;
 
+                // Own glossary ROM → show the chip sprite (it's our item, picked up filler-style),
+                // not the AP icon.
+                if (TryGetApLocation(__instance, out LocationID gloc))
+                {
+                    var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)gloc);
+                    if (Managers.GlossaryManager.IsOwnGlossaryRom(scouted))
+                    {
+                        var chip = GlossaryChipSprite.FloorIcon();
+                        if (chip != null) { sr.sprite = chip; return; }
+                    }
+                }
+
                 if (ApSpriteLoader.IsLoaded)
                 {
                     // This postfix also fires for pot pickups (TrySpawnItemPickup
@@ -57,7 +69,9 @@ namespace LaMulana2Archipelago.Patches
         // The item's itemActiveFlag carries the (sheet, flag) pair that identifies
         // its AP location — sheet 31 for chests, the pot sheet for pot pickups.
         // Return the first box that LocationFlagMap can resolve to a location.
-        static bool TryGetApLocation(AbstractItemBase item, out LocationID location)
+        // Public so the pickup-animation/dialog patches can resolve the same
+        // location from the item being collected (see EventItemGetActionPatch).
+        public static bool TryGetApLocation(AbstractItemBase item, out LocationID location)
         {
             location = LocationID.None;
 

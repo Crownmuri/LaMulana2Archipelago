@@ -214,6 +214,9 @@ namespace LaMulana2Archipelago.Patches
             itemNames[slot].text = apName;
             Plugin.Log.LogInfo("[ShopPatch] Slot " + slot + " (shopId=" + shopId + ") name -> \"" + apName + "\"");
 
+            // (Glossary slot icon — R Book — is set authoritatively in
+            // ItemSendManager.ShopItemCallBackApPatch, which also writes icons[idx].)
+
             // Auto-collect ownworld refill items the moment the shop UI shows them.
             if (_autoCollectItemNames.Contains(apName))
             {
@@ -245,6 +248,28 @@ namespace LaMulana2Archipelago.Patches
 
             int shopId = sys.mojiSheetNameToNo(sheetName, shopDb);
             return _slotIsProgression.TryGetValue(shopId + ":" + slot, out isProgression);
+        }
+
+        /// <summary>True if the given shop slot holds one of this player's glossary ROMs, by
+        /// scouting the slot's AP location and checking the id window (not the display name).
+        /// Used to pick the R Book shop icon instead of the AP icon.</summary>
+        public static bool IsGlossarySlot(ShopScript instance, int slot)
+        {
+            if (_slotApLocationIds.Count == 0 || instance == null) return false;
+
+            var t = Traverse.Create(instance);
+            var sys = t.Field("sys").GetValue<L2System>();
+            string sheetName = t.Field("sheet_name").GetValue<string>();
+            if (sys == null || string.IsNullOrEmpty(sheetName)) return false;
+
+            var shopDb = sys.getMojiScript(mojiScriptType.shop);
+            if (shopDb == null) return false;
+
+            int shopId = sys.mojiSheetNameToNo(sheetName, shopDb);
+            if (!_slotApLocationIds.TryGetValue(shopId + ":" + slot, out long apLoc)) return false;
+
+            var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(apLoc);
+            return GlossaryManager.IsOwnGlossaryRom(scouted);
         }
 
         // ── Helper ───────────────────────────────────────────────────────────

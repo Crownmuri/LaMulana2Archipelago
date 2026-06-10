@@ -302,12 +302,6 @@ namespace LaMulana2Archipelago.Managers
                 // ---- apply reward ----
                 if (coinAmount > 0)
                 {
-                    if (ChestFillerDrop(sys, "Coin", coinAmount))
-                    {
-                        Plugin.Log.LogInfo($"[AP] Dropped {coinAmount} coin(s) from chest via {itemName}");
-                        return true;
-                    }
-
                     // The NPC's KataribeScript already opened its own item dialog before
                     // calling setItem(). ItemDialogApItemPatch rewrites that popup's label
                     // to "1 Coin" / "10 Coins" etc. Do NOT open a second dialog here --
@@ -325,12 +319,6 @@ namespace LaMulana2Archipelago.Managers
 
                 if (weightAmount > 0)
                 {
-                    if (ChestFillerDrop(sys, "Weight", weightAmount))
-                    {
-                        Plugin.Log.LogInfo($"[AP] Dropped {weightAmount} weight(s) from chest via {itemName}");
-                        return true;
-                    }
-
                     // Same as coins: NPC popup already shown by KataribeScript, grant silently.
                     PlaySe(seManager, WeightPickupSe);
 
@@ -360,71 +348,6 @@ namespace LaMulana2Archipelago.Managers
 
         public static bool ChestFillerDialog = false;
 
-        private static bool ChestFillerDrop(L2System sys, string kind, int amount)
-        {
-            if (!ChestFillerSetup.Armed) return false;
-
-            if (Time.time - ChestFillerSetup.ArmedAt > 8.0f)
-            {
-                ChestFillerSetup.Armed = false;
-                return false;
-            }
-
-            ChestFillerSetup.Armed = false;
-            SetItemApPatch.ChestFillerDialog = true;
-
-            try
-            {
-                object core = Traverse.Create(sys).Method("getL2SystemCore").GetValue();
-                if (core == null) return false;
-
-                object dropGen =
-                    Traverse.Create(core).Property("dropItemGenerator").GetValue()
-                    ?? Traverse.Create(core).Field("dropItemGen").GetValue();
-
-                if (dropGen == null)
-                {
-                    Plugin.Log.LogWarning("[AP] ChestFillerDrop: dropGen null");
-                    return false;
-                }
-
-                Vector3 pos = ChestFillerSetup.DropPos;
-
-                // LM2 uses ref Vector3 overloads
-                Type genType = dropGen.GetType();
-                Type refVec3 = typeof(Vector3).MakeByRefType();
-
-                string methodName = (kind == "Coin") ? "dropCoins" :
-                                    (kind == "Weight") ? "dropWeight" : null;
-
-                if (methodName == null) return false;
-
-                MethodInfo mi =
-                    AccessTools.Method(genType, methodName, new Type[] { refVec3, typeof(int) })
-                    ?? AccessTools.Method(genType, methodName, new Type[] { typeof(Vector3), typeof(int) }); // fallback
-
-                if (mi == null)
-                {
-                    Plugin.Log.LogWarning($"[AP] ChestFillerDrop: could not find {methodName} overload");
-                    return false;
-                }
-
-                object[] args = new object[] { pos, amount };
-                mi.Invoke(dropGen, args);
-
-                // If we used ref Vector3, args[0] may be updated
-                if (args[0] is Vector3 newPos)
-                    ChestFillerSetup.DropPos = newPos;
-
-                Plugin.Log.LogDebug($"[AP] ChestFillerDrop OK: {amount} {kind} at {ChestFillerSetup.DropPos}");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log.LogWarning($"[AP] ChestFillerDrop failed: {ex}");
-                return false;
-            }
-        }
         private static void PlaySe(object seManager, int seNo)
         {
             if (seManager == null) return;
@@ -504,6 +427,23 @@ namespace LaMulana2Archipelago.Managers
         public static bool WasApPlaceholder { get; set; }
 
         /// <summary>
+        /// True when the AP placeholder currently being picked up holds another
+        /// player's progression (Advancement) item.  Resolved once at pickup time
+        /// in <see cref="Patches.EventItemGetActionPatch"/> (and its sibling pot/
+        /// costume patches) from the item's world flag, then read by the pickup
+        /// animation (<see cref="SetGetItemIconApPatch"/>) and the item dialog
+        /// (<see cref="SetupDialogManually"/> / <see cref="Patches.ItemDialogPatch"/>)
+        /// so they show the "up arrow" progressive AP icon — matching how chests,
+        /// pots and free-standing items already differentiate it.
+        /// </summary>
+        public static bool CurrentApPickupIsProgression { get; set; }
+
+        /// <summary>True when the AP placeholder in the current dialog is one of this player's
+        /// glossary ROMs (resolved by id, not name). Read by ItemDialogPatch to pick the chip /
+        /// R Book icon.</summary>
+        public static bool CurrentApPickupIsGlossary { get; set; }
+
+        /// <summary>
         /// Prefix: for AP/filler items, skip the vanilla StartSwitch entirely
         /// and set up the dialog manually (vanilla crashes on unknown item names
         /// in getMojiText). For progressive items, just rename and let vanilla run.
@@ -511,6 +451,7 @@ namespace LaMulana2Archipelago.Managers
         static bool Prefix(ItemDialog __instance)
         {
             WasApPlaceholder = false;
+            CurrentApPickupIsGlossary = false;
 
             string[] messString = Traverse.Create(__instance)
                 .Field("MessString")
@@ -525,6 +466,16 @@ namespace LaMulana2Archipelago.Managers
                 displayLabel = "AP Item";
                 isAp = true;
                 WasApPlaceholder = true;
+
+                // "AP Item N" carries the sheet-31 flag index N → resolve to its AP location and
+                // scout it, so the dialog can show the glossary icon (id-based, rename-proof).
+                int sp = messString[0].LastIndexOf(' ');
+                if (sp > 0 && int.TryParse(messString[0].Substring(sp + 1), out int flagIdx)
+                    && LocationFlagMap.TryGetNumeric(31, flagIdx, out LocationID gloc))
+                {
+                    var sc = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)gloc);
+                    CurrentApPickupIsGlossary = GlossaryManager.IsOwnGlossaryRom(sc);
+                }
             }
             else if (messString[0] == "Nothing" || messString[0] == "Fake" || messString[0] == "Money")
             {
@@ -633,7 +584,7 @@ namespace LaMulana2Archipelago.Managers
             // Icon
             if (isAp && ApSpriteLoader.IsLoaded && con.Icon != null)
             {
-                con.Icon.sprite = ApSpriteLoader.MapSprite;
+                con.Icon.sprite = ApSpriteLoader.GetMapSprite(CurrentApPickupIsProgression);
                 con.Icon.gameObject.SetActive(true);
             }
             else if (isAp)
@@ -788,7 +739,8 @@ namespace LaMulana2Archipelago.Managers
                         .GetValue<SpriteRenderer>();
 
                     if (renderer != null)
-                        renderer.sprite = ApSpriteLoader.MapSprite;
+                        renderer.sprite = ApSpriteLoader.GetMapSprite(
+                            ItemDialogApItemPatch.CurrentApPickupIsProgression);
                 }
                 catch (Exception ex)
                 {
@@ -845,18 +797,27 @@ namespace LaMulana2Archipelago.Managers
                 {
                     if (baseName.StartsWith("AP Item"))
                     {
-                        // Show the "up arrow" progressive icon when this slot holds a
-                        // progression (Advancement) item, so the player can tell at a
-                        // glance whether it's worth buying.
-                        bool isProgression;
-                        Patches.ShopDialogPatch.TryGetSlotProgression(__instance, idx, out isProgression);
-
-                        if (ApSpriteLoader.IsLoaded)
-                            chosenSprite = ApSpriteLoader.GetShopSprite(isProgression);
+                        // Our own glossary ROMs (placeholder name "AP Item N", but the slot's
+                        // display name is "Glossary (...)") show the R Book icon, not the AP icon.
+                        if (Patches.ShopDialogPatch.IsGlossarySlot(__instance, idx))
+                        {
+                            chosenSprite = Patches.GlossaryChipSprite.ShopIcon();
+                        }
                         else
                         {
-                            var data = L2SystemCore.getItemData("Holy Grail");
-                            if (data != null) chosenSprite = L2SystemCore.getShopIconSprite(data);
+                            // Show the "up arrow" progressive icon when this slot holds a
+                            // progression (Advancement) item, so the player can tell at a
+                            // glance whether it's worth buying.
+                            bool isProgression;
+                            Patches.ShopDialogPatch.TryGetSlotProgression(__instance, idx, out isProgression);
+
+                            if (ApSpriteLoader.IsLoaded)
+                                chosenSprite = ApSpriteLoader.GetShopSprite(isProgression);
+                            else
+                            {
+                                var data = L2SystemCore.getItemData("Holy Grail");
+                                if (data != null) chosenSprite = L2SystemCore.getShopIconSprite(data);
+                            }
                         }
                     }
                     else if (baseName.StartsWith("Coin"))

@@ -1,6 +1,8 @@
 using HarmonyLib;
 using L2Base;
 using L2Hit;
+using LaMulana2Archipelago.Managers;
+using LaMulana2RandomizerShared;
 
 namespace LaMulana2Archipelago.Patches
 {
@@ -18,9 +20,16 @@ namespace LaMulana2Archipelago.Patches
 
         static bool Prefix(EventItemScript __instance)
         {
+            var sys = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
+
+            // Own glossary ROM → silent filler-style pickup (no hold-up/dialog/AP icon). Must run
+            // BEFORE the !Enabled gate: when this replacement patch is enabled, its body below does
+            // the get-item hold-up, so the silent pickup has to pre-empt it here (a separate prefix
+            // can't — Harmony runs every prefix regardless of return value).
+            if (GlossarySilentPickup.TryHandle(__instance, sys, "EventItem")) return false;
+
             if (!Enabled) return true;
 
-            var sys = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
             var pl = Traverse.Create(__instance).Field("pl").GetValue<NewPlayer>();
             string itemLabel = __instance.itemLabel;
 
@@ -95,9 +104,13 @@ namespace LaMulana2Archipelago.Patches
 
         static bool Prefix(CostumeSetScript __instance)
         {
+            var sys = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
+
+            // Own glossary ROM → silent filler-style pickup (pre-empt the hold-up body below).
+            if (GlossarySilentPickup.TryHandle(__instance, sys, "Costume")) return false;
+
             if (!Enabled) return true;
 
-            var sys = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
             var pl = Traverse.Create(__instance).Field("pl").GetValue<NewPlayer>();
             string itemLabel = __instance.itemLabel;
 
@@ -173,6 +186,14 @@ namespace LaMulana2Archipelago.Patches
         static bool Prefix(DropItemScript __instance)
         {
             if (!Enabled) return true;
+
+            // Own glossary ROM (any position — incl. chest pop / dropItem): silent filler-style
+            // pickup (floating popup, no get-item flow). Must run BEFORE the dropItem/FIX gate
+            // below so chest drops are covered.
+            var sysG = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
+            Plugin.Log.LogDebug($"[GLOSSARY/silent] DropItem label='{__instance.itemLabel}' dropItem={__instance.dropItem} pos={__instance.positionType}");
+            if (GlossarySilentPickup.TryHandle(__instance, sysG, "DropItem"))
+                return false;
 
             if (__instance.dropItem || __instance.positionType != AbstractItemBase.PositionType.FIX)
                 return true;
@@ -254,5 +275,58 @@ namespace LaMulana2Archipelago.Patches
             // CRITICAL: We strictly return false here to bypass sys.setItem completely.
             return false;
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  AP progression capture for pickup animation + item dialog
+    //
+    //  When a foreign player's item is collected, the pickup animation
+    //  (NewPlayer.setGetItemIcon → SetGetItemIconApPatch) and the item dialog
+    //  (ItemDialogApItemPatch.SetupDialogManually / ItemDialogPatch) show the
+    //  custom AP icon, but they have no location context to pick the progressive
+    //  ("up arrow") variant — matching how chests, pots and free-standing items
+    //  already differentiate it.
+    //
+    //  These prefixes run *before* the (vanilla or replacement) itemGetAction
+    //  body calls setGetItemIcon, recording whether the item being collected is
+    //  a progression item.  They run unconditionally — unlike the Enabled-gated
+    //  replacement patches above, which are off in normal AP mode — so the icon
+    //  is correct in both normal AP and standalone modes.  They only read the
+    //  item, never alter the pickup, so they compose safely with the gated
+    //  replacement prefixes on the same methods.
+    // ─────────────────────────────────────────────────────────────────────────
+    internal static class ApPickupProgressionCapture
+    {
+        internal static void Capture(AbstractItemBase item)
+        {
+            if (item == null || string.IsNullOrEmpty(item.itemLabel)
+                || !item.itemLabel.StartsWith("AP Item", System.StringComparison.Ordinal))
+                return;
+
+            ItemDialogApItemPatch.CurrentApPickupIsProgression =
+                TreasureBoxSpritePatch.TryGetApLocation(item, out LocationID location)
+                && CheckManager.IsApItemProgressionAt(location);
+        }
+    }
+
+    [HarmonyPatch(typeof(EventItemScript), "itemGetAction")]
+    internal static class EventItemProgressionCapturePatch
+    {
+        static void Prefix(EventItemScript __instance) =>
+            ApPickupProgressionCapture.Capture(__instance);
+    }
+
+    [HarmonyPatch(typeof(DropItemScript), "itemGetAction")]
+    internal static class DropItemProgressionCapturePatch
+    {
+        static void Prefix(DropItemScript __instance) =>
+            ApPickupProgressionCapture.Capture(__instance);
+    }
+
+    [HarmonyPatch(typeof(CostumeSetScript), "itemGetAction")]
+    internal static class CostumeProgressionCapturePatch
+    {
+        static void Prefix(CostumeSetScript __instance) =>
+            ApPickupProgressionCapture.Capture(__instance);
     }
 }

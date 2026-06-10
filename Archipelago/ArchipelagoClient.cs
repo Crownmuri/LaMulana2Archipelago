@@ -498,11 +498,11 @@ namespace LaMulana2Archipelago.Archipelago
         // =============================
         // Location checks
         // =============================
-        // 1. Add the cache dictionary near your other fields (e.g., under ServerData)
+        // Scout results, pre-cached once on connect (see ScoutAllLocations). Read by
+        // GetItemAtLocation so gameplay never blocks on a network scout.
         private static readonly object cacheLock = new object();
         public static Dictionary<long, ScoutedItem> ScoutedLocationsCache = new Dictionary<long, ScoutedItem>();
 
-        // 2. Replace your existing SendLocationCheck method:
         public void SendLocationCheck(long locationId)
         {
             if (!Authenticated || session == null)
@@ -619,7 +619,8 @@ namespace LaMulana2Archipelago.Archipelago
             }
         }
 
-        // 3. Replace your existing GetItemAtLocation method:
+        // Returns the pre-scouted item at a location, or null if it wasn't cached on
+        // connect. Cache-only by design — see the note inside about the removed live scout.
         public ScoutedItem GetItemAtLocation(long locationId)
         {
             if (session == null) return null;
@@ -638,7 +639,8 @@ namespace LaMulana2Archipelago.Archipelago
             return null;
         }
 
-        // 4. Add this new method to pre-cache everything on connect:
+        // Pre-caches every location's scout result on connect so shop/chest labels are
+        // available instantly during gameplay without per-frame network requests.
         private void ScoutAllLocations()
         {
             if (session == null) return;

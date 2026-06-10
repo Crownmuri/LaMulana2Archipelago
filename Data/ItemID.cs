@@ -155,6 +155,35 @@ namespace LaMulana2RandomizerShared
         PotFiller291, PotFiller292, PotFiller293, PotFiller294, PotFiller295,
         PotFiller296, PotFiller297, PotFiller298, PotFiller299, PotFiller300,
         PotFiller301, PotFiller302, PotFiller303, PotFiller304, PotFiller305,
-        PotFiller306, PotFiller307
+        PotFiller306, PotFiller307,
+
+        // Glossary ROMs — match apworld game_id 2000+N so GetItemIDForLocation /
+        // SeedFlagMapBuilder recognize them instead of defaulting to "AP Item".
+        Glossary000 = 2000, Glossary001, Glossary002, Glossary003, Glossary004, Glossary005, Glossary006, Glossary007, Glossary008, Glossary009,
+        Glossary010, Glossary011, Glossary012, Glossary013, Glossary014, Glossary015, Glossary016, Glossary017, Glossary018, Glossary019,
+        Glossary020, Glossary021, Glossary022, Glossary023, Glossary024, Glossary025, Glossary026, Glossary027, Glossary028, Glossary029,
+        Glossary030, Glossary031, Glossary032, Glossary033, Glossary034, Glossary035, Glossary036, Glossary037, Glossary038, Glossary039,
+        Glossary040, Glossary041, Glossary042, Glossary043, Glossary044, Glossary045, Glossary046, Glossary047, Glossary048, Glossary049,
+        Glossary050, Glossary051, Glossary052, Glossary053, Glossary054, Glossary055, Glossary056, Glossary057, Glossary058, Glossary059,
+        Glossary060, Glossary061, Glossary062, Glossary063, Glossary064, Glossary065, Glossary066, Glossary067, Glossary068, Glossary069,
+        Glossary070, Glossary071, Glossary072, Glossary073, Glossary074, Glossary075, Glossary076, Glossary077, Glossary078, Glossary079,
+        Glossary080, Glossary081, Glossary082, Glossary083, Glossary084, Glossary085, Glossary086, Glossary087, Glossary088, Glossary089,
+        Glossary090, Glossary091, Glossary092, Glossary093, Glossary094, Glossary095, Glossary096, Glossary097, Glossary098, Glossary099,
+        Glossary100, Glossary101, Glossary102, Glossary103, Glossary104, Glossary105, Glossary106, Glossary107, Glossary108, Glossary109,
+        Glossary110, Glossary111, Glossary112, Glossary113, Glossary114, Glossary115, Glossary116, Glossary117, Glossary118, Glossary119,
+        Glossary120, Glossary121, Glossary122, Glossary123, Glossary124, Glossary125, Glossary126, Glossary127, Glossary128, Glossary129,
+        Glossary130, Glossary131, Glossary132, Glossary133, Glossary134, Glossary135, Glossary136, Glossary137, Glossary138, Glossary139,
+        Glossary140, Glossary141, Glossary142, Glossary143, Glossary144, Glossary145, Glossary146, Glossary147, Glossary148, Glossary149,
+        Glossary150, Glossary151, Glossary152, Glossary153, Glossary154, Glossary155, Glossary156, Glossary157, Glossary158, Glossary159,
+        Glossary160, Glossary161, Glossary162, Glossary163, Glossary164, Glossary165, Glossary166, Glossary167, Glossary168, Glossary169,
+        Glossary170, Glossary171, Glossary172, Glossary173, Glossary174, Glossary175, Glossary176, Glossary177, Glossary178, Glossary179,
+        Glossary180, Glossary181, Glossary182, Glossary183, Glossary184, Glossary185, Glossary186, Glossary187, Glossary188, Glossary189,
+        Glossary190, Glossary191, Glossary192, Glossary193, Glossary194, Glossary195, Glossary196, Glossary197, Glossary198, Glossary199,
+        Glossary200, Glossary201, Glossary202, Glossary203, Glossary204, Glossary205, Glossary206, Glossary207, Glossary208, Glossary209,
+        Glossary210, Glossary211, Glossary212, Glossary213, Glossary214, Glossary215, Glossary216, Glossary217, Glossary218, Glossary219,
+        Glossary220, Glossary221, Glossary222, Glossary223, Glossary224, Glossary225, Glossary226, Glossary227, Glossary228, Glossary229,
+        Glossary230, Glossary231, Glossary232, Glossary233, Glossary234, Glossary235, Glossary236, Glossary237, Glossary238, Glossary239,
+        Glossary240, Glossary241, Glossary242, Glossary243, Glossary244, Glossary245, Glossary246, Glossary247, Glossary248, Glossary249,
+        Glossary250, Glossary251
     }
 }

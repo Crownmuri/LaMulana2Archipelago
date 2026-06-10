@@ -213,6 +213,19 @@ namespace LaMulana2Archipelago.Managers
                     return true;
                 }
 
+                // Glossary ROM items (game ids 2000+). Deliver like an enemy-dropped
+                // chip: unlock the encyclopedia entry + bottom-right floating popup
+                // (NOT the blocking item-get dialog). Shared with MonsterChipGlossaryPatch
+                // so a chip holding our own ROM delivers identically on scan.
+                if (GlossaryManager.TryGetBookFlagForItem(gameId, out int _romFlag))
+                {
+                    LastGrantUsedPopupOnly = true;
+                    DeliverGlossaryRom(sys, gameId);
+                    Plugin.Log.LogInfo($"[ITEM] Glossary ROM received (AP {apItemId}, gameId {gameId}, flag {_romFlag})");
+                    FinishGrant(queueIndex, now);
+                    return true;
+                }
+
                 ItemID itemId = (ItemID)gameId;
                 if (!Enum.IsDefined(typeof(ItemID), itemId))
                 {
@@ -523,6 +536,40 @@ namespace LaMulana2Archipelago.Managers
         {
             GlobalCooldownUntil = now + 0.20f;
             NextAttemptTime.Remove(queueIndex);
+        }
+
+        /// <summary>
+        /// Deliver a glossary ROM: unlock its encyclopedia entry (sheet-20 book flag)
+        /// + set the 00system.d55 "last book entry" tracker, then show the bottom-right
+        /// floating notification — exactly the enemy-dropped "N Chip" flow. Idempotent:
+        /// if the entry is already unlocked, does nothing (no duplicate popup), so it's
+        /// safe to call from both MonsterChipGlossaryPatch (own ROM on a scanned chip)
+        /// and the AP receipt path (server echo) without double-firing.
+        ///
+        /// The book flag is set INSIDE the grant guard so CheckManager.NotifyNumericFlag
+        /// is suppressed — unlocking an entry must NOT report that entry's scan location.
+        /// The entry number == the sheet-20 flagNo (verified: Elder Xelpud = 130).
+        /// </summary>
+        public static void DeliverGlossaryRom(L2System sys, int gameId)
+        {
+            if (sys == null) return;
+            if (!GlossaryManager.TryGetBookFlagForItem(gameId, out int bookFlag)) return;
+
+            short cur = 0;
+            sys.getFlag(20, bookFlag, ref cur);
+            if (cur != 0) return; // already unlocked → idempotent
+
+            using (ItemGrantRecursiveGuard.Begin())
+            {
+                sys.setFlagData(20, bookFlag, 1);                          // unlock entry
+                try { sys.setFlagData("00system", "d55", (short)bookFlag); } // last-book tracker
+                catch { /* off-by-one safe: floating dialog uses the passed id anyway */ }
+            }
+
+            // Match the vanilla "N Chip" enemy-drop flow: SE 23 + floating notification.
+            PlayPickupSFX(23);
+            try { sys.setFloatingDialog(1, bookFlag); }
+            catch (System.Exception fx) { Plugin.Log.LogWarning("[ITEM] Glossary floating dialog failed: " + fx.Message); }
         }
 
         // ─────────────────────────────────────────────────────────────────────────

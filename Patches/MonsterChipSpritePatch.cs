@@ -34,8 +34,21 @@ namespace LaMulana2Archipelago.Patches
         // scale/sprite reset the chip does. _skip = known non-glossary instances.
         private static readonly Dictionary<int, Style> _cache = new Dictionary<int, Style>();
         private static readonly HashSet<int> _skip = new HashSet<int>();
+        // instanceId → LocationID for identified glossary chips, so we can hide a chip
+        // once its location is checked (decoupled model never sets the chip's book flag,
+        // so vanilla would otherwise keep re-showing it on every room re-entry).
+        private static readonly Dictionary<int, LocationID> _glossaryLoc = new Dictionary<int, LocationID>();
 
-        public static void Clear() { _cache.Clear(); _skip.Clear(); }
+        public static void Clear() { _cache.Clear(); _skip.Clear(); _glossaryLoc.Clear(); }
+
+        private static bool IsChecked(LocationID loc)
+        {
+            long apLoc = 430000L + (int)loc;
+            return CheckManager.IsLocationReported(apLoc)
+                || (ArchipelagoClient.ServerData != null
+                    && ArchipelagoClient.ServerData.CheckedLocations != null
+                    && ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc));
+        }
 
         static void Postfix(MonsterChipScript __instance)
         {
@@ -45,6 +58,14 @@ namespace LaMulana2Archipelago.Patches
 
             var sr = __instance.GetComponent<SpriteRenderer>();
             if (sr == null) return;
+
+            // Known glossary chip whose location is already checked → keep it hidden
+            // (we never set its book flag, so the engine still thinks it's uncollected).
+            if (_glossaryLoc.TryGetValue(instanceId, out LocationID knownLoc))
+            {
+                if (IsChecked(knownLoc)) { sr.enabled = false; return; }
+                if (!sr.enabled) sr.enabled = true;
+            }
 
             // Already computed → force sprite + scale every frame (overrides resets).
             if (_cache.TryGetValue(instanceId, out Style cached))
@@ -70,7 +91,14 @@ namespace LaMulana2Archipelago.Patches
                 return;
             }
 
+            // Remember this is a glossary chip so we can hide it once checked.
+            _glossaryLoc[instanceId] = locId;
+            if (IsChecked(locId)) { sr.enabled = false; return; }
+
             if (sr.sprite == null) return; // chip sprite not ready yet — wait
+
+            // Cache the real chip sprite so shops/dialog/non-chip freestanding can reuse it.
+            if (GlossaryChipSprite.LiveChip == null) GlossaryChipSprite.LiveChip = sr.sprite;
 
             Sprite target = ResolveFloorSprite(locId);
             if (target == null) { _skip.Add(instanceId); return; }
@@ -85,9 +113,17 @@ namespace LaMulana2Archipelago.Patches
 
         private static Sprite ResolveFloorSprite(LocationID locId)
         {
+            var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)locId);
+
+            // Another glossary ROM (own OR another player's) → keep the chip's native
+            // cartridge sprite (it IS a glossary ROM). null tells the caller not to swap.
+            if (scouted != null && GlossaryManager.IsGlossaryRomId(scouted.ItemId))
+            {
+                return null;
+            }
+
             // Filler (own coins/weights/ammo) → Shell Horn icon, matching the
             // freestanding filler placeholder.
-            var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)locId);
             if (scouted != null && scouted.IsOwnItem && scouted.ItemName != null
                 && ItemPotPatch.TryParseReward(scouted.ItemName, out _, out _))
             {
@@ -97,6 +133,9 @@ namespace LaMulana2Archipelago.Patches
             // Own real LM item (below the filler/weight range): show its icon.
             var sr = SceneRandomizer.Instance;
             ItemID placed = sr != null ? sr.GetItemIDForLocation(locId) : ItemID.None;
+            // Own glossary ROM with no scout (offline) → also keep the chip sprite.
+            if ((int)placed >= 2000 && (int)placed <= 2251)
+                return null;
             if (placed != ItemID.None && (int)placed < (int)ItemID.ChestWeight01)
             {
                 ItemInfo info = ItemDB.GetItemInfo(placed);

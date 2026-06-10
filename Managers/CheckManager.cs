@@ -109,6 +109,35 @@ namespace LaMulana2Archipelago.Managers
             reportedLocations.Add(apLocationId);
             Plugin.Log.LogInfo("[CHECK] Reporting location: AP " + apLocationId + " (shop auto-collect)");
             client.SendLocationCheck(apLocationId);
+            TryDeliverOwnGlossaryRom(apLocationId);
+        }
+
+        /// <summary>
+        /// Glossary ROMs at NON-chip locations (shops, chests, NPC/Kataribe item-gives, puzzle
+        /// rewards) suppress the local grant and would otherwise rely on the AP echo of our own
+        /// item — which doesn't arrive for own-world finds. So deliver the entry directly here,
+        /// the moment its check is reported (idempotent with MonsterChipGlossaryPatch, which
+        /// already delivers chip-based glossary directly). Foreign items are ignored (they go to
+        /// their owner via the normal echo).
+        /// </summary>
+        private static void TryDeliverOwnGlossaryRom(long apLocation)
+        {
+            try
+            {
+                var client = ArchipelagoClientProvider.Client;
+                if (client == null) return;
+                var scouted = client.GetItemAtLocation(apLocation);
+                if (!GlossaryManager.IsOwnGlossaryRom(scouted)) return;
+
+                var sys = UnityEngine.Object.FindObjectOfType<L2Base.L2System>();
+                if (sys == null) return;
+
+                ItemGrantManager.DeliverGlossaryRom(sys, GlossaryManager.RomGameId(scouted.ItemId));
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Log.LogWarning("[GLOSSARY] direct delivery on check failed: " + ex.Message);
+            }
         }
 
         // =====================================================================
@@ -149,6 +178,10 @@ namespace LaMulana2Archipelago.Managers
                 // Filler ranges: ChestWeight (191-290), FakeItem (291-390), NPCMoney (391-400), FakeScan (401-415)
                 // FakeItem freestanding filler shows only a pop-up + SFX (no dialog), so skip dialog priming.
                 isFillerItem = (raw >= 191 && raw <= 390);
+                // Our own glossary ROMs (2000-2251) deliver via the floating popup
+                // (DeliverGlossaryRom), not the get-item dialog — skip the prime too.
+                if (raw >= 2000 && raw <= 2251)
+                    isFillerItem = true;
             }
 
             if (!IsShopLocation(apLocation, client))
@@ -238,6 +271,7 @@ namespace LaMulana2Archipelago.Managers
             }
 
             client.SendLocationCheck(apLocation);
+            TryDeliverOwnGlossaryRom(apLocation);
         }
 
         // =====================================================================

@@ -30,11 +30,16 @@ namespace LaMulana2Archipelago.Managers
         private const int BookSheet = 20;
 
         private static bool _glossanityEnabled;
-        private static bool _initialized;
 
         // bookFlagNo → LocationID, used by MonsterChipGlossaryPatch to identify a
         // freestanding glossary chip at pickup and run the AP replacement flow.
         private static readonly Dictionary<int, LocationID> BookFlagToLocation = new Dictionary<int, LocationID>();
+
+        // glossary ROM item game_id → sheet-20 book flagNo, used by ItemGrantManager
+        // to deliver a *received* ROM (unlock the encyclopedia entry + floating popup).
+        // The apworld numbers each glossary entry so its item game_id == its LocationID
+        // value, so this is just the glossary_flag_map keyed by id instead of by flag.
+        private static readonly Dictionary<int, int> ItemGameIdToBookFlag = new Dictionary<int, int>();
 
         /// <summary>True when glossanity is on and at least one entry is mapped.</summary>
         public static bool Enabled => _glossanityEnabled && BookFlagToLocation.Count > 0;
@@ -46,12 +51,52 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
+        /// Map a received glossary ROM item's game id to its sheet-20 book flagNo.
+        /// True only when glossanity is on and the id is a registered glossary entry.
+        /// </summary>
+        public static bool TryGetBookFlagForItem(int gameId, out int bookFlagNo)
+        {
+            bookFlagNo = 0;
+            return _glossanityEnabled && ItemGameIdToBookFlag.TryGetValue(gameId, out bookFlagNo);
+        }
+
+        // AP item id windows: foreign placeholders are [410000, 420000); our own items are
+        // BASE_ITEM_ID(420000) + game_id. A glossary ROM is therefore an own item whose
+        // game_id is a registered glossary entry — identified by ID, never by name.
+        private const long ApBaseItemId = 420000;
+
+        // Glossary item game_id range (apworld assigns 2000..2251).
+        private const int GlossaryGameIdMin = 2000;
+        private const int GlossaryGameIdMax = 2251;
+
+        /// <summary>game_id of a scouted/received AP item (apItemId - BASE_ITEM_ID).</summary>
+        public static int RomGameId(long apItemId) => (int)(apItemId - ApBaseItemId);
+
+        /// <summary>True if the AP item id is a glossary ROM (any owner — own or another LM2
+        /// player's), by id window. Used where the owner doesn't matter (e.g. keep the chip's
+        /// native floor sprite for any glossary ROM).</summary>
+        public static bool IsGlossaryRomId(long apItemId)
+        {
+            int g = RomGameId(apItemId);
+            return g >= GlossaryGameIdMin && g <= GlossaryGameIdMax;
+        }
+
+        /// <summary>
+        /// True when a scouted item is one of THIS player's registered glossary ROMs. Robust to
+        /// renaming the glossary items (uses the id window + flag map, not the display name).
+        /// </summary>
+        public static bool IsOwnGlossaryRom(ArchipelagoClient.ScoutedItem scout)
+        {
+            return scout != null && scout.IsOwnItem
+                && TryGetBookFlagForItem(RomGameId(scout.ItemId), out _);
+        }
+
+        /// <summary>
         /// Called from ArchipelagoClient after slot_data is available
         /// (right after ItemPotPatch.Initialize()).
         /// </summary>
         public static void Initialize()
         {
-            _initialized = true;
             BookFlagToLocation.Clear();
 
             var serverData = ArchipelagoClient.ServerData;
@@ -94,6 +139,8 @@ namespace LaMulana2Archipelago.Managers
 
                     // Also keep the inverse lookup for the pickup-replacement patch.
                     BookFlagToLocation[bookFlagNo] = locId;
+                    // ROM-delivery lookup: item game_id == LocationID value for glossary.
+                    ItemGameIdToBookFlag[locationIdValue] = bookFlagNo;
                     count++;
                 }
                 catch (Exception ex)
@@ -107,9 +154,9 @@ namespace LaMulana2Archipelago.Managers
 
         public static void Reset()
         {
-            _initialized = false;
             _glossanityEnabled = false;
             BookFlagToLocation.Clear();
+            ItemGameIdToBookFlag.Clear();
             Patches.MonsterChipSpritePatch.Clear();
         }
     }

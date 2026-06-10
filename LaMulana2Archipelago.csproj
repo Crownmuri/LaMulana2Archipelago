@@ -71,7 +71,6 @@
 
     <ItemGroup>
       <Compile Include="Utils\ArchipelagoConsole.cs" />
-      <Compile Include="Utils\ChestFillerSetup.cs" />
       <Compile Include="Utils\DevUI.cs" />
       <Compile Include="Utils\LocationResolver.cs" />
     </ItemGroup>
