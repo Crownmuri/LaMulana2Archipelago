@@ -89,8 +89,8 @@ namespace LaMulana2Archipelago.Patches
                 // NEW: Intercept NPC Money/Filler before BoxName lookup
                 int queuedFlag = FindPendingSheet31Flag(sys);
 
-                // Check if the queued flag is in the NPC Money range (80-89)
-                if (queuedFlag >= 80 && queuedFlag <= 89)
+                // Check if the queued flag is in the NPC Money range (200-209)
+                if (queuedFlag >= 200 && queuedFlag <= 209)
                 {
                     // Resolve the specific NPC directly from the flag
                     if (SeedFlagMapBuilder.NpcMoneyFlagToLocation.TryGetValue(queuedFlag, out location))
