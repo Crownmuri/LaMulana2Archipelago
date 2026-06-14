@@ -24,6 +24,11 @@ namespace LaMulana2RandomizerShared
         ACBottom, ACWind, ACTablet, ACMain, ACBlood,
         HoMTop, HoM, HoMAwoken,
         EPDEntrance, EPDMain, EPDTop, EPDHel,
-        EPG, SpiralHell
+        EPG, SpiralHell,
+        // --- DLC areas (must stay aligned with ids.py AreaID values 93+) ---
+        SpringintheSky,
+        TowerOfOannesLeftA, TowerOfOannesLeftB, TowerOfOannesLeftC, TowerOfOannesRight,
+        BaileyBottom, BaileyLevel1, BaileyLevel2, BaileyLevel3, BaileyTopRight,
+        Eden
     }
 }

@@ -15,7 +15,7 @@ namespace LaMulana2RandomizerShared
         GaneshaTalisman, MaatsFeather, Ring, Bracelet, Feather, Scriptures, FreysShip, Codices,
         SnowShoes, Harp, BookoftheDead, LightScythe, DestinyTablet, SecretTreasureofLife,
         OriginSigil, BirthSigil, LifeSigil, DeathSigil,
-        ClaydollSuit, KimonoCowgirl, Valkyria, LittleDevil, EasternEurope,
+        ClaydollSuit, KimonoCowgirl, Valkyrie, LittleDevil, EasternEurope,
         Whip1, Whip2, Whip3, Knife, Rapier, Axe, Katana,
         Shuriken, RollingShuriken, EarthSpear, Flare, Bomb, Chakram, Caltrops, Pistol,
         Shield1, Shield2, Shield3, AnkhJewel,
@@ -83,6 +83,10 @@ namespace LaMulana2RandomizerShared
         FakeScan01, FakeScan02, FakeScan03, FakeScan04, FakeScan05,
         FakeScan06, FakeScan07, FakeScan08, FakeScan09, FakeScan10,
         FakeScan11, FakeScan12, FakeScan13, FakeScan14, FakeScan15,
+
+        // DLC 
+        RebirthSigil = 811,
+        FishSuit = 812,
 
         // ── Ammo bundles (AP filler) ──────────────────────────────────
         ShurikenBundle = 911,

@@ -248,6 +248,19 @@ namespace LaMulana2Archipelago.Managers
                     return true; // discard
                 }
 
+                // Costume unlocks (costumesanity): don't route through sys.setItem.
+                // Fashion availability is gated by the X-block (sheet-2 flags), which
+                // CostumeManager owns and re-applies on every cloth-flag sync.
+                if (CostumeManager.IsCostume(itemId))
+                {
+                    if (RestoreWithAnimations)
+                        TryPlayGetItemPresentation(sys, pl, itemLabel);
+                    CostumeManager.MarkReceived(sys, itemId);
+                    Plugin.Log.LogInfo($"[ITEM] Costume unlocked: {itemLabel} (AP {apItemId})");
+                    FinishGrant(queueIndex, now);
+                    return true;
+                }
+
                 Plugin.Log.LogInfo($"[ITEM] Granting AP item {apItemId} -> {itemLabel} (ItemID={itemId})");
 
                 // Progressive Beherit: AP grants must NOT set a unique Beherit flag

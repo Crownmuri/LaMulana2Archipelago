@@ -53,8 +53,14 @@ namespace LaMulana2RandomizerShared
         BirthSigilChest = 52,
         LifeSigilChest = 53,
         DeathSigilChest = 54,
+        RebirthSigilChest = 55,  // DLC
 
         ClaydollChest = 56,
+        CostumeChestKimono = 57,
+        CostumeChestValkyrie = 58,
+        CostumeChestLittleDevil = 59,
+        CostumeChestEasternEurope = 60,
+        CostumeChestFishSuit = 61,  // DLC
 
         KnifePuzzleReward = 63,
         RapierPuzzleReward = 64,

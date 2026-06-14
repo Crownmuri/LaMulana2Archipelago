@@ -105,6 +105,27 @@ namespace LaMulana2Archipelago.Managers
                 }
             }
 
+            // Costumesanity (X-block + closet conversion). Prefer the explicit
+            // slot_data flag; fall back to deriving it from the placements (a
+            // costume LocationID present ⇒ costumesanity was on) so the offline
+            // seed.lm2ap path works without a format bump.
+            CostumeManager.Reset();
+            bool costumesanity = slotData.TryGetValue("costumesanity", out object csRaw)
+                                 && Convert.ToInt32(csRaw) != 0;
+            if (!costumesanity)
+            {
+                foreach (LocationID k in locationToItemMap.Keys)
+                {
+                    if (k >= LocationID.CostumeChestKimono && k <= LocationID.CostumeChestFishSuit)
+                    {
+                        costumesanity = true;
+                        break;
+                    }
+                }
+            }
+            CostumeManager.Enabled = costumesanity;
+            Plugin.Log.LogInfo($"[SceneRando] Costumesanity {(costumesanity ? "enabled" : "disabled")}");
+
             // Pot placements (offline lm2ap path — online sends pots inside
             // item_placements, but SeedToSlotData splits them into a separate
             // key so the legacy seed.lm2r reader stays unchanged).
@@ -538,7 +559,11 @@ namespace LaMulana2Archipelago.Managers
             List<GameObject> objectsToDeactivate = new List<GameObject>();
             foreach (TreasureBoxScript oldChest in FindObjectsOfType<TreasureBoxScript>())
             {
-                if (oldChest.closetMode) continue;
+                if (oldChest.closetMode)
+                {
+                    ConvertCostumeCloset(oldChest, objectsToDeactivate);
+                    continue;
+                }
                 if (oldChest.itemObj == null) continue;
                 LocationID locationID = GetLocationID(oldChest.itemObj.name);
                 if (locationID == LocationID.None) continue;
@@ -589,6 +614,82 @@ namespace LaMulana2Archipelago.Managers
                 objectsToDeactivate.Add(oldChest.gameObject);
             }
             return objectsToDeactivate;
+        }
+
+        // ================================================================
+        // ConvertCostumeCloset (costumesanity)
+        // ================================================================
+        // Costume closets are TreasureBoxScripts with closetMode=true + a
+        // costumeId (0-4). Vanilla, they require a Clothes Key and persist via
+        // the profile-global clothbox (getClothBox), so they have no usable
+        // openFlags/unlockFlags. When costumesanity is on, the apworld emits a
+        // location (LocationID 57-61, keyed by costumeId) for each closet; we
+        // turn it into a normal AP chest that opens from the start (no key).
+        //
+        // We synthesize the flags the same way DissonanceChests does (a fresh
+        // openFlags sentinel that ChangeChestItemFlags rewrites for own items;
+        // AP/foreign items persist via the sheet-31 collection system) rather
+        // than copying the closet's empty flag arrays.
+        private void ConvertCostumeCloset(TreasureBoxScript oldChest, List<GameObject> objectsToDeactivate)
+        {
+            int costumeId = oldChest.costumeId;
+            if (costumeId < 0 || costumeId > 4) return;
+
+            LocationID costumeLoc = (LocationID)((int)LocationID.CostumeChestKimono + costumeId);
+
+            // Not in the placement map → costumesanity off (or this costume not
+            // placed, e.g. Fish Suit without oannesanity). Leave the closet vanilla.
+            if (!locationToItemMap.TryGetValue(costumeLoc, out ItemID costumeItem))
+                return;
+
+            int colorToUse = ChestColourForItem(costumeLoc, costumeItem);
+            TreasureBoxScript newChest = CreateChest(colorToUse, oldChest.transform.position, oldChest.transform.rotation);
+            if (newChest == null) return;
+
+            if (IsLocationCursed(costumeLoc) && PrefabHarvester.CachedPrefabs.TryGetValue("curse", out GameObject cursePrefab))
+            {
+                GameObject curse = Instantiate(cursePrefab, oldChest.transform.position, oldChest.transform.rotation);
+                curse.SetActive(true);
+                curse.transform.SetParent(newChest.transform);
+                newChest.curseAnime = curse.GetComponent<Animator>();
+                newChest.curseParticle = curse.GetComponent<ParticleSystem>();
+                newChest.curseMode = true;
+            }
+            else
+            {
+                newChest.curseMode = false;
+            }
+
+            newChest.closetMode = false;
+            // Openable from the start: no Clothes Key, no unlock gate.
+            newChest.unlockFlags = new L2FlagBoxParent[0];
+            // Sentinel openFlags (seet 2): ChangeChestItemFlags rewrites the
+            // flag_no1 for own items so the chest stays open after collection.
+            newChest.openFlags = new L2FlagBoxParent[]
+            {
+                new L2FlagBoxParent()
+                {
+                    BOX = new L2FlagBox[]
+                    {
+                        new L2FlagBox()
+                        {
+                            seet_no1 = 2, flag_no1 = -1, seet_no2 = -1, flag_no2 = 1,
+                            logic = LOGIC.NON, comp = COMPARISON.GreaterEq
+                        }
+                    }
+                }
+            };
+            newChest.transform.SetParent(oldChest.transform.parent);
+            newChest.gameObject.SetActive(true);
+
+            ChangeChestItemFlags(newChest, costumeItem);
+
+            // Suppress the original closet (same treatment as superseded chests).
+            Traverse.Create(oldChest).Field("sta").SetValue(7);
+            oldChest.itemObj = null;
+            oldChest.curseMode = false;
+            HideGameObject(oldChest.gameObject);
+            objectsToDeactivate.Add(oldChest.gameObject);
         }
 
         /// <summary>
@@ -1620,6 +1721,8 @@ namespace LaMulana2Archipelago.Managers
                 else if (field == "fieldP00") return ExitID.fP00Right;
                 else if (field == "field01") return ExitID.f01Down;
                 else if (field == "field11") return ExitID.f11Pyramid;
+                else if (field == "fieldL00") return ExitID.fLUp;    // DLC: Gate of Guidance up-ladder -> Spring in the Sky
+                else if (field == "fieldL04") return ExitID.fL04Up;  // DLC: Spring in the Sky up-ladder -> Tower of Oannes
             }
             else if (anchorName == "PlayerStart0")
                 return ExitID.f03GateP0;
@@ -1629,6 +1732,44 @@ namespace LaMulana2Archipelago.Managers
                 return ExitID.fStart;
             else if (field == "field01" && anchorName == "PlayerStart f01Right")
                 return ExitID.f01Start;
+
+            // --- DLC fields (Spring in the Sky/19, Tower of Oannes/30, Bailey/31) ---
+            // Their anchor names collide across fields (both Tower and Bailey have
+            // PlayerStart_L0..L5 / PlayerStart_R), so the flat anchorNameToExitID map
+            // cannot disambiguate them — resolve by source field here. A gate's
+            // AnchorName is its vanilla DESTINATION anchor; map it back to the exit on
+            // THIS field's own side (ladder pairs share suffix). See dev/DLC_EntranceDump.md.
+            switch (field)
+            {
+                case "fieldL04": // Spring in the Sky — "PlayerStart" handled above (fL04Up)
+                    if (anchorName == "PlayerStart fLUp") return ExitID.fL04Down; // -> Gate of Guidance
+                    break;
+                case "fieldEx1": // Tower of Oannes
+                    switch (anchorName)
+                    {
+                        case "PlayerStart2":   return ExitID.fEx1Down; // -> Spring in the Sky
+                        case "PlayerStart_L0": return ExitID.fEx1_L0;
+                        case "PlayerStart_L1": return ExitID.fEx1_L1;
+                        case "PlayerStart_L2": return ExitID.fEx1_L2;
+                        case "PlayerStart_L3": return ExitID.fEx1_L3;
+                        case "PlayerStart_L4": return ExitID.fEx1_L4;
+                        case "PlayerStart_L5": return ExitID.fEx1_L5;
+                        case "PlayerStart_R":  return ExitID.fEx1_R;
+                    }
+                    break;
+                case "fieldEx2": // Bailey
+                    switch (anchorName)
+                    {
+                        case "PlayerStart_L0": return ExitID.fEx2_L0;
+                        case "PlayerStart_L1": return ExitID.fEx2_L1;
+                        case "PlayerStart_L2": return ExitID.fEx2_L2;
+                        case "PlayerStart_L3": return ExitID.fEx2_L3;
+                        case "PlayerStart_L4": return ExitID.fEx2_L4;
+                        case "PlayerStart_L5": return ExitID.fEx2_L5;
+                        case "PlayerStart_R":  return ExitID.fEx2_R;
+                    }
+                    break;
+            }
 
             return ExitDB.AnchorNameToExitID(anchorName);
         }

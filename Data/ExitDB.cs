@@ -98,6 +98,29 @@ namespace LM2RandomiserMod
             { ExitID.f03GateP1,       new ExitInfo("PlayerStart f03GateP1",       3, -1, -1)},
             { ExitID.fP01Left,        new ExitInfo("PlayerStart0",               24, -1, -1)},
             { ExitID.fP01Right,       new ExitInfo("PlayerStart1",               24, -1, -1)},
+
+            // --- DLC: Spring in the Sky (19) / Tower of Oannes (30) / Bailey (31) ---
+            // ExitInfo = own-side spawn anchor (where you arrive when something connects INTO this exit).
+            { ExitID.fLUp,            new ExitInfo("PlayerStart fLUp",           17, -1, -1)},
+            { ExitID.fL04Down,        new ExitInfo("PlayerStart",                19, -1, -1)},
+            { ExitID.fL04Up,          new ExitInfo("PlayerStart2",               19, -1, -1)},
+            { ExitID.fEx1Down,        new ExitInfo("PlayerStart",                30, -1, -1)},
+            { ExitID.fEx1_L0,         new ExitInfo("PlayerStart_L0",             30, -1, -1)},
+            { ExitID.fEx1_L1,         new ExitInfo("PlayerStart_L1",             30, -1, -1)},
+            { ExitID.fEx1_L2,         new ExitInfo("PlayerStart_L2",             30, -1, -1)},
+            { ExitID.fEx1_L3,         new ExitInfo("PlayerStart_L3",             30, -1, -1)},
+            { ExitID.fEx1_L4,         new ExitInfo("PlayerStart_L4",             30, -1, -1)},
+            { ExitID.fEx1_L5,         new ExitInfo("PlayerStart_L5",             30, -1, -1)},
+            { ExitID.fEx1_R,          new ExitInfo("PlayerStart_R",              30, -1, -1)},
+            { ExitID.fEx1_Rout,       new ExitInfo("PlayerStart_Rout",           30, -1, -1)},
+            { ExitID.fEx2_L0,         new ExitInfo("PlayerStart_L0",             31, -1, -1)},
+            { ExitID.fEx2_L1,         new ExitInfo("PlayerStart_L1",             31, -1, -1)},
+            { ExitID.fEx2_L2,         new ExitInfo("PlayerStart_L2",             31, -1, -1)},
+            { ExitID.fEx2_L3,         new ExitInfo("PlayerStart_L3",             31, -1, -1)},
+            { ExitID.fEx2_L4,         new ExitInfo("PlayerStart_L4",             31, -1, -1)},
+            { ExitID.fEx2_L5,         new ExitInfo("PlayerStart_L5",             31, -1, -1)},
+            { ExitID.fEx2_R,          new ExitInfo("PlayerStart_R",              31, -1, -1)},
+            { ExitID.fEx2_Rout,       new ExitInfo("PlayerStart_Rout",           31, -1, -1)},
         };
 
 

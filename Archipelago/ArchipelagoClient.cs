@@ -228,6 +228,7 @@ namespace LaMulana2Archipelago.Archipelago
 
             Patches.ItemPotPatch.Reset();
             Managers.GlossaryManager.Reset();
+            Managers.CostumeManager.Reset();   // stop X-blocking costumes once AP is no longer active
             Patches.VirtualFlagManager.Reset();
             CheckManager.Reset();
             ItemQueue.Clear();
@@ -483,6 +484,7 @@ namespace LaMulana2Archipelago.Archipelago
             Patches.VirtualFlagManager.Reset();
             Patches.ItemPotPatch.Reset();
             Managers.GlossaryManager.Reset();
+            Managers.CostumeManager.Reset();   // stop X-blocking costumes after disconnect
             CheckManager.Reset();
             if (ServerData != null)
             {

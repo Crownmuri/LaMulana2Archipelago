@@ -71,13 +71,15 @@ namespace LM2RandomiserMod
             {ItemID.BirthSigil,                 new ItemInfo("Birth Seal",       "Birth Seal",        "item",        2,     52,      10,    1)},
             {ItemID.LifeSigil,                  new ItemInfo("Life Seal",        "Life Seal",         "item",        2,     53,      10,    1)},
             {ItemID.DeathSigil,                 new ItemInfo("Death Seal",       "Death Seal",        "item",        2,     54,      10,    1)},
-                                                                                                                                           
+            {ItemID.RebirthSigil,               new ItemInfo("Rebirth Seal",     "Rebirth Seal",      "item",        2,     55,      10,    1)},  // DLC seal, flag 55 confirmed (L2FlagsData label "055-再生の印")
+
             {ItemID.ClaydollSuit,               new ItemInfo("Clay Doll",        "Clay Doll",         "fashion",     2,     56,      10,    1)},
             {ItemID.KimonoCowgirl,              new ItemInfo("Kimono Cowgirl",   "Kimono Cowgirl",    "fashion",     2,     57,       0,    1)},
-            {ItemID.Valkyria,                   new ItemInfo("Valkyria",         "Valkyria",          "fashion",     2,     58,       0,    1)},
+            {ItemID.Valkyrie,                   new ItemInfo("Valkyria",         "Valkyria",          "fashion",     2,     58,       0,    1)},
             {ItemID.LittleDevil,                new ItemInfo("Little Devil",     "Little Devil",      "fashion",     2,     59,       0,    1)},
             {ItemID.EasternEurope,              new ItemInfo("Eastern Europe",   "Eastern Europe",    "fashion",     2,     60,       0,    1)},
-                                                                                                                                           
+            {ItemID.FishSuit,                   new ItemInfo("Fish Suit",        "Fish Suit",         "fashion",     2,     61,       0,    1)},  // DLC costume, cellData[2][62] → flag 61 (off-by-one)
+                                                                                                                               
             {ItemID.Whip1,                      new ItemInfo("Whip1",            "Whip1",             "weapon",      2,     190,      5,    1)},
             {ItemID.Whip2,                      new ItemInfo("Whip2",            "Whip2",             "weapon",      2,     191,      5,    1)},
             {ItemID.Whip3,                      new ItemInfo("Whip3",            "Whip3",             "weapon",      2,     192,      5,    1)},

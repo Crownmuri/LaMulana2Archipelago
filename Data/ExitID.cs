@@ -15,6 +15,10 @@ namespace LaMulana2RandomizerShared
         f04GateN5, f04GateN6, f05GateN1, f06GateN2, f06GateN7,
         f07GateN3, f08GateN4, f08GateN8, f09GateN5, f10GateN7, f12GateN8, f13GateN9, f14GateN6,
         fStart, f01Start, f02Bifrost, f03In, f03GateP0, f03GateP1,
-        f08Neck, f09In, f11Pyramid, fNibiru, fP01Left, fP01Right
+        f08Neck, f09In, f11Pyramid, fNibiru, fP01Left, fP01Right,
+        // --- DLC exits (must stay aligned with ids.py ExitID values 73+) ---
+        fLUp, fL04Down, fL04Up, fEx1Down,
+        fEx1_L0, fEx1_L1, fEx1_L2, fEx1_L3, fEx1_L4, fEx1_L5, fEx1_R, fEx1_Rout,
+        fEx2_L0, fEx2_L1, fEx2_L2, fEx2_L3, fEx2_L4, fEx2_L5, fEx2_R, fEx2_Rout
     }
 }
