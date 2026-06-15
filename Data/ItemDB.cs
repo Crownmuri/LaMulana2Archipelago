@@ -76,7 +76,7 @@ namespace LM2RandomiserMod
             {ItemID.ClaydollSuit,               new ItemInfo("Clay Doll",        "Clay Doll",         "fashion",     2,     56,      10,    1)},
             {ItemID.KimonoCowgirl,              new ItemInfo("Kimono Cowgirl",   "Kimono Cowgirl",    "fashion",     2,     57,       0,    1)},
             {ItemID.Valkyrie,                   new ItemInfo("Valkyria",         "Valkyria",          "fashion",     2,     58,       0,    1)},
-            {ItemID.LittleDevil,                new ItemInfo("Little Devil",     "Little Devil",      "fashion",     2,     59,       0,    1)},
+            {ItemID.LittleDemon,                new ItemInfo("Little Devil",     "Little Devil",      "fashion",     2,     59,       0,    1)},
             {ItemID.EasternEurope,              new ItemInfo("Eastern Europe",   "Eastern Europe",    "fashion",     2,     60,       0,    1)},
             {ItemID.FishSuit,                   new ItemInfo("Fish Suit",        "Fish Suit",         "fashion",     2,     61,       0,    1)},  // DLC costume, cellData[2][62] → flag 61 (off-by-one)
                                                                                                                                

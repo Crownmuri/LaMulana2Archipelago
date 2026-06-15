@@ -33,6 +33,10 @@ namespace LaMulana2Archipelago.Managers
         private List<LocationID> cursedChests = new();
         private Dictionary<ExitID, ExitID> exitToExitMap = new();
         private Dictionary<ExitID, int> soulGateValueMap = new();
+        // Costume closets already handled this scene (converted or determined not
+        // to). Lets the late-spawn patch (CostumeClosetLateSpawnPatch) safely poll
+        // every frame without double-converting. Cleared per scene load.
+        private readonly HashSet<int> processedClosets = new();
         // Per-location display name. Populated by AP slot_data["location_labels"]
         // (online) or seed.lm2ap (offline). Used to label items in places where
         // the vanilla BoxName doesn't carry the AP-specific suffix, e.g.
@@ -279,6 +283,8 @@ namespace LaMulana2Archipelago.Managers
                 // One-time shop/dialogue database rewrites (global, not per-scene)
                 if (!shopDialogueInitialized)
                     TryInitShopDialogue();
+
+                processedClosets.Clear();
 
                 List<GameObject> objectsToDeactivate = new List<GameObject>();
 
@@ -632,6 +638,11 @@ namespace LaMulana2Archipelago.Managers
         // than copying the closet's empty flag arrays.
         private void ConvertCostumeCloset(TreasureBoxScript oldChest, List<GameObject> objectsToDeactivate)
         {
+            if (oldChest == null) return;
+            // Handle each closet instance at most once. The late-spawn patch may
+            // call this every frame once a boss-gated closet finally activates.
+            if (!processedClosets.Add(oldChest.GetInstanceID())) return;
+
             int costumeId = oldChest.costumeId;
             if (costumeId < 0 || costumeId > 4) return;
 
@@ -690,6 +701,25 @@ namespace LaMulana2Archipelago.Managers
             oldChest.curseMode = false;
             HideGameObject(oldChest.gameObject);
             objectsToDeactivate.Add(oldChest.gameObject);
+        }
+
+        /// <summary>
+        /// Convert a costume closet that wasn't present/active during the initial
+        /// OnSceneLoaded pass — e.g. the Fish Suit closet in Tower of Oannes, which
+        /// the game only spawns/activates after its miniboss is defeated (so it
+        /// appears after the one-shot ChangeTreasureChests scan). Driven by
+        /// CostumeClosetLateSpawnPatch (TreasureBoxScript.groundFirst). Idempotent
+        /// via processedClosets, so polling every frame is safe.
+        /// </summary>
+        public void TryConvertCostumeClosetLate(TreasureBoxScript closet)
+        {
+            if (!IsRandomising || closet == null || !closet.closetMode) return;
+            if (processedClosets.Contains(closet.GetInstanceID())) return;
+
+            var toDeactivate = new List<GameObject>();
+            ConvertCostumeCloset(closet, toDeactivate);
+            if (toDeactivate.Count > 0)
+                StartCoroutine(DeactivateObjects(toDeactivate));
         }
 
         /// <summary>

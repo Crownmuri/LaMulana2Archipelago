@@ -15,7 +15,7 @@ namespace LaMulana2RandomizerShared
         GaneshaTalisman, MaatsFeather, Ring, Bracelet, Feather, Scriptures, FreysShip, Codices,
         SnowShoes, Harp, BookoftheDead, LightScythe, DestinyTablet, SecretTreasureofLife,
         OriginSigil, BirthSigil, LifeSigil, DeathSigil,
-        ClaydollSuit, KimonoCowgirl, Valkyrie, LittleDevil, EasternEurope,
+        ClaydollSuit, KimonoCowgirl, Valkyrie, LittleDemon, EasternEurope,
         Whip1, Whip2, Whip3, Knife, Rapier, Axe, Katana,
         Shuriken, RollingShuriken, EarthSpear, Flare, Bomb, Chakram, Caltrops, Pistol,
         Shield1, Shield2, Shield3, AnkhJewel,

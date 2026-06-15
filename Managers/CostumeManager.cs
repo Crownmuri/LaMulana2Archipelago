@@ -8,7 +8,7 @@ namespace LaMulana2Archipelago.Managers
 {
     /// <summary>
     /// Costumesanity: when enabled, costumes (the 5 closet costumes —
-    /// Kimono Cowgirl, Valkyrie, Little Devil, Eastern Europe, Fish Suit) start
+    /// Kimono Cowgirl, Valkyrie, Little Demon, Eastern Europe, Fish Suit) start
     /// hidden and only become wearable once their AP unlock item is received.
     ///
     /// Implementation: the game maps the profile-global clothbox into per-seed
@@ -28,7 +28,7 @@ namespace LaMulana2Archipelago.Managers
         {
             ItemID.KimonoCowgirl,   // clothbox 0
             ItemID.Valkyrie,        // clothbox 1
-            ItemID.LittleDevil,     // clothbox 2
+            ItemID.LittleDemon,     // clothbox 2
             ItemID.EasternEurope,   // clothbox 3
             ItemID.FishSuit,        // clothbox 4 (DLC)
         };

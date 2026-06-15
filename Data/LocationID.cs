@@ -58,7 +58,7 @@ namespace LaMulana2RandomizerShared
         ClaydollChest = 56,
         CostumeChestKimono = 57,
         CostumeChestValkyrie = 58,
-        CostumeChestLittleDevil = 59,
+        CostumeChestLittleDemon = 59,
         CostumeChestEasternEurope = 60,
         CostumeChestFishSuit = 61,  // DLC
 
