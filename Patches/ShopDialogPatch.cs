@@ -224,6 +224,8 @@ namespace LaMulana2Archipelago.Patches
                 if (_slotApLocationIds.TryGetValue(cacheKey, out apLocationId))
                     CheckManager.NotifyApLocationId(apLocationId);
             }
+            // LEAKED-FILLER WORKAROUND (067) — leaked filler in a shop is now a free
+            // purchasable slot (SceneRandomizer.CreateSetItemString), not auto-collected.
         }
 
         // ── Public helper: progression lookup for the shop icon patch ─────────

@@ -40,6 +40,9 @@ namespace LaMulana2Archipelago
             NumericFlagMinValues.Clear();
             StringFlagMap.Clear();
 
+            // LEAKED-FILLER WORKAROUND (067) — reset the per-seed gate before (re)building.
+            Patches.Filler067Workaround.Reset();
+
             RegisterNumericFlags(slotData);
             RegisterStringFlags();
 

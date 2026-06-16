@@ -285,6 +285,16 @@ namespace LaMulana2Archipelago.Managers
             ItemInfo info = ItemDB.GetItemInfo(item);
             if (info == null)
             {
+                // LEAKED-FILLER WORKAROUND (067) — leaked AP-trash filler (901-917) from a
+                // pre-0.6.7 seed: engage the workaround + register a synthetic flag so the
+                // location can still report. Returns true if it was leaked filler.
+                if (LaMulana2Archipelago.Patches.Filler067Workaround.RegisterLeakedFillerLocation(
+                        (int)item, location, addNumeric))
+                {
+                    added++;
+                    return;
+                }
+
                 noItemInfo++;
                 logWarn("[AP] No ItemInfo for ItemID=" + item + " (location=" + location + ")");
                 return;

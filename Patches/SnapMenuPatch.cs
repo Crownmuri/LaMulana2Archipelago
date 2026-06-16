@@ -84,6 +84,14 @@ namespace LaMulana2Archipelago.Patches
                 : ItemID.None;
             ItemInfo itemInfo = itemID != ItemID.None ? ItemDB.GetItemInfo(itemID) : null;
 
+            // LEAKED-FILLER WORKAROUND (067) — pre-0.6.7 seeds leak AP-trash ids (901-917)
+            // here instead of internal FakeScan ids. Report the check + skip vanilla grant.
+            if (itemInfo == null && Filler067Workaround.TryHandleMural(sys, t, locationID, itemID))
+            {
+                __result = true;
+                return false;
+            }
+
             if (itemInfo == null)
             {
                 // Vanilla SOFTWARE path: grant the hardcoded item

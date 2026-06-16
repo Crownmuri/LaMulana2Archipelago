@@ -608,6 +608,11 @@ namespace LaMulana2Archipelago.Managers
 
                 ChangeChestItemFlags(newChest, newItemID);
 
+                // LEAKED-FILLER WORKAROUND (067) — pre-0.6.7 seeds drop AP-trash ids (901-917)
+                // here; ChangeChestItemFlags bails on their null ItemInfo, so inject a
+                // synthetic get-flag to at least report the check on open (reward via echo).
+                LaMulana2Archipelago.Patches.Filler067Workaround.MaybeInjectChestFlag(newChest, newItemID, locationID);
+
                 // Even if SetActive(false) loses a race
                 // (dynamic re-spawns, parent re-enables, late-init chests like
                 // Maat's Feather), sta=7 + null itemObj keeps it non-interactive,
@@ -823,7 +828,14 @@ namespace LaMulana2Archipelago.Managers
                 if (!locationToItemMap.TryGetValue(locationID, out ItemID newItemID)) continue;
 
                 ItemInfo newItemInfo = ItemDB.GetItemInfo(newItemID);
-                if (newItemInfo == null) continue;
+                if (newItemInfo == null)
+                {
+                    // LEAKED-FILLER WORKAROUND (067) — pre-0.6.7 seeds drop AP-trash ids
+                    // (901-917) at freestanding/event locations; inject a synthetic get-flag
+                    // so picking it up reports the check (reward via echo).
+                    LaMulana2Archipelago.Patches.Filler067Workaround.MaybeInjectEventItemFlag(item, newItemID, locationID);
+                    continue;
+                }
 
                 if (locationID >= LocationID.ResearchAnnwfn && locationID <= LocationID.ResearchDSLM)
                 {
@@ -1956,6 +1968,9 @@ namespace LaMulana2Archipelago.Managers
                 int itemIdRaw = (int)shopItem.ID;
                 bool isApPlaceholder = itemIdRaw >= 410000;
                 bool isFiller = itemIdRaw >= 191 && itemIdRaw <= 415;
+                // LEAKED-FILLER WORKAROUND (067) — pre-0.6.7 leaked AP-trash filler (901-917)
+                // is sold as a free slot keyed on the synthesized per-location flag.
+                bool isOwnTrashFiller = LaMulana2Archipelago.Patches.Filler067Workaround.IsLeakedFiller(itemIdRaw);
 
                 // AP placeholders have no ItemDB entry — use defaults
                 string shopType = info?.ShopType ?? "item";
@@ -1969,6 +1984,13 @@ namespace LaMulana2Archipelago.Managers
                 if (isApPlaceholder)
                 {
                     flagIndex = ApItemIDs.ToFlagIndex(itemIdRaw);
+                    itemName = $"AP Item {flagIndex}";
+                }
+                else if (isOwnTrashFiller)
+                {
+                    // LEAKED-FILLER WORKAROUND (067) — ride the AP-Item shop pipeline keyed on
+                    // the synthetic per-location flag (registered in SeedFlagMapBuilder).
+                    flagIndex = LaMulana2Archipelago.Patches.Filler067Workaround.SyntheticFlag((int)locationID);
                     itemName = $"AP Item {flagIndex}";
                 }
                 else if (isFiller)
@@ -2005,7 +2027,7 @@ namespace LaMulana2Archipelago.Managers
                 int price;
                 if (freeAmmo)
                     price = 0;
-                else if (isFiller)
+                else if (isFiller || isOwnTrashFiller)
                     price = 0;
                 else if (isWeight)
                     price = 10;
@@ -2096,6 +2118,11 @@ namespace LaMulana2Archipelago.Managers
             if (shopToItemMap.TryGetValue(locationID, out ShopItem shopItem))
             {
                 ItemInfo info = ItemDB.GetItemInfo(shopItem.ID);
+
+                // LEAKED-FILLER WORKAROUND (067) — leaked AP-trash filler shop slot: set the
+                // synthetic per-location flag on buy so the purchase reports the check.
+                if (LaMulana2Archipelago.Patches.Filler067Workaround.IsLeakedFiller((int)shopItem.ID))
+                    return $"\n[@setf,31,{LaMulana2Archipelago.Patches.Filler067Workaround.SyntheticFlag((int)locationID)},=,1]";
 
                 // AP placeholders, glossary ROMs and other items with no ItemDB entry
                 // are delivered by the AP check/echo, not by the shop's local get-flag
@@ -2254,6 +2281,13 @@ namespace LaMulana2Archipelago.Managers
             {
                 ItemInfo info = ItemDB.GetItemInfo(newItemID);
 
+                // LEAKED-FILLER WORKAROUND (067) — pre-0.6.7 seeds drop AP-trash ids
+                // (901-910) at NPC locations; their null ItemInfo would NRE below. Emit a
+                // talk-script that just reports the check via the synthetic flag.
+                if (info == null)
+                    return LaMulana2Archipelago.Patches.Filler067Workaround
+                        .BuildNpcTalkString(locationID, newItemID, original) ?? string.Empty;
+
                 string itemString;
                 if (info.BoxName.Equals("Crystal S") || info.BoxName.Equals("Sacred Orb") || info.BoxName.Equals("MSX3p"))
                     itemString = $"[@take,{info.BoxName},02item,1]\n";
@@ -2281,6 +2315,12 @@ namespace LaMulana2Archipelago.Managers
             {
                 ItemInfo info = ItemDB.GetItemInfo(newItemID);
 
+                // LEAKED-FILLER WORKAROUND (067) — gate-only NPC check; point it at the
+                // synthetic flag (and avoid the null-ItemInfo NRE on info.ItemSheet).
+                if (info == null)
+                    return LaMulana2Archipelago.Patches.Filler067Workaround
+                        .BuildNpcFlagCheckString(locationID, newItemID, comp, original) ?? string.Empty;
+
                 int flagValue = comp == COMPARISON.Less ? 1 : 0;
                 if (newItemID == ItemID.MobileSuperx3P)
                     flagValue++;
@@ -2295,6 +2335,11 @@ namespace LaMulana2Archipelago.Managers
             if (locationToItemMap.TryGetValue(locationID, out ItemID newItemID))
             {
                 ItemInfo info = ItemDB.GetItemInfo(newItemID);
+
+                // LEAKED-FILLER WORKAROUND (067) — see ChangeTalkString; gated-NPC variant.
+                if (info == null)
+                    return LaMulana2Archipelago.Patches.Filler067Workaround
+                        .BuildNpcTalkFlagCheckString(locationID, newItemID, original) ?? string.Empty;
 
                 int flagValue = newItemID == ItemID.MobileSuperx3P ? 1 : 0;
 
