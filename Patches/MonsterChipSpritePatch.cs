@@ -76,10 +76,12 @@ namespace LaMulana2Archipelago.Patches
             }
             if (_skip.Contains(instanceId)) return;
 
-            // Only freestanding glossary chips; leave dynamic enemy drops alone.
-            bool dropItem = Traverse.Create(__instance).Field("dropItem").GetValue<bool>();
-            if (dropItem) { _skip.Add(instanceId); return; }
-
+            // Covers BOTH freestanding glossary chips AND dynamic enemy drops (dropItem):
+            // both carry a chipId/itemValue book flag and are now fully AP-handled
+            // (MonsterChipGlossaryPatch + MonsterChipDropGatePatch), so a drop whose
+            // location holds a non-glossary item should show that item's icon at the
+            // chip's small footprint too — not the vanilla cartridge graphic. Chips that
+            // aren't registered glossary entries fall through to _skip below.
             int chipId = Traverse.Create(__instance).Field("chipId").GetValue<int>();
             int bookFlag = chipId > -1
                 ? chipId
