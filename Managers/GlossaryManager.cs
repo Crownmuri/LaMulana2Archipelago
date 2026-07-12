@@ -51,6 +51,13 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
+        /// Sheet-20 flag numbers for every AP-shuffled glossary entry. Used by
+        /// GlossaryGoalTracker to count how many shuffled entries the player has
+        /// unlocked (an entry's flag is set only when its ROM is received).
+        /// </summary>
+        public static ICollection<int> RegisteredBookFlags => BookFlagToLocation.Keys;
+
+        /// <summary>
         /// Map a received glossary ROM item's game id to its sheet-20 book flagNo.
         /// True only when glossanity is on and the id is a registered glossary entry.
         /// </summary>

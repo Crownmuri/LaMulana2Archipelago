@@ -156,6 +156,14 @@ namespace LaMulana2Archipelago.Patches
             // on field exit.
             BossKillTracker.NotifyFlagSet(seet_no, flag_no, data);
 
+            // DLC-boss goal: fires CLIENT_GOAL when the post-fight DLC boss
+            // dialogue sets (25,59)>=2. Filters internally + gated on slot_data.
+            DlcBossGoalTracker.NotifyFlagSet(seet_no, flag_no, data);
+
+            // Glossary-hunt goal: counts sheet-20 unlocks of shuffled entries.
+            // Filters internally + gated on slot_data goal==glossary_hunt.
+            GlossaryGoalTracker.NotifyFlagSet(seet_no, flag_no, data);
+
             // Natural-dissonance count → PopTracker datastorage. Filters
             // internally to flag [2,3] and to random_dissonance==false seeds.
             DissonanceTracker.NotifyFlagSet(seet_no, flag_no, data);

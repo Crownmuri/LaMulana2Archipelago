@@ -138,7 +138,21 @@ namespace LM2RandomiserMod
             {ItemID.SacredOrb7,                 new ItemInfo("Sacred Orb",       "Sacred Orb7",       "item",        2,     108,     12,    1)},
             {ItemID.SacredOrb8,                 new ItemInfo("Sacred Orb",       "Sacred Orb8",       "item",        2,     109,     12,    1)},
             {ItemID.SacredOrb9,                 new ItemInfo("Sacred Orb",       "Sacred Orb9",       "item",        2,     110,     12,    1)},
-                                                                                                                                           
+
+            // Extra orbs (>10). BoxName "Sacred Orb" grants the real orb pickup/HP;
+            // flags are unused/blank sheet-2 scratch slots (162-169, 177, 178) so each
+            // location stays independently trackable. Effect comes from total count (0,2).
+            {ItemID.SacredOrb10,                new ItemInfo("Sacred Orb",       "Sacred Orb10",      "item",        2,     162,     12,    1)},
+            {ItemID.SacredOrb11,                new ItemInfo("Sacred Orb",       "Sacred Orb11",      "item",        2,     163,     12,    1)},
+            {ItemID.SacredOrb12,                new ItemInfo("Sacred Orb",       "Sacred Orb12",      "item",        2,     164,     12,    1)},
+            {ItemID.SacredOrb13,                new ItemInfo("Sacred Orb",       "Sacred Orb13",      "item",        2,     165,     12,    1)},
+            {ItemID.SacredOrb14,                new ItemInfo("Sacred Orb",       "Sacred Orb14",      "item",        2,     166,     12,    1)},
+            {ItemID.SacredOrb15,                new ItemInfo("Sacred Orb",       "Sacred Orb15",      "item",        2,     167,     12,    1)},
+            {ItemID.SacredOrb16,                new ItemInfo("Sacred Orb",       "Sacred Orb16",      "item",        2,     168,     12,    1)},
+            {ItemID.SacredOrb17,                new ItemInfo("Sacred Orb",       "Sacred Orb17",      "item",        2,     169,     12,    1)},
+            {ItemID.SacredOrb18,                new ItemInfo("Sacred Orb",       "Sacred Orb18",      "item",        2,     177,     12,    1)},
+            {ItemID.SacredOrb19,                new ItemInfo("Sacred Orb",       "Sacred Orb19",      "item",        2,     178,     12,    1)},
+
             {ItemID.Map1,                       new ItemInfo("Map",              "Map1",              "item",        2,     111,      5,    1)},
             {ItemID.Map2,                       new ItemInfo("Map",              "Map2",              "item",        2,     112,      5,    1)},
             {ItemID.Map3,                       new ItemInfo("Map",              "Map3",              "item",        2,     113,      5,    1)},

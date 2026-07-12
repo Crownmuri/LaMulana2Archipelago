@@ -84,9 +84,18 @@ namespace LaMulana2RandomizerShared
         FakeScan06, FakeScan07, FakeScan08, FakeScan09, FakeScan10,
         FakeScan11, FakeScan12, FakeScan13, FakeScan14, FakeScan15,
 
-        // DLC 
+        // DLC
         RebirthSigil = 811,
         FishSuit = 812,
+
+        // ── Extra Sacred Orbs (>10 orbs) ──────────────────────────────────
+        // Appended with explicit ids so the base enum block does NOT shift
+        // (ordinals are the apworld game_id and feed (int)itemID arithmetic).
+        // Each grants the standard orb effect (total count += 1) but stamps its
+        // own unique blank sheet-2 flag so the locations stay independently
+        // trackable — see ItemDB flags 162-169/177/178.
+        SacredOrb10 = 813, SacredOrb11 = 814, SacredOrb12 = 815, SacredOrb13 = 816, SacredOrb14 = 817,
+        SacredOrb15 = 818, SacredOrb16 = 819, SacredOrb17 = 820, SacredOrb18 = 821, SacredOrb19 = 822,
 
         // ── Ammo bundles (AP filler) ──────────────────────────────────
         ShurikenBundle = 911,

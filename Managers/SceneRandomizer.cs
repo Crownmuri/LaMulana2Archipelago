@@ -470,7 +470,8 @@ namespace LaMulana2Archipelago.Managers
                 return getFlags.ToArray();
 
             short data;
-            if (itemID >= ItemID.SacredOrb0 && itemID <= ItemID.SacredOrb9)
+            if ((itemID >= ItemID.SacredOrb0 && itemID <= ItemID.SacredOrb9)
+                || (itemID >= ItemID.SacredOrb10 && itemID <= ItemID.SacredOrb19))
             {
                 getFlags.Add(new L2FlagBoxEnd { calcu = CALCU.ADD, seet_no1 = 0, flag_no1 = 2, data = 1 });
                 getFlags.Add(new L2FlagBoxEnd { calcu = CALCU.EQR, seet_no1 = itemInfo.ItemSheet, flag_no1 = itemInfo.ItemFlag, data = 1 });

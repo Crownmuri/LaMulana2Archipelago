@@ -303,7 +303,8 @@ namespace LaMulana2Archipelago.Managers
                 }
 
                 bool isSacredOrb =
-                    itemId >= ItemID.SacredOrb0 && itemId <= ItemID.SacredOrb9;
+                    (itemId >= ItemID.SacredOrb0 && itemId <= ItemID.SacredOrb9) ||
+                    (itemId >= ItemID.SacredOrb10 && itemId <= ItemID.SacredOrb19);
 
                 bool isMSX3p = itemId == ItemID.MobileSuperx3P;
 

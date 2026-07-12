@@ -243,6 +243,32 @@ namespace LaMulana2Archipelago
             if (!ItemGrantStateGuard.IsSafe(sys, pl))
                 return;
 
+            // Glossary-hunt goal: once the target entry count is reached, roll the
+            // credits from a safe (non-dialog/non-transition) point. The goal
+            // packet was already sent in GlossaryGoalTracker; Ending1's own
+            // OnSceneLoaded handler re-reports it idempotently.
+            if (Managers.GlossaryGoalTracker.TryConsumeCreditsRequest())
+            {
+                Log.LogInfo("[GlossaryGoal] Target reached — loading credits scene (Ending1).");
+                try
+                {
+                    // Tear down the live field scene before loading the demo/credits
+                    // scene. Calling loadDemoSceane straight from gameplay leaves the
+                    // field's player + HUD tasks running, which bleed through as a
+                    // black screen with the game UI still visible. reInitSystem(false)
+                    // is the same teardown the vanilla ending path runs (Demos.cs:
+                    // reInitSystem(false) immediately before loadDemoSceane): it
+                    // clears the scene tasks, deletes the player, and resets the
+                    // system flags, then we load the ending ourselves instead of Title.
+                    sys.reInitSystem(false);
+                    sys.getL2SystemCore().loadDemoSceane(GoalSceneName);
+                }
+                catch (System.Exception ex) { Log.LogError($"[GlossaryGoal] Failed to load credits: {ex}"); }
+                gameplayActive = false;
+                gameplayActivationTime = float.MaxValue;
+                return;
+            }
+
             // Force the post-kill memSave once the kill is confirmed and the player is
             // back, safe, AND alive. The HP check is what IsSafe misses: it blocks on
             // player STATE == DEAD, but a suppressed death can leave HP at 0 while the
@@ -549,6 +575,16 @@ namespace LaMulana2Archipelago
             // and reconnects, where setFlagData isn't replayed by the engine.
             Managers.DissonanceTracker.NotifySceneLoaded();
 
+            // DLC-boss goal recovery: if the boss was beaten in a prior session,
+            // the flag is restored on load without a setFlagData call, so re-check
+            // it here. No-op unless the seed's goal is the DLC boss.
+            Managers.DlcBossGoalTracker.NotifySceneLoaded();
+
+            // Glossary-hunt goal recovery: recount shuffled entries unlocked in a
+            // prior session (flags restored on load without setFlagData). No-op
+            // unless the seed's goal is glossary_hunt.
+            Managers.GlossaryGoalTracker.NotifySceneLoaded();
+
             if (ArchipelagoClient == null) return;
 
             // Clear DeathLink edge state on the freshly loaded field. DeathLinkHandler.Update()
@@ -563,7 +599,9 @@ namespace LaMulana2Archipelago
             // Goal scene handling runs even if the socket has dropped — we
             // need to record intent (GoalPending) and possibly kick a reconnect
             // so the deferred CLIENT_GOAL can land.
-            if (isEnding1 || isEnding2)
+            // When the seed's goal is the DLC boss, reaching the normal credits
+            // does NOT complete the AP goal — DlcBossGoalTracker owns it instead.
+            if ((isEnding1 || isEnding2) && !Managers.DlcBossGoalTracker.IsDlcBossGoal)
             {
                 Log.LogInfo($"[AP] {(isEnding1 ? "Credits" : "Post-credits")} scene reached ('{scene.name}'), reporting goal.");
                 ArchipelagoClient.ReportGoalOnce();
