@@ -152,6 +152,12 @@ namespace LaMulana2Archipelago.Patches
                     sys.setEffectFlag(SceneRandomizer.Instance.CreateGetFlags(itemID, itemInfo));
             }
 
+            // Prime the dialog's glossary-icon resolver. The mural opens the item dialog
+            // (SnapMenu case 6) with a bare "AP Item" — no sheet-31 suffix — so hand
+            // StartSwitch this mural's AP location to resolve the chip icon.
+            if (itemInfo.BoxName.StartsWith("AP Item"))
+                ItemDialogApItemPatch.PendingApLocationId = 430000L + (int)locationID;
+
             // Fire the AP location check. AP placeholders carry sheet 31, which the guard
             // above deliberately skips, so a mural holding an AP / glossary item would never
             // report otherwise. NotifyLocation also delivers an own glossary ROM directly

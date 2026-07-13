@@ -117,6 +117,11 @@ namespace LaMulana2Archipelago.Patches
                 }
             }
 
+            // Prime the dialog's glossary-icon resolver. The NPC item arrives as a bare
+            // "AP Item" with no sheet-31 suffix, so ItemDialog.StartSwitch can't derive the
+            // location on its own — hand it the one we just resolved.
+            ItemDialogApItemPatch.PendingApLocationId = apLocationId;
+
             // Prefer the scout cache (online) and fall back to seed.lm2ap's
             // location_labels in offline mode, where the cache is empty.
             // Either way we mark LastPrimedApLocationId so CheckManager skips

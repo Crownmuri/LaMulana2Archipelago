@@ -108,7 +108,7 @@ namespace LaMulana2Archipelago
         // becoming non-null is only the moment the field goes live). Sim runs at a
         // fixed step so a frame count is PC-speed independent.
         private int _framesInFieldLast = 0;
-        private const int PrimeArmFrames = 78;
+        private const int PrimeArmFrames = 90;
 
         // True while an Ending (credits) scene is loaded. Suppresses our
         // gameplay-active bookkeeping and item grants — the reparented player

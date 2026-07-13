@@ -255,8 +255,9 @@ namespace LaMulana2Archipelago.Patches
         /// <summary>True if the given shop slot holds one of this player's glossary ROMs, by
         /// scouting the slot's AP location and checking the id window (not the display name).
         /// Used to pick the R Book shop icon instead of the AP icon.</summary>
-        public static bool IsGlossarySlot(ShopScript instance, int slot)
+        public static bool IsGlossarySlot(ShopScript instance, int slot, out int gameId)
         {
+            gameId = -1;
             if (_slotApLocationIds.Count == 0 || instance == null) return false;
 
             var t = Traverse.Create(instance);
@@ -271,7 +272,10 @@ namespace LaMulana2Archipelago.Patches
             if (!_slotApLocationIds.TryGetValue(shopId + ":" + slot, out long apLoc)) return false;
 
             var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(apLoc);
-            return GlossaryManager.IsOwnGlossaryRom(scouted);
+            if (!GlossaryManager.IsOwnGlossaryRom(scouted)) return false;
+
+            gameId = GlossaryManager.RomGameId(scouted.ItemId);
+            return true;
         }
 
         // ── Helper ───────────────────────────────────────────────────────────

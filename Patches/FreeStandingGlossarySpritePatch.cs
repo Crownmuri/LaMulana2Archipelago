@@ -23,6 +23,8 @@ namespace LaMulana2Archipelago.Patches
     {
         private static readonly HashSet<int> _skip = new HashSet<int>();
         private static readonly Dictionary<int, bool> _isGlossary = new Dictionary<int, bool>();
+        // instanceId → glossary ROM game_id, so the floor sprite can pick the N/R/SR/UR tier.
+        private static readonly Dictionary<int, int> _romGameId = new Dictionary<int, int>();
 
         static void Postfix(AbstractItemBase __instance)
         {
@@ -46,13 +48,15 @@ namespace LaMulana2Archipelago.Patches
                     {
                         var sc = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)loc);
                         gloss = GlossaryManager.IsOwnGlossaryRom(sc);
+                        if (gloss) _romGameId[id] = GlossaryManager.RomGameId(sc.ItemId);
                     }
                     _isGlossary[id] = gloss;
                     if (!gloss) { _skip.Add(id); return; } // resolved as non-glossary → stop checking
                 }
                 if (!gloss) return;
 
-                var chip = GlossaryChipSprite.FloorIcon();
+                int gameId = _romGameId.TryGetValue(id, out int gid) ? gid : -1;
+                var chip = GlossaryChipSprite.FloorIcon(gameId);
                 if (chip == null) return;
 
                 var sr = __instance.GetComponent<SpriteRenderer>()

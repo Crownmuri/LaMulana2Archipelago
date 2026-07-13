@@ -443,6 +443,16 @@ namespace LaMulana2Archipelago.Managers
         /// R Book icon.</summary>
         public static bool CurrentApPickupIsGlossary { get; set; }
 
+        /// <summary>game_id of the glossary ROM in the current dialog (drives the N/R/SR/UR chip
+        /// tier), or -1 when not an own glossary ROM. Set alongside CurrentApPickupIsGlossary.</summary>
+        public static int CurrentApPickupGlossaryGameId { get; set; } = -1;
+
+        /// <summary>AP location id primed by flows that open the item dialog with a bare
+        /// "AP Item" (no sheet-31 suffix to resolve from): murals (SnapMenuPatch) and NPCs
+        /// (KataribeDialogPatch). Lets StartSwitch resolve the glossary chip icon for those.
+        /// -1 when none pending; consumed (reset to -1) each time an AP dialog opens.</summary>
+        public static long PendingApLocationId { get; set; } = -1L;
+
         /// <summary>
         /// Prefix: for AP/filler items, skip the vanilla StartSwitch entirely
         /// and set up the dialog manually (vanilla crashes on unknown item names
@@ -452,6 +462,7 @@ namespace LaMulana2Archipelago.Managers
         {
             WasApPlaceholder = false;
             CurrentApPickupIsGlossary = false;
+            CurrentApPickupGlossaryGameId = -1;
 
             string[] messString = Traverse.Create(__instance)
                 .Field("MessString")
@@ -467,15 +478,33 @@ namespace LaMulana2Archipelago.Managers
                 isAp = true;
                 WasApPlaceholder = true;
 
-                // "AP Item N" carries the sheet-31 flag index N → resolve to its AP location and
-                // scout it, so the dialog can show the glossary icon (id-based, rename-proof).
+                // Resolve this pickup's AP location so the dialog can show the glossary
+                // chip icon (id-based, rename-proof) instead of the generic AP icon:
+                //   • "AP Item N" (freestanding/chest/pot/shop) carries the sheet-31 flag
+                //     index N in its name.
+                //   • bare "AP Item" (murals, NPCs) has no index — those flows prime
+                //     PendingApLocationId just before opening the dialog.
+                long glossaryApLoc = -1L;
                 int sp = messString[0].LastIndexOf(' ');
                 if (sp > 0 && int.TryParse(messString[0].Substring(sp + 1), out int flagIdx)
                     && LocationFlagMap.TryGetNumeric(31, flagIdx, out LocationID gloc))
                 {
-                    var sc = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)gloc);
-                    CurrentApPickupIsGlossary = GlossaryManager.IsOwnGlossaryRom(sc);
+                    glossaryApLoc = 430000L + (int)gloc;
                 }
+                else if (PendingApLocationId >= 0)
+                {
+                    glossaryApLoc = PendingApLocationId;
+                }
+
+                if (glossaryApLoc >= 0)
+                {
+                    var sc = ArchipelagoClientProvider.Client?.GetItemAtLocation(glossaryApLoc);
+                    CurrentApPickupIsGlossary = GlossaryManager.IsOwnGlossaryRom(sc);
+                    if (CurrentApPickupIsGlossary)
+                        CurrentApPickupGlossaryGameId = GlossaryManager.RomGameId(sc.ItemId);
+                }
+
+                PendingApLocationId = -1L; // consume — never carry over to the next dialog
             }
             else if (messString[0] == "Nothing" || messString[0] == "Fake" || messString[0] == "Money")
             {
@@ -584,7 +613,12 @@ namespace LaMulana2Archipelago.Managers
             // Icon
             if (isAp && ApSpriteLoader.IsLoaded && con.Icon != null)
             {
-                con.Icon.sprite = ApSpriteLoader.GetMapSprite(CurrentApPickupIsProgression);
+                // Own glossary ROM → show the chip icon, not the generic AP icon. This is
+                // the manual-setup path taken by murals ("snap") and NPCs ("kataribe"),
+                // which arrive as a bare "AP Item"; mirrors Patches.ItemDialogPatch.
+                var chip = CurrentApPickupIsGlossary
+                    ? Patches.GlossaryChipSprite.DialogIcon(CurrentApPickupGlossaryGameId) : null;
+                con.Icon.sprite = chip ?? ApSpriteLoader.GetMapSprite(CurrentApPickupIsProgression);
                 con.Icon.gameObject.SetActive(true);
             }
             else if (isAp)
@@ -816,9 +850,9 @@ namespace LaMulana2Archipelago.Managers
                     {
                         // Our own glossary ROMs (placeholder name "AP Item N", but the slot's
                         // display name is "Glossary (...)") show the R Book icon, not the AP icon.
-                        if (Patches.ShopDialogPatch.IsGlossarySlot(__instance, idx))
+                        if (Patches.ShopDialogPatch.IsGlossarySlot(__instance, idx, out int glossGameId))
                         {
-                            chosenSprite = Patches.GlossaryChipSprite.ShopIcon();
+                            chosenSprite = Patches.GlossaryChipSprite.ShopIcon(glossGameId);
                         }
                         else
                         {

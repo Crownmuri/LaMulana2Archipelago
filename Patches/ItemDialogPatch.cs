@@ -243,7 +243,7 @@ namespace LaMulana2Archipelago.Patches
                 // if the chip sprite hasn't been harvested yet), not the AP icon. Identified by
                 // id at dialog setup (ItemDialogApItemPatch), so it survives renaming the items.
                 var chip = ItemDialogApItemPatch.CurrentApPickupIsGlossary
-                    ? GlossaryChipSprite.DialogIcon() : null;
+                    ? GlossaryChipSprite.DialogIcon(ItemDialogApItemPatch.CurrentApPickupGlossaryGameId) : null;
                 con.Icon.sprite = chip != null
                     ? chip
                     : ApSpriteLoader.GetMapSprite(ItemDialogApItemPatch.CurrentApPickupIsProgression);

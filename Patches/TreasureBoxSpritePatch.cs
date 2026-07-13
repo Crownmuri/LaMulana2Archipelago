@@ -38,7 +38,7 @@ namespace LaMulana2Archipelago.Patches
                     var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)gloc);
                     if (Managers.GlossaryManager.IsOwnGlossaryRom(scouted))
                     {
-                        var chip = GlossaryChipSprite.FloorIcon();
+                        var chip = GlossaryChipSprite.FloorIcon(Managers.GlossaryManager.RomGameId(scouted.ItemId));
                         if (chip != null) { sr.sprite = chip; return; }
                     }
                 }
