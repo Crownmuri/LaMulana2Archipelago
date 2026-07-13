@@ -761,6 +761,23 @@ namespace LaMulana2Archipelago.Managers
         [HarmonyPatch(typeof(ShopScript), "itemCallBack")]
         internal static class ShopItemCallBackApPatch
         {
+            // Game item-ids of the five closet costumes ("Kimono Cowgirl", "Valkyria",
+            // "Little Devil", "Eastern Europe", "Fish Suit"). These have no entry in the
+            // shop icon atlas, so their shop slot would otherwise show a blank white
+            // square — we redirect them to the inventory sprite instead.
+            private static readonly HashSet<string> CostumeShopNames = BuildCostumeShopNames();
+
+            private static HashSet<string> BuildCostumeShopNames()
+            {
+                var set = new HashSet<string>();
+                foreach (var c in Managers.CostumeManager.Costumes)
+                {
+                    var info = ItemDB.GetItemInfo(c);
+                    if (info != null) set.Add(info.ShopName);
+                }
+                return set;
+            }
+
             static void Postfix(ShopScript __instance, string name)
             {
                 if (name == null) return;
@@ -829,6 +846,15 @@ namespace LaMulana2Archipelago.Managers
                     {
                         var data = L2SystemCore.getItemData("Pandora Box"); // The regular Weight icon has the fixed x5...
                         if (data != null) chosenSprite = L2SystemCore.getShopIconSprite(data);
+                    }
+                    else if (CostumeShopNames.Contains(baseName))
+                    {
+                        // Costumes have no sprite in the shop atlas (icons_shops), so a
+                        // costume slot renders as a blank white square. Substitute the
+                        // inventory sprite (icons_itemmenu) — the same icon the fashion
+                        // menu shows for that costume.
+                        var data = L2SystemCore.getItemData(baseName);
+                        if (data != null) chosenSprite = L2SystemCore.getMenuIconSprite(data);
                     }
                 }
                 catch (Exception ex)

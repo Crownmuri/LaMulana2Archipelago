@@ -71,6 +71,50 @@ namespace LaMulana2Archipelago
         private const string GoalSceneFallback = "Ending2";
         private const int GoalSceneFallbackBuildIndex = 49;
 
+        // Internal field number of fieldP02 (the ending-approach field whose own
+        // trigger fires Congratulations → Ending1). From L2System's SceaneNo→name
+        // map: fieldP00=24, fieldP01=24, fieldP02=25, fieldBlood=26.
+        private const int FieldP02Number = 25;
+
+        // Ending trigger location: room (3,8) of field 28 with (3,95) set.
+        private const int IntermediateFieldNumber = 28;
+        private const int Field28ViewX = 2;
+        private const int Field28ViewY = 8;
+        private const int Field28PlayerChipX = 25; 
+        private const int Field28PlayerChipY = 2; 
+
+        // Safety timeout (seconds) for the FieldLast prime warp: normally we advance
+        // as soon as FieldLast's ScrollSystem finishes loading (frame-accurate, PC-
+        // speed independent — same signal L2DebugWarpMenu waits on), but if that
+        // never happens we force the next warp after this long so we can't hang.
+        // changeFieldSceane nulls ScrollSystem synchronously, so a non-null value on
+        // a later frame reliably means the new field (FieldLast) has come up.
+        private const float FieldLastLoadTimeout = 8.0f;
+
+        // Glossary-hunt credits transition. Calling loadDemoSceane straight from a
+        // live field needs two things the game normally does for us: (1) fade the
+        // screen to opaque black first (like Title→Opening in Title.Farst) so the
+        // demo isn't revealed before its texture has drawn, and (2) quiesce the
+        // reparented player so its task doesn't NRE in the demo scene. We drive
+        // this as a two-phase state machine: phase 1 = fading, phase 2 = loaded.
+        private const int FadeToCreditsFrames = 60;      // gameScreenFadeOut duration (~1s @ 60fps)
+        private const float FadeToCreditsSeconds = 1.2f; // real-time wait before loading (fade + margin)
+        private int _creditsPhase = 0;
+        private float _creditsFadeCompleteTime = float.MaxValue;
+        private float _secondWarpTime = float.MaxValue;
+
+        // Frames spent in FieldLast after it finishes loading, before warping on to
+        // fieldP02 — gives its escape trigger time to actually arm (ScrollSystem
+        // becoming non-null is only the moment the field goes live). Sim runs at a
+        // fixed step so a frame count is PC-speed independent.
+        private int _framesInFieldLast = 0;
+        private const int PrimeArmFrames = 78;
+
+        // True while an Ending (credits) scene is loaded. Suppresses our
+        // gameplay-active bookkeeping and item grants — the reparented player
+        // is present there but the scene is not a playable field.
+        private bool _inEndingScene = false;
+
         private bool _bootstrapStarted = false;
 
         private void Start()
@@ -169,7 +213,7 @@ namespace LaMulana2Archipelago
 
         private bool UpdateGameplayActive(L2System sys)
         {
-            bool nowActive = sys != null && sys.getPlayer() != null && !IsTitleContext(sys);
+            bool nowActive = sys != null && sys.getPlayer() != null && !IsTitleContext(sys) && !_inEndingScene;
 
             if (nowActive && !gameplayActive)
             {
@@ -227,6 +271,97 @@ namespace LaMulana2Archipelago
             // Must have system before we can compute gameplayActive safely
             var sys = _cachedSys;
 
+            // Glossary-hunt credits, phase 1: the screen has been fading to black
+            // since we consumed the credits request (below). Once the fade has
+            // finished, set the escape state and warp — SCREEN KEPT BLACK — to the
+            // ending trigger room (3,8) in FieldLast (field 28), which primes the
+            // ending. Uses the same view-coordinate warp the mod's DevUI uses
+            // (DoDebugWarp): setJumpPosition(viewX,viewY,posX,posY,z) then
+            // changeFieldSceane(field,true,false). Handled here, before the
+            // gameplay-active gate, so nothing stalls the sequence once committed.
+            if (_creditsPhase == 1)
+            {
+                if (Time.realtimeSinceStartup >= _creditsFadeCompleteTime)
+                {
+                    _creditsPhase = 3; // → prime-in-FieldLast, then warp to fieldP02
+                    Log.LogInfo($"[GlossaryGoal] Fade complete — setting escape state, warping (black) to FieldLast room ({Field28ViewX},{Field28ViewY}).");
+                    try
+                    {
+                        sys.setFlagData(3, 95, 1); // "Escape" — 脱出状態 escape state 
+
+                        var core = sys.getL2SystemCore();
+                        core.setJumpPosition(Field28ViewX, Field28ViewY, Field28PlayerChipX, Field28PlayerChipY, 0f);
+                        core.setFadeInFlag(false); // keep it black — this is only to prime the trigger
+
+                        _framesInFieldLast = 0; // reset the arm-frame counter
+
+                        core.changeFieldSceane(IntermediateFieldNumber, true, false);
+
+                        // Advance when FieldLast's ScrollSystem comes up (see phase 3);
+                        // this is only a safety cap in case that never happens.
+                        _secondWarpTime = Time.realtimeSinceStartup + FieldLastLoadTimeout;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Log.LogError($"[GlossaryGoal] Failed warp to FieldLast room ({Field28ViewX},{Field28ViewY}): {ex}");
+                        try { sys.getL2SystemCore().loadDemoSceane(GoalSceneFallback); } catch { }
+                        _creditsPhase = 2;
+                        gameplayActive = false;
+                        gameplayActivationTime = float.MaxValue;
+                    }
+                }
+                return;
+            }
+
+            // Phase 3: primed in FieldLast (still black) — now warp on to fieldP02
+            // with the normal transition fade-in, where the ending should play.
+            // Wait until FieldLast has actually finished loading (its ScrollSystem is
+            // up) rather than a wall-clock delay, so it's robust to PC speed — the
+            // same "loaded" signal L2DebugWarpMenu keys off. _secondWarpTime is only
+            // a safety cap so we can't hang if the load never completes.
+            if (_creditsPhase == 3)
+            {
+                bool loadTimedOut = Time.realtimeSinceStartup >= _secondWarpTime;
+                if (!loadTimedOut)
+                {
+                    // Wait for FieldLast to finish loading (ScrollSystem up)...
+                    if (sys.getL2SystemCore()?.ScrollSystem == null)
+                        return;
+
+                    // ...then let it run a fixed number of frames so its escape
+                    // trigger actually arms before we warp away.
+                    _framesInFieldLast++;
+                    if (_framesInFieldLast < PrimeArmFrames)
+                        return;
+                }
+
+                {
+                    _creditsPhase = 2; // done
+                    Log.LogInfo($"[GlossaryGoal] Warping to fieldP02 (field {FieldP02Number}) for the ending (after {_framesInFieldLast} frames in FieldLast).");
+                    try
+                    {
+                        var core = sys.getL2SystemCore();
+                        // Normal transition fade-in onto fieldP02, where the ending
+                        // trigger fires. (FieldLast pops briefly during the fieldP02
+                        // load — accepted; trying to hold black through it broke the
+                        // ending trigger.)
+                        core.setFadeInFlag(true);
+                        core.setJumpPosition(FieldP02Number, "PlayerStart", true, false);
+
+                        // Release the phase-1 input block.
+                        sys.setKeyBlock(false);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Log.LogError($"[GlossaryGoal] Failed warp to fieldP02: {ex}");
+                        try { sys.getL2SystemCore().loadDemoSceane(GoalSceneFallback); } catch { }
+                    }
+                    gameplayActive = false;
+                    gameplayActivationTime = float.MaxValue;
+                }
+                return;
+            }
+
             // Compute/transition gameplayActive based on actual run state
             if (!UpdateGameplayActive(sys))
                 return;
@@ -249,23 +384,29 @@ namespace LaMulana2Archipelago
             // OnSceneLoaded handler re-reports it idempotently.
             if (Managers.GlossaryGoalTracker.TryConsumeCreditsRequest())
             {
-                Log.LogInfo("[GlossaryGoal] Target reached — loading credits scene (Ending1).");
+                Log.LogInfo("[GlossaryGoal] Target reached — fading out before the ending.");
                 try
                 {
-                    // Tear down the live field scene before loading the demo/credits
-                    // scene. Calling loadDemoSceane straight from gameplay leaves the
-                    // field's player + HUD tasks running, which bleed through as a
-                    // black screen with the game UI still visible. reInitSystem(false)
-                    // is the same teardown the vanilla ending path runs (Demos.cs:
-                    // reInitSystem(false) immediately before loadDemoSceane): it
-                    // clears the scene tasks, deletes the player, and resets the
-                    // system flags, then we load the ending ourselves instead of Title.
-                    sys.reInitSystem(false);
-                    sys.getL2SystemCore().loadDemoSceane(GoalSceneName);
+                    var core = sys.getL2SystemCore();
+                    // Phase 1: fade the game screen to opaque black and fade the
+                    // music down, then block input. We DON'T load the demo yet —
+                    // the phase-2 handler above loads it once the fade finishes.
+                    // This mirrors the Title→Opening demo entry exactly and is
+                    // what stops Ending1 from rendering as a black screen.
+                    core.gameScreenFadeOut(FadeToCreditsFrames);
+                    core.musicManager.masterMusicVolumeFade(0f, 100);
+                    sys.setKeyBlock(true);
+                    _creditsFadeCompleteTime = Time.realtimeSinceStartup + FadeToCreditsSeconds;
+                    _creditsPhase = 1;
                 }
-                catch (System.Exception ex) { Log.LogError($"[GlossaryGoal] Failed to load credits: {ex}"); }
-                gameplayActive = false;
-                gameplayActivationTime = float.MaxValue;
+                catch (System.Exception ex)
+                {
+                    Log.LogError($"[GlossaryGoal] Failed to start credits fade: {ex}");
+                    // Fall back to an immediate load so the run still ends.
+                    try { sys.getL2SystemCore().loadDemoSceane(GoalSceneName); } catch { }
+                    gameplayActive = false;
+                    gameplayActivationTime = float.MaxValue;
+                }
                 return;
             }
 
@@ -595,6 +736,10 @@ namespace LaMulana2Archipelago
 
             bool isEnding1 = scene.name == GoalSceneName || scene.buildIndex == GoalSceneBuildIndex;
             bool isEnding2 = scene.name == GoalSceneFallback || scene.buildIndex == GoalSceneFallbackBuildIndex;
+
+            // Track ending scenes so gameplay bookkeeping / grants stay quiet
+            // there (the reparented player lingers but this is not a field).
+            _inEndingScene = isEnding1 || isEnding2;
 
             // Goal scene handling runs even if the socket has dropped — we
             // need to record intent (GoalPending) and possibly kick a reconnect
