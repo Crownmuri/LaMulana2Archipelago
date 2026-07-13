@@ -2,6 +2,8 @@ using System;
 using HarmonyLib;
 using L2Base;
 using L2Word;
+using LM2RandomiserMod;
+using LaMulana2RandomizerShared;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -185,6 +187,20 @@ namespace LaMulana2Archipelago.Patches
 
             for (int i = 0; i < 3; i++)
             {
+                // Sacred Orbs — including the bonus orbs (>10) — resolve their sold-out
+                // state from the orb's own per-orb flag, read by index. Bonus orbs
+                // (Sacred Orb10..19) map to unnamed sheet-2 scratch slots, so the game's
+                // name-based getItemNum(true_name) returns -1 and the default count
+                // comparison below (`getItemNum >= getItemMax`) would never mark them
+                // sold out. Reading the flag directly fixes that and matches how regular
+                // orbs already behave.
+                if (item_id[i] == "Sacred Orb"
+                    && TryGetSacredOrbSoldOut(sys, true_name[i], out bool orbSoldOut))
+                {
+                    isSouldOut[i] = orbSoldOut;
+                    continue;
+                }
+
                 string text = trav.Method("exchangeItemName", item_id[i]).GetValue<string>();
                 if (text != item_id[i])
                 {
@@ -223,6 +239,39 @@ namespace LaMulana2Archipelago.Patches
             trav.Method("drawItems").GetValue();
 
             return false;
+        }
+
+        /// <summary>
+        /// Resolves the sold-out state for a Sacred Orb shop slot by reading the orb's
+        /// own per-orb flag directly (sheet/flag from <see cref="ItemDB"/>) instead of
+        /// via <c>L2System.getItemNum</c>. Bonus orbs (Sacred Orb10..19) live in blank
+        /// sheet-2 scratch slots that have no flag name, so <c>getItemNum(true_name)</c>
+        /// returns -1 and the vanilla count comparison never trips. Returns false when
+        /// <paramref name="trueName"/> has no numeric orb index, leaving default handling
+        /// in place.
+        /// </summary>
+        private static bool TryGetSacredOrbSoldOut(L2System sys, string trueName, out bool soldOut)
+        {
+            soldOut = false;
+            if (sys == null || string.IsNullOrEmpty(trueName) || !trueName.StartsWith("Sacred Orb"))
+                return false;
+
+            string suffix = trueName.Substring("Sacred Orb".Length).Trim();
+            if (!int.TryParse(suffix, out int orbIndex) || orbIndex < 0 || orbIndex > 19)
+                return false;
+
+            ItemID orbId = orbIndex < 10
+                ? ItemID.SacredOrb0 + orbIndex
+                : ItemID.SacredOrb10 + (orbIndex - 10);
+
+            ItemInfo info = ItemDB.GetItemInfo(orbId);
+            if (info == null)
+                return false;
+
+            short flagVal = 0;
+            sys.getFlag(info.ItemSheet, info.ItemFlag, ref flagVal);
+            soldOut = flagVal != 0;
+            return true;
         }
     }
 }
