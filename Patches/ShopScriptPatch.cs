@@ -248,7 +248,7 @@ namespace LaMulana2Archipelago.Patches
         /// <paramref name="trueName"/> has no numeric orb index, leaving default handling
         /// in place.
         /// </summary>
-        private static bool TryGetSacredOrbSoldOut(L2System sys, string trueName, out bool soldOut)
+        internal static bool TryGetSacredOrbSoldOut(L2System sys, string trueName, out bool soldOut)
         {
             soldOut = false;
             if (sys == null || string.IsNullOrEmpty(trueName) || !trueName.StartsWith("Sacred Orb"))

@@ -1843,24 +1843,34 @@ namespace LaMulana2Archipelago.Managers
                 bgScroll.WarpAnchors.Add(playerAnchor);
             }
 
-            // DLC: Tower of Oannes (fieldEx1) ladder entrances L1/L3 spawn the
-            // player flush against the entry lock's wall, letting them clip
-            // through it. Nudge those two anchors 3px left so the spawn clears
-            // the wall. getAnchorPosition() reads these transforms directly.
+            // DLC: Tower of Oannes (fieldEx1) one-way exits fEx1_Rout / fEx1_Rout2 /
+            // fEx1_Lout warp to anchors (PlayerStart_Rout / _Rout2 / _Lout) that don't
+            // exist in the vanilla scene. getAnchorPosition() returns Vector3.zero for an
+            // unknown anchor name, dropping the player at world (0,0) inside a wall.
+            // Create the missing anchors here, same as the field02/03/04/08 anchors above.
+            // Positions are RAW WORLD coordinates (a PlayerAnchor2.transform.position), so
+            // they don't depend on the room-view grid — which isn't built yet at this point
+            // in scene load. Read them off the DevUI F11 player-coordinate overlay while
+            // standing at each one-way's safe spawn spot.
             if (fieldName == "fieldEx1")
             {
-                foreach (PlayerAnchor2 anchor in bgScroll.WarpAnchors)
-                {
-                    if (anchor == null) continue;
-                    string n = anchor.gameObject.name;
-                    if (n == "PlayerStart_L1" || n == "PlayerStart_L3")
-                    {
-                        Vector3 p = anchor.transform.position;
-                        p.x -= 3f;
-                        anchor.transform.position = p;
-                    }
-                }
+                // World X/Y read off the DevUI F11 overlay at each one-way's spawn spot.
+                AddWorldAnchor(bgScroll, "PlayerStart_Rout",  new Vector3(  24f, -504f, 0f));
+                AddWorldAnchor(bgScroll, "PlayerStart_Rout2", new Vector3( 520f,  360f, 0f));
+                AddWorldAnchor(bgScroll, "PlayerStart_Lout",  new Vector3(-208f, 1360f, 0f));
             }
+        }
+
+        // Creates a warp anchor at a fixed world position. getAnchorPosition(name)
+        // returns this transform directly, so the value is the raw world (X,Y) the
+        // DevUI F11 overlay reports for the player at the desired spawn spot.
+        private void AddWorldAnchor(BGScrollSystem bgScroll, string name, Vector3 worldPos)
+        {
+            GameObject obj = new GameObject(name);
+            obj.transform.SetParent(bgScroll.transform);
+            PlayerAnchor2 anchor = obj.AddComponent<PlayerAnchor2>();
+            anchor.transform.position = worldPos;
+            bgScroll.WarpAnchors.Add(anchor);
         }
 
         // ================================================================
