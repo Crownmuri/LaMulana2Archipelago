@@ -930,6 +930,7 @@ namespace LaMulana2Archipelago.Managers
             static void Postfix(ShopScript __instance)
             {
                 var itemId = Traverse.Create(__instance).Field("item_id").GetValue<string[]>();
+                var trueName = Traverse.Create(__instance).Field("true_name").GetValue<string[]>();
                 var soldOut = Traverse.Create(__instance).Field("isSouldOut").GetValue<bool[]>();
                 var sys = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
 
@@ -940,6 +941,25 @@ namespace LaMulana2Archipelago.Managers
                 for (int i = 0; i < 3 && i < itemId.Length; i++)
                 {
                     if (itemId[i] == null) continue;
+
+                    // Own-world Sacred Orbs (incl. bonus orbs >10) don't ride the sheet-31
+                    // AP-Item pipeline. Vanilla itemCallBack leaves item_id as the raw name
+                    // ("Sacred Orb12"), so vanilla setSouldOut can't mark bonus orbs sold out:
+                    // they live in unnamed sheet-2 scratch flags and name-based getItemNum
+                    // returns -1. Resolve the slot from the orb's own per-orb flag instead.
+                    // (StartsWith also covers the standalone-mode form where item_id == "Sacred Orb".)
+                    if (itemId[i].StartsWith("Sacred Orb") && trueName != null && i < trueName.Length
+                        && Patches.ShopSetSoldOutPatch.TryGetSacredOrbSoldOut(sys, trueName[i], out bool orbSoldOut))
+                    {
+                        if (soldOut[i] != orbSoldOut)
+                        {
+                            soldOut[i] = orbSoldOut;
+                            anyChanged = true;
+                        }
+                        Plugin.Log.LogDebug(
+                            $"[AP] Shop setSouldOut slot {i}: Sacred Orb '{trueName[i]}' -> soldOut={orbSoldOut}");
+                        continue;
+                    }
 
                     // Format: "ItemName FlagIndex"
                     var parts = itemId[i].Split(' ');
