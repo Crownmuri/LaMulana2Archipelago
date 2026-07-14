@@ -1842,6 +1842,25 @@ namespace LaMulana2Archipelago.Managers
                 playerAnchor.transform.position = anchorPos;
                 bgScroll.WarpAnchors.Add(playerAnchor);
             }
+
+            // DLC: Tower of Oannes (fieldEx1) ladder entrances L1/L3 spawn the
+            // player flush against the entry lock's wall, letting them clip
+            // through it. Nudge those two anchors 3px left so the spawn clears
+            // the wall. getAnchorPosition() reads these transforms directly.
+            if (fieldName == "fieldEx1")
+            {
+                foreach (PlayerAnchor2 anchor in bgScroll.WarpAnchors)
+                {
+                    if (anchor == null) continue;
+                    string n = anchor.gameObject.name;
+                    if (n == "PlayerStart_L1" || n == "PlayerStart_L3")
+                    {
+                        Vector3 p = anchor.transform.position;
+                        p.x -= 3f;
+                        anchor.transform.position = p;
+                    }
+                }
+            }
         }
 
         // ================================================================
