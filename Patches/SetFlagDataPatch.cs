@@ -143,7 +143,7 @@ namespace LaMulana2Archipelago.Patches
             return true;
         }
 
-        static void Postfix(int seet_no, int flag_no, short data, short __state)
+        static void Postfix(L2FlagSystem __instance, int seet_no, int flag_no, short data, short __state)
         {
             if (data > 0)
                 Plugin.Log.LogDebug($"[FLAGSET] sheet={seet_no} flag={flag_no} data={data}");
@@ -167,6 +167,10 @@ namespace LaMulana2Archipelago.Patches
             // Natural-dissonance count → PopTracker datastorage. Filters
             // internally to flag [2,3] and to random_dissonance==false seeds.
             DissonanceTracker.NotifyFlagSet(seet_no, flag_no, data);
+
+            // Rebirth Seal (2,55) obtained → advance DLC story flag (25,5) to 4.
+            // Filters internally to the seal flag.
+            RebirthSigilFlagSync.OnNumericFlagWrite(__instance, seet_no, flag_no);
         }
     }
 
@@ -178,13 +182,17 @@ namespace LaMulana2Archipelago.Patches
     internal static class SetFlagDataFlagSystemStringPatch
     {
         // Verified: setFlagData(string) uses "seet_no"
-        static void Postfix(int seet_no, string name, short data)
+        static void Postfix(L2FlagSystem __instance, int seet_no, string name, short data)
         {
             if (data <= 0 || string.IsNullOrEmpty(name)) return;
 
             CheckManager.NotifyStringFlag(seet_no, name, data);
             DevUI.RecordFlagChangeByName(seet_no, name, data);
             BossKillTracker.NotifyFlagSetByName(seet_no, name, data);
+
+            // Rebirth Seal ("02Items"/"Rebirth Seal") obtained via sys.setItem
+            // (AP grant / shop) → advance DLC story flag (25,5) to 4.
+            RebirthSigilFlagSync.OnNamedFlagWrite(__instance, seet_no, name);
         }
     }
     [HarmonyPatch] // MUST be empty because we use TargetMethod below
@@ -274,6 +282,14 @@ namespace LaMulana2Archipelago.Patches
                 return false;
             }
             return true;
+        }
+
+        // In-game item pickups apply their get-flags through setEffectFlag →
+        // addFlag (never setFlagData), so the Rebirth Seal (2,55) write from a
+        // physical chest/pot lands here. Runs after vanilla applied the value.
+        static void Postfix(L2FlagSystem __instance, int seet_no1, int flag_no1)
+        {
+            RebirthSigilFlagSync.OnNumericFlagWrite(__instance, seet_no1, flag_no1);
         }
     }
 }
