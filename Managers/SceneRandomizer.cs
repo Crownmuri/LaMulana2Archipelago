@@ -33,10 +33,8 @@ namespace LaMulana2Archipelago.Managers
         private List<LocationID> cursedChests = new();
         private Dictionary<ExitID, ExitID> exitToExitMap = new();
         private Dictionary<ExitID, int> soulGateValueMap = new();
-        // Costume closets already handled this scene (converted or determined not
-        // to). Lets the late-spawn patch (CostumeClosetLateSpawnPatch) safely poll
-        // every frame without double-converting. Cleared per scene load.
         private readonly HashSet<int> processedClosets = new();
+        private readonly HashSet<int> processedGates = new();
         // Per-location display name. Populated by AP slot_data["location_labels"]
         // (online) or seed.lm2ap (offline). Used to label items in places where
         // the vanilla BoxName doesn't carry the AP-specific suffix, e.g.
@@ -285,6 +283,7 @@ namespace LaMulana2Archipelago.Managers
                     TryInitShopDialogue();
 
                 processedClosets.Clear();
+                processedGates.Clear();
 
                 List<GameObject> objectsToDeactivate = new List<GameObject>();
 
@@ -1552,6 +1551,10 @@ namespace LaMulana2Archipelago.Managers
 
             foreach (AnchorGateZ gate in FindObjectsOfType<AnchorGateZ>())
             {
+                // Claim every gate the load-time sweep sees — including ones we skip — so
+                // the late-spawn patch only ever touches gates that appeared afterwards.
+                processedGates.Add(gate.GetInstanceID());
+
                 ExitID exitID = GetExitIDFromAnchorName(gate.AnchorName, field);
                 if (exitID == ExitID.None) continue;
 
@@ -1755,6 +1758,37 @@ namespace LaMulana2Archipelago.Managers
             return objectsToDeactivate;
         }
 
+        /// <summary>
+        /// Rewrites NPC warps that instantiated after the one-shot scene scan. 
+        /// [Dark Fish Crystal] and [Fish-Slime Zero] escapes are not caught by
+        /// ChangeEntrances' FindObjectsOfType.
+        /// </summary>
+        public void TryRewriteGateLate(AnchorGateZ gate)
+        {
+            if (gate == null) return;
+
+            string field = SceneManager.GetActiveScene().name;
+            if (field != "fieldEx1" && field != "fieldEx2") return;
+
+            if (!processedGates.Add(gate.GetInstanceID())) return;
+
+            ExitID exitID = GetExitIDFromAnchorName(gate.AnchorName, field);
+            if (exitID == ExitID.None) return;
+
+            if (!exitToExitMap.TryGetValue(exitID, out ExitID destinationID)) return;
+
+            ExitInfo destinationInfo = ExitDB.GetExitInfo(destinationID);
+            if (destinationInfo == null) return;
+
+            gate.AnchorName = destinationInfo.AnchorName;
+            gate.FieldNo = destinationInfo.FieldNo;
+            gate.AnchorID = -1;
+            gate.bgmFadeOut = false;
+
+            Plugin.Log.LogInfo($"[SceneRando] Rewrote late-spawned gate '{gate.gameObject.name}' " +
+                $"({exitID} -> {destinationID}) on {field}");
+        }
+
         private ExitID GetExitIDFromAnchorName(string anchorName, string field)
         {
             if (anchorName == "PlayerStart")
@@ -1777,11 +1811,6 @@ namespace LaMulana2Archipelago.Managers
                 return ExitID.f01Start;
 
             // --- DLC fields (Spring in the Sky/19, Tower of Oannes/30, Bailey/31) ---
-            // Their anchor names collide across fields (both Tower and Bailey have
-            // PlayerStart_L0..L5 / PlayerStart_R), so the flat anchorNameToExitID map
-            // cannot disambiguate them — resolve by source field here. A gate's
-            // AnchorName is its vanilla DESTINATION anchor; map it back to the exit on
-            // THIS field's own side (ladder pairs share suffix). See dev/DLC_EntranceDump.md.
             switch (field)
             {
                 case "fieldL04": // Spring in the Sky — "PlayerStart" handled above (fL04Up)
@@ -1798,6 +1827,9 @@ namespace LaMulana2Archipelago.Managers
                         case "PlayerStart_L4": return ExitID.fEx1_L4;
                         case "PlayerStart_L5": return ExitID.fEx1_L5;
                         case "PlayerStart_R":  return ExitID.fEx1_R;
+                        case "PlayerStart_Rout":  return ExitID.fEx1_Rout;
+                        case "PlayerStart_Rout2": return ExitID.fEx1_Rout2;
+                        case "PlayerStart_Lout":  return ExitID.fEx1_Lout;
                     }
                     break;
                 case "fieldEx2": // Bailey
@@ -1845,20 +1877,67 @@ namespace LaMulana2Archipelago.Managers
 
             // DLC: Tower of Oannes (fieldEx1) one-way exits fEx1_Rout / fEx1_Rout2 /
             // fEx1_Lout warp to anchors (PlayerStart_Rout / _Rout2 / _Lout) that don't
-            // exist in the vanilla scene. getAnchorPosition() returns Vector3.zero for an
-            // unknown anchor name, dropping the player at world (0,0) inside a wall.
-            // Create the missing anchors here, same as the field02/03/04/08 anchors above.
-            // Positions are RAW WORLD coordinates (a PlayerAnchor2.transform.position), so
-            // they don't depend on the room-view grid — which isn't built yet at this point
-            // in scene load. Read them off the DevUI F11 player-coordinate overlay while
-            // standing at each one-way's safe spawn spot.
+            // exist in the vanilla scene. 
             if (fieldName == "fieldEx1")
             {
-                // World X/Y read off the DevUI F11 overlay at each one-way's spawn spot.
-                AddWorldAnchor(bgScroll, "PlayerStart_Rout",  new Vector3(  24f, -504f, 0f));
-                AddWorldAnchor(bgScroll, "PlayerStart_Rout2", new Vector3( 520f,  360f, 0f));
-                AddWorldAnchor(bgScroll, "PlayerStart_Lout",  new Vector3(-208f, 1360f, 0f));
+                AddWorldAnchor(bgScroll, "PlayerStart_Rout", new Vector3(24f, -504f, 0f));
+                AddWorldAnchor(bgScroll, "PlayerStart_Rout2", new Vector3(520f, 360f, 0f));
+                AddWorldAnchor(bgScroll, "PlayerStart_Lout", new Vector3(-320f, 1360f, 0f));
+                AddEscapeDoor("PlayerStart_Rout2", ExitID.fEx1_Rout2, new Vector3(520f, 360f, 0f));
+                AddEscapeDoor("PlayerStart_Lout",  ExitID.fEx1_Lout, new Vector3(-320f, 1360f, 0f));
             }
+        }
+
+        // Builds a permanent stand-in for a DLC escape that vanilla only spawns from a
+        // one-shot conversation. AnchorGateZ_R is used as template (gateMode=GATE)
+        private void AddEscapeDoor(string vanillaAnchor, ExitID exitID, Vector3 worldPos)
+        {
+            // Only build it when this exit is actually in the shuffle, otherwise the door
+            // is a free unshuffled shortcut into Bailey that vanilla never offers.
+            if (!exitToExitMap.ContainsKey(exitID)) return;
+
+            AnchorGateZ template = null;
+            foreach (AnchorGateZ g in FindObjectsOfType<AnchorGateZ>())
+            {
+                if (g.gameObject.name == "AnchorGateZ_R") { template = g; break; }
+            }
+
+            if (template == null)
+            {
+                Plugin.Log.LogWarning("[SceneRando] No AnchorGateZ_R template on fieldEx1 — " +
+                    $"cannot build escape door for {exitID}; that exit stays vanilla.");
+                return;
+            }
+
+            GameObject door = Instantiate(template.gameObject, worldPos, Quaternion.identity, template.transform.parent);
+            door.name = "AP Escape Door " + vanillaAnchor;
+            door.SetActive(true);
+
+            AnchorGateZ gate = door.GetComponent<AnchorGateZ>();
+            gate.AnchorName = vanillaAnchor;
+            gate.FieldNo = 31;   // Bailey — the vanilla destination; ChangeEntrances overwrites it
+            gate.AnchorID = -1;
+            gate.gateFlags = new L2FlagBoxEnd[0];
+            gate.shdowtask = null;
+
+            AddDoorMarker(worldPos);
+
+            Plugin.Log.LogInfo($"[SceneRando] Built escape door for {exitID} at " +
+                $"({worldPos.x},{worldPos.y}) anchor '{vanillaAnchor}'");
+        }
+
+        // Same marker as CreateStartingFieldObjects Starting Shop Entrance but black.
+        private void AddDoorMarker(Vector3 doorPos)
+        {
+            GameObject doorVisual = new GameObject("AP Escape Door Entrance");
+            doorVisual.transform.position = new Vector3(doorPos.x - 10, doorPos.y, 1);
+            doorVisual.transform.localScale = new Vector3(5, 7, 1);
+            doorVisual.SetActive(true);
+            SpriteRenderer spriteRenderer = doorVisual.AddComponent<SpriteRenderer>();
+            spriteRenderer.sprite = Sprite.Create(Texture2D.whiteTexture,
+                new Rect(0, 0, Texture2D.whiteTexture.width, Texture2D.whiteTexture.height),
+                new Vector2(0, 0), 1);
+            spriteRenderer.color = Color.black;
         }
 
         // Creates a warp anchor at a fixed world position. getAnchorPosition(name)
