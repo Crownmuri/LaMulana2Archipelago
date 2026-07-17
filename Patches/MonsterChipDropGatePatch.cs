@@ -32,13 +32,7 @@ namespace LaMulana2Archipelago.Patches
             if (!GlossaryManager.TryGetLocation(id, out LocationID loc))
                 return true; // not a registered glossary entry → vanilla book-flag gate
 
-            long apLoc = 430000L + (int)loc;
-            bool collected = CheckManager.IsLocationReported(apLoc)
-                || (ArchipelagoClient.ServerData != null
-                    && ArchipelagoClient.ServerData.CheckedLocations != null
-                    && ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc));
-
-            if (collected)
+            if (GlossaryManager.IsLocationCollected(loc))
             {
                 __result = false; // already checked → don't spawn another chip
                 return false;

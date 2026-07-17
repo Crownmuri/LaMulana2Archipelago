@@ -70,11 +70,7 @@ namespace LaMulana2Archipelago.Patches
 
             // Already checked (this session or on the server)? Stay inert — no re-deliver,
             // no flags. (We can't use the book flag as the collected-marker any more.)
-            bool reported = CheckManager.IsLocationReported(apLoc)
-                || (ArchipelagoClient.ServerData != null
-                    && ArchipelagoClient.ServerData.CheckedLocations != null
-                    && ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc));
-            if (reported)
+            if (GlossaryManager.IsLocationCollected(locId))
             {
                 __instance.itemLabel = "Nothing";
                 __instance.itemGetFlags = new L2FlagBoxEnd[0];

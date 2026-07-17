@@ -41,14 +41,7 @@ namespace LaMulana2Archipelago.Patches
 
         public static void Clear() { _cache.Clear(); _skip.Clear(); _glossaryLoc.Clear(); }
 
-        private static bool IsChecked(LocationID loc)
-        {
-            long apLoc = 430000L + (int)loc;
-            return CheckManager.IsLocationReported(apLoc)
-                || (ArchipelagoClient.ServerData != null
-                    && ArchipelagoClient.ServerData.CheckedLocations != null
-                    && ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc));
-        }
+        private static bool IsChecked(LocationID loc) => GlossaryManager.IsLocationCollected(loc);
 
         static void Postfix(MonsterChipScript __instance)
         {

@@ -89,6 +89,21 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
+        /// True once a glossary location's AP check has fired (this session or on the server).
+        /// In the decoupled model this — never the sheet-20 book flag — is the "location
+        /// collected" marker, so every gate that decides whether a glossary chip may still be
+        /// obtained must ask this.
+        /// </summary>
+        public static bool IsLocationCollected(LocationID loc)
+        {
+            long apLoc = 430000L + (int)loc;
+            return CheckManager.IsLocationReported(apLoc)
+                || (ArchipelagoClient.ServerData != null
+                    && ArchipelagoClient.ServerData.CheckedLocations != null
+                    && ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc));
+        }
+
+        /// <summary>
         /// True when a scouted item is one of THIS player's registered glossary ROMs. Robust to
         /// renaming the glossary items (uses the id window + flag map, not the display name).
         /// </summary>
@@ -165,6 +180,7 @@ namespace LaMulana2Archipelago.Managers
             BookFlagToLocation.Clear();
             ItemGameIdToBookFlag.Clear();
             Patches.MonsterChipSpritePatch.Clear();
+            Patches.GlossaryChipActiveGate.Clear();
         }
     }
 }
