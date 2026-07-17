@@ -453,6 +453,14 @@ namespace LaMulana2Archipelago.Managers
         /// -1 when none pending; consumed (reset to -1) each time an AP dialog opens.</summary>
         public static long PendingApLocationId { get; set; } = -1L;
 
+        /// <summary>Progression answer resolved at pickup time by
+        /// <see cref="Patches.ApPickupProgressionCapture"/>, awaiting the dialog that follows.
+        /// null when this pickup flow never ran the capture (murals, NPCs), in which case the
+        /// dialog resolves progression from its own location instead. Consumed (reset to null)
+        /// each time an AP dialog opens, so a captured answer can never leak into a later
+        /// dialog that has nothing to do with it.</summary>
+        public static bool? PendingApPickupIsProgression { get; set; }
+
         /// <summary>
         /// Prefix: for AP/filler items, skip the vanilla StartSwitch entirely
         /// and set up the dialog manually (vanilla crashes on unknown item names
@@ -463,6 +471,12 @@ namespace LaMulana2Archipelago.Managers
             WasApPlaceholder = false;
             CurrentApPickupIsGlossary = false;
             CurrentApPickupGlossaryGameId = -1;
+            CurrentApPickupIsProgression = false;
+
+            // Consume the pickup's captured answer up front, so it is dropped even on the
+            // early-outs below and can never be read by a later, unrelated dialog.
+            bool? pickupIsProgression = PendingApPickupIsProgression;
+            PendingApPickupIsProgression = null;
 
             string[] messString = Traverse.Create(__instance)
                 .Field("MessString")
@@ -503,6 +517,13 @@ namespace LaMulana2Archipelago.Managers
                     if (CurrentApPickupIsGlossary)
                         CurrentApPickupGlossaryGameId = GlossaryManager.RomGameId(sc.ItemId);
                 }
+
+                // Prefer the pickup's own captured answer; flows that skip the capture
+                // (murals, NPCs) resolve from the location primed above. Never inherit.
+                CurrentApPickupIsProgression =
+                    pickupIsProgression
+                    ?? (glossaryApLoc >= 0
+                        && CheckManager.IsApItemProgressionAt((LocationID)(glossaryApLoc - 430000L)));
 
                 PendingApLocationId = -1L; // consume — never carry over to the next dialog
             }
