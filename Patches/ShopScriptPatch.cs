@@ -24,7 +24,7 @@ namespace LaMulana2Archipelago.Patches
         {
             "Knife", "Rapier", "Axe", "Katana", "Shuriken", "R-Shuriken",
             "E-Spear", "Flare Gun", "Bomb", "Chakram", "Caltrops", "Clay Doll",
-            "Origin Seal", "Birth Seal", "Life Seal", "Death Seal"
+            "Origin Seal", "Birth Seal", "Life Seal", "Death Seal", "Rebirth Seal"
         };
 
         static bool Prefix(ShopScript __instance, string tab, string name, int vale, int num, ref bool __result)
