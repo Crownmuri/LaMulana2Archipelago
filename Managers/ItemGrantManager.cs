@@ -250,7 +250,8 @@ namespace LaMulana2Archipelago.Managers
 
                 // Costume unlocks (costumesanity): don't route through sys.setItem.
                 // Fashion availability is gated by the X-block (sheet-2 flags), which
-                // CostumeManager owns and re-applies on every cloth-flag sync.
+                // the game regenerates from the clothbox on every load — CostumeManager
+                // owns the AP-received set that stands in for it.
                 if (CostumeManager.IsCostume(itemId))
                 {
                     if (RestoreWithAnimations)

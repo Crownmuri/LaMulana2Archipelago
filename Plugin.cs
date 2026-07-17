@@ -271,6 +271,8 @@ namespace LaMulana2Archipelago
             // Must have system before we can compute gameplayActive safely
             var sys = _cachedSys;
 
+            Managers.CostumeManager.TryApplyPending(sys);
+
             // Glossary-hunt credits, phase 1: the screen has been fading to black
             // since we consumed the credits request (below). Once the fade has
             // finished, set the escape state and warp — SCREEN KEPT BLACK — to the
