@@ -295,6 +295,13 @@ namespace LaMulana2Archipelago.Archipelago
             bool guardianAnkhs = ServerData.GetSlotBool("guardian_specific_ankhs");
             Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = guardianAnkhs;
 
+            // Persistent Inventory. Off by default: without it, only foreign
+            // items survive a death/load, because own-world finds live in the
+            // save state that memLoad rewinds.
+            bool persistentInventory = ServerData.GetSlotBool("persistent_inventory", false);
+            Managers.PersistentInventoryManager.Enabled = persistentInventory;
+            Managers.PersistentInventoryManager.Reset();
+
             Plugin.Log.LogInfo("[AP] === Slot Settings ===");
             Plugin.Log.LogInfo($"[AP]   starting_area       = {ServerData.GetSlotInt("starting_area")}");
             Plugin.Log.LogInfo($"[AP]   starting_weapon     = {ServerData.GetSlotInt("starting_weapon")}");
@@ -309,6 +316,7 @@ namespace LaMulana2Archipelago.Archipelago
             Plugin.Log.LogInfo($"[AP]   greedy_charon       = {ServerData.GetSlotBool("greedy_charon", true)}");
             Plugin.Log.LogInfo($"[AP]   remove_it_statue    = {ServerData.GetSlotBool("remove_it_statue", true)}");
             Plugin.Log.LogInfo($"[AP]   guardian_specific_ankhs = {guardianAnkhs}");
+            Plugin.Log.LogInfo($"[AP]   persistent_inventory = {persistentInventory}");
             Plugin.Log.LogInfo($"[AP]   death_link          = {ServerData.GetSlotBool("death_link")}");
             Plugin.Log.LogInfo($"[AP]   item_chest_color    = {ServerData.GetSlotInt("item_chest_color")}");
             Plugin.Log.LogInfo($"[AP]   filler_chest_color  = {ServerData.GetSlotInt("filler_chest_color", 4)}");
@@ -469,6 +477,10 @@ namespace LaMulana2Archipelago.Archipelago
             GoalReported = false;
             ItemQueue.Clear();
 
+            // The next Connect() re-runs ScoutAllLocations; until its async
+            // callback lands, scout answers belong to the previous session.
+            ScoutCacheReady = false;
+
             GameDifficultyHandler = null;
 
             // Ensure next Connect() re-requests slot_data. Without this, slotData
@@ -504,6 +516,16 @@ namespace LaMulana2Archipelago.Archipelago
         // GetItemAtLocation so gameplay never blocks on a network scout.
         private static readonly object cacheLock = new object();
         public static Dictionary<long, ScoutedItem> ScoutedLocationsCache = new Dictionary<long, ScoutedItem>();
+
+        /// <summary>
+        /// True once ScoutAllLocations' async callback has filled the cache.
+        /// Until then GetItemAtLocation returns null for everything, which is
+        /// indistinguishable from "no scout data exists" (offline). Callers that
+        /// would silently draw the wrong conclusion from a null scout — e.g.
+        /// PersistentInventoryManager, which cannot identify an own glossary ROM
+        /// without one — must wait on this rather than treat null as an answer.
+        /// </summary>
+        public static bool ScoutCacheReady { get; private set; }
 
         public void SendLocationCheck(long locationId)
         {
@@ -670,6 +692,7 @@ namespace LaMulana2Archipelago.Archipelago
                             };
                         }
                     }
+                    ScoutCacheReady = true;
                     Plugin.Log.LogInfo($"[AP] Pre-scouted {scoutResult.Count} locations into cache.");
 
                     LaMulana2Archipelago.Patches.ShopDialogPatch.Reapply();

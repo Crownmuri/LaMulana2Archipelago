@@ -80,7 +80,19 @@ namespace LaMulana2Archipelago.Managers
 
         /// <summary>
         /// Silent shop auto-collect: send the AP location check without dialog
-        /// priming or local item grants. The AP server's echo grants the item.
+        /// priming or local item grants.
+        ///
+        /// Nothing is granted here, and — contrary to what this comment used to
+        /// claim — no echo arrives to do it either: we connect with
+        /// ItemsHandlingFlags.RemoteItems, so the server never sends our own
+        /// items back (see the note on TryDeliverOwnGlossaryRom below). What
+        /// actually happens per owner:
+        ///   • Foreign item → the server delivers it to its owner. Correct that
+        ///     we grant nothing locally.
+        ///   • Own ammo/weight refill (ItemID 182-190, the only ids routed here
+        ///     by ShopDialogPatch's auto-collect) → nothing to deliver; the shop
+        ///     slot stays purchasable, so the check is all this location owes.
+        ///   • Own glossary ROM → delivered directly, below.
         /// </summary>
         public static void NotifyApLocationId(long apLocationId)
         {
@@ -115,10 +127,11 @@ namespace LaMulana2Archipelago.Managers
         /// <summary>
         /// Glossary ROMs at NON-chip locations (shops, chests, NPC/Kataribe item-gives, puzzle
         /// rewards) suppress the local grant and would otherwise rely on the AP echo of our own
-        /// item — which doesn't arrive for own-world finds. So deliver the entry directly here,
-        /// the moment its check is reported (idempotent with MonsterChipGlossaryPatch, which
-        /// already delivers chip-based glossary directly). Foreign items are ignored (they go to
-        /// their owner via the normal echo).
+        /// item — which doesn't arrive for own-world finds, because ArchipelagoClient connects
+        /// with ItemsHandlingFlags.RemoteItems (other worlds' items only; the IncludeOwnItems
+        /// bit is not set). So deliver the entry directly here, the moment its check is reported
+        /// (idempotent with MonsterChipGlossaryPatch, which already delivers chip-based glossary
+        /// directly). Foreign items are ignored (they go to their owner via the normal echo).
         /// </summary>
         private static void TryDeliverOwnGlossaryRom(long apLocation)
         {

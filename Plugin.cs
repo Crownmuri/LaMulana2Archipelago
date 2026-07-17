@@ -443,6 +443,13 @@ namespace LaMulana2Archipelago
             if (ShadowSaveManager.TryRestore())
                 return; // let queue settle for one frame after re-injection
 
+            // Persistent Inventory: re-grant own-world items the save state lost.
+            // Runs ahead of the AP queue so the player's own finds are back
+            // before any foreign item opens its dialog, and one item per frame
+            // so a large replay doesn't stall the frame.
+            if (Managers.PersistentInventoryManager.Update(sys, pl))
+                return;
+
             if (ArchipelagoClient.ItemQueue.Count <= 0)
                 return;
 

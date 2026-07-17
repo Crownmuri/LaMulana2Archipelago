@@ -230,6 +230,11 @@ namespace LaMulana2Archipelago.Managers
             DrainProcessedItems(mem.CheckpointIndex);
 
             FlagPendingRestore("memLoad");
+
+            // memLoad is the single choke point for every "rewind to the last
+            // autosave" path (title-Continue and both death-Continue variants),
+            // so it's also where own-world items need re-granting.
+            PersistentInventoryManager.RequestReplay("memLoad");
         }
 
         private static void FlagPendingRestore(string reason)
@@ -269,6 +274,10 @@ namespace LaMulana2Archipelago.Managers
 
             DrainProcessedItems(0);
             EnqueueMasterItemsAfter(0);
+
+            // A fresh run starts with an empty save state, so every check the
+            // player has already sent this seed needs its item handed back.
+            PersistentInventoryManager.RequestReplay("New game");
         }
 
         /// <summary>
@@ -298,6 +307,10 @@ namespace LaMulana2Archipelago.Managers
 
             DrainProcessedItems(st.CheckpointIndex);
             EnqueueMasterItemsAfter(st.CheckpointIndex);
+
+            // Hardload rolls the save state back to whatever the slot held —
+            // possibly far behind the checks already sent for this seed.
+            PersistentInventoryManager.RequestReplay("Hardload");
         }
 
         /// <summary>

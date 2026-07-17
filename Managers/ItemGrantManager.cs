@@ -48,6 +48,17 @@ namespace LaMulana2Archipelago.Managers
         // If false: restore is silent (recommended default).
         private const bool RestoreWithAnimations = true;
 
+        /// <summary>
+        /// Set for the duration of a grant that must produce no GETITEM animation,
+        /// SFX or dialog. PersistentInventoryManager raises this while replaying
+        /// own-world checks after a death/load: those items are ones the player
+        /// already collected once, so re-announcing every one of them would mean
+        /// sitting through a long dialog chain before regaining control.
+        /// </summary>
+        public static bool SuppressPresentation = false;
+
+        private static bool ShowPresentation => RestoreWithAnimations && !SuppressPresentation;
+
         public static bool TryGrantItem(L2System sys, NewPlayer pl, int queueIndex, long apItemId)
         {
             float now = Time.realtimeSinceStartup;
@@ -254,7 +265,7 @@ namespace LaMulana2Archipelago.Managers
                 // owns the AP-received set that stands in for it.
                 if (CostumeManager.IsCostume(itemId))
                 {
-                    if (RestoreWithAnimations)
+                    if (ShowPresentation)
                         TryPlayGetItemPresentation(sys, pl, itemLabel);
                     CostumeManager.MarkReceived(sys, itemId);
                     Plugin.Log.LogInfo($"[ITEM] Costume unlocked: {itemLabel} (AP {apItemId})");
@@ -271,7 +282,7 @@ namespace LaMulana2Archipelago.Managers
                 // flags are set exclusively by physical chest pickups via setItem("BeheritN").
                 if (itemId >= ItemID.ProgressiveBeherit1 && itemId <= ItemID.ProgressiveBeherit7)
                 {
-                    if (RestoreWithAnimations)
+                    if (ShowPresentation)
                         TryPlayGetItemPresentation(sys, pl, "Beherit");
 
                     short newCount;
@@ -337,7 +348,7 @@ namespace LaMulana2Archipelago.Managers
                 }
 
                 //if (!ShadowSaveManager.IsApplying || RestoreWithAnimations)
-                if (RestoreWithAnimations)
+                if (ShowPresentation)
                     TryPlayGetItemPresentation(sys, pl, itemLabel);
 
                 using (ItemGrantRecursiveGuard.Begin())
@@ -480,7 +491,7 @@ namespace LaMulana2Archipelago.Managers
             {
                 using (ItemGrantRecursiveGuard.Begin())
                 {
-                    if (RestoreWithAnimations)
+                    if (ShowPresentation)
                         ShowFillerPopUp(sys, ItemPopUpController.PopUpType.Coin, amount, 109);
 
                     sys.setItem("Gold", amount, direct: false, loadcall: false, sub_add: true);
@@ -498,7 +509,7 @@ namespace LaMulana2Archipelago.Managers
             {
                 using (ItemGrantRecursiveGuard.Begin())
                 {
-                    if (RestoreWithAnimations)
+                    if (ShowPresentation)
                         ShowFillerPopUp(sys, ItemPopUpController.PopUpType.Weight, amount, 23);
 
                     sys.setItem("Weight", amount, direct: false, loadcall: false, sub_add: true);
@@ -559,7 +570,7 @@ namespace LaMulana2Archipelago.Managers
         /// floating notification — exactly the enemy-dropped "N Chip" flow. Idempotent:
         /// if the entry is already unlocked, does nothing (no duplicate popup), so it's
         /// safe to call from both MonsterChipGlossaryPatch (own ROM on a scanned chip)
-        /// and the AP receipt path (server echo) without double-firing.
+        /// and the AP receipt path (a ROM another world sent us) without double-firing.
         ///
         /// The book flag is set INSIDE the grant guard so CheckManager.NotifyNumericFlag
         /// is suppressed — unlocking an entry must NOT report that entry's scan location.
@@ -617,7 +628,7 @@ namespace LaMulana2Archipelago.Managers
                     sys.addSubWeaponNum(ammoSw, amount);
                 }
 
-                if (RestoreWithAnimations)
+                if (ShowPresentation)
                 {
                     ItemPopUpController.PopUpType popType;
                     switch (sw)

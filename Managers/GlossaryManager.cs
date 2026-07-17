@@ -27,7 +27,7 @@ namespace LaMulana2Archipelago.Managers
     public static class GlossaryManager
     {
         // Glossary flags live on sheet 20 ("20book")
-        private const int BookSheet = 20;
+        public const int BookSheet = 20;
 
         private static bool _glossanityEnabled;
 

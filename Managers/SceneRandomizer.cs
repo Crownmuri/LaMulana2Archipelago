@@ -460,10 +460,14 @@ namespace LaMulana2Archipelago.Managers
                 ItemID.OriginSigil, ItemID.BirthSigil, ItemID.LifeSigil, ItemID.DeathSigil, ItemID.ClaydollSuit};
             List<L2FlagBoxEnd> getFlags = new List<L2FlagBoxEnd>();
 
-            // AP-delivered items (glossary ROMs, pot filler) carry NO local flags — the AP
-            // echo delivers them (DeliverGlossaryRom / pot-filler branch). Returning empty
-            // keeps them decoupled: a glossary ROM at a shop/chest/talk must NOT set its own
-            // book flag locally (that would unlock the entry without receiving the ROM).
+            // AP-delivered items (glossary ROMs, pot filler) carry NO local flags. Delivery is
+            // by AP item id, not by these flags: a FOREIGN one is sent by the server to its
+            // owner, and an OWN one is handed over directly the moment its check reports
+            // (CheckManager.TryDeliverOwnGlossaryRom / MonsterChipGlossaryPatch / ItemPotPatch)
+            // — never by an echo, since ItemsHandlingFlags.RemoteItems means the server never
+            // sends our own items back. Returning empty keeps them decoupled: a glossary ROM at
+            // a shop/chest/talk must NOT set its own book flag locally (that would unlock the
+            // entry without receiving the ROM).
             if ((itemID >= ItemID.PotFiller01 && itemID <= ItemID.PotFiller307)
                 || (itemID >= ItemID.Glossary000 && itemID <= ItemID.Glossary251))
                 return getFlags.ToArray();

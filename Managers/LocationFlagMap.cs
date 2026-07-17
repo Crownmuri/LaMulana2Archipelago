@@ -17,6 +17,20 @@ namespace LaMulana2Archipelago
         // Use stable composite string key rather than GetHashCode.
         private static readonly Dictionary<string, LocationID> StringFlagMap = new Dictionary<string, LocationID>();
 
+        // Reverse of NumericFlagMap: LocationID => (sheet, flag).
+        // AddNumeric enforces one-flag-per-key (duplicates are rejected with a
+        // warning), so this stays a clean 1:1 inverse. PersistentInventoryManager
+        // uses it to read back "does the save state already have this item?"
+        // without having to re-derive the flag from ItemDB.
+        private static readonly Dictionary<LocationID, NumericFlagRef> LocationToNumericFlag =
+            new Dictionary<LocationID, NumericFlagRef>();
+
+        public struct NumericFlagRef
+        {
+            public int Sheet;
+            public int Flag;
+        }
+
         /// <summary>
         /// Legacy: initialize from seed.lm2r file (called at Awake before AP connection).
         /// </summary>
@@ -39,6 +53,7 @@ namespace LaMulana2Archipelago
             NumericFlagMap.Clear();
             NumericFlagMinValues.Clear();
             StringFlagMap.Clear();
+            LocationToNumericFlag.Clear();
 
             // LEAKED-FILLER WORKAROUND (067) — reset the per-seed gate before (re)building.
             Patches.Filler067Workaround.Reset();
@@ -103,6 +118,25 @@ namespace LaMulana2Archipelago
             return StringFlagMap.TryGetValue(MakeStringKey(sheet, name), out location);
         }
 
+        /// <summary>
+        /// Reverse lookup: the (sheet, flag) whose write reports this location.
+        /// For an own-world item that is the item's own get-flag, which is what
+        /// makes it a usable "do I already have this?" probe.
+        /// </summary>
+        public static bool TryGetFlagForLocation(LocationID location, out int sheet, out int flag)
+        {
+            if (LocationToNumericFlag.TryGetValue(location, out NumericFlagRef r))
+            {
+                sheet = r.Sheet;
+                flag = r.Flag;
+                return true;
+            }
+
+            sheet = -1;
+            flag = -1;
+            return false;
+        }
+
         // ----------------------------
         // INTERNAL ADDERS (called by builder or optional manual map)
         // ----------------------------
@@ -118,6 +152,7 @@ namespace LaMulana2Archipelago
             }
 
             NumericFlagMap.Add(key, location);
+            LocationToNumericFlag[location] = new NumericFlagRef { Sheet = sheet, Flag = flag };
             Plugin.Log.LogDebug($"[LocationFlagMap] Numeric seet={sheet} flag={flag} → {location}");
         }
 
@@ -133,6 +168,7 @@ namespace LaMulana2Archipelago
 
             NumericFlagMap.Add(key, location);
             NumericFlagMinValues[key] = minValue;
+            LocationToNumericFlag[location] = new NumericFlagRef { Sheet = sheet, Flag = flag };
             Plugin.Log.LogDebug($"[LocationFlagMap] Numeric seet={sheet} flag={flag} → {location} (minValue={minValue})");
         }
 
