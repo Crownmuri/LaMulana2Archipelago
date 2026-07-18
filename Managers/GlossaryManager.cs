@@ -156,8 +156,12 @@ namespace LaMulana2Archipelago.Managers
 
                     // Register (sheet=20, bookFlagNo) → LocationID so the existing
                     // setFlagData → SetFlagDataFlagSystemPatch → CheckManager chain
-                    // resolves the glossary unlock to its AP location.
-                    LocationFlagMap.RegisterNumeric(BookSheet, bookFlagNo, locId);
+                    // resolves the glossary unlock to its AP location. Forward-only:
+                    // must NOT clobber the location's native persist probe flag with
+                    // the book flag, or PersistentInventory would stamp sheet 20 when
+                    // restoring the location's shuffled item and falsely record the
+                    // entry in the in-game book (see RegisterNumericForwardOnly).
+                    LocationFlagMap.RegisterNumericForwardOnly(BookSheet, bookFlagNo, locId);
 
                     // Also keep the inverse lookup for the pickup-replacement patch.
                     BookFlagToLocation[bookFlagNo] = locId;

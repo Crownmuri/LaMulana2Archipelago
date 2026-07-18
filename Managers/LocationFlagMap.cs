@@ -199,6 +199,36 @@ namespace LaMulana2Archipelago
             AddNumeric(sheet, flag, location);
         }
 
+        /// <summary>
+        /// Register a numeric flag mapping in the FORWARD map only (so a write to
+        /// (sheet, flag) still reports this location), without touching the reverse
+        /// LocationToNumericFlag probe map.
+        ///
+        /// Glossanity uses this for its sheet-20 book flags. A glossary location is
+        /// registered twice — once by the native slot_data build (its item's real
+        /// get-flag, on sheet 2/31) and once here (the book flag). The reverse map
+        /// is single-valued, and glossanity runs last, so a plain RegisterNumeric
+        /// would clobber the native probe with the book flag. PersistentInventory
+        /// then both probes and STAMPS that flag when restoring the shuffled
+        /// non-ROM item at the location — writing sheet 20 records the location's
+        /// own entry into the in-game glossary book, which the decoupled model
+        /// reserves for received ROMs only. Keeping the native probe (or none, in
+        /// which case persist safely skips the location) avoids that pollution.
+        /// </summary>
+        public static void RegisterNumericForwardOnly(int sheet, int flag, LocationID location)
+        {
+            int key = MakeNumericKey(sheet, flag);
+
+            if (NumericFlagMap.ContainsKey(key))
+            {
+                Plugin.Log.LogWarning($"[LocationFlagMap] Duplicate numeric key seet={sheet} flag={flag} (existing={NumericFlagMap[key]}, new={location}) — keeping first");
+                return;
+            }
+
+            NumericFlagMap.Add(key, location);
+            Plugin.Log.LogDebug($"[LocationFlagMap] Numeric (forward-only) seet={sheet} flag={flag} → {location}");
+        }
+
         // ----------------------------
         // KEY HELPERS
         // ----------------------------
