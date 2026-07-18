@@ -151,12 +151,39 @@ namespace LaMulana2Archipelago.Patches
             int slot = core.seManager.playSE(__instance.gameObject, 39);
             core.seManager.releaseGameObjectFromPlayer(slot);
             pl.setActionOder(PLAYERACTIONODER.getitem);
-            pl.setGetItem(ref label);
-            var iconData = L2SystemCore.getItemData(isOwn ? label : "AP Item");
+
+            // Progressive Whip/Shield: `label` is a fixed placed instance (Shield1/2/3),
+            // not the player's resulting tier. Resolve the hold-up model + icon from the
+            // current count (pre-increment — the grant runs later, on groundBack),
+            // matching pots/freestanding pickups. The grant itemLabel above stays the
+            // placed BoxName so the unique-instance marker flag is stamped correctly.
+            string displayName = isOwn ? ResolveProgressiveDisplay(sys, label) : label;
+            pl.setGetItem(ref displayName);
+            var iconData = L2SystemCore.getItemData(isOwn ? displayName : "AP Item");
             if (iconData != null)
                 pl.setGetItemIcon(iconData);
 
             return false; // skip vanilla; base delivers the placed item
+        }
+
+        // Resolves a progressive Whip/Shield placed-instance label ("Shield1".."Shield3",
+        // "Whip1".."Whip3") to the player's current tier from the count flag, read
+        // pre-increment. Non-progressive labels pass through unchanged.
+        private static string ResolveProgressiveDisplay(L2System sys, string label)
+        {
+            if (sys == null || string.IsNullOrEmpty(label)) return label;
+
+            bool isWhip = label.StartsWith("Whip");
+            bool isShield = label.StartsWith("Shield");
+            if ((!isWhip && !isShield) || !char.IsDigit(label[label.Length - 1]))
+                return label;
+
+            short data = 0;
+            if (isWhip) sys.getFlag(2, "Whip", ref data);
+            else        sys.getFlag(2, 196, ref data);
+
+            string prefix = isWhip ? "Whip" : "Shield";
+            return data == 0 ? prefix : data == 1 ? prefix + "2" : prefix + "3";
         }
 
         private static bool AllFlagsValid(L2System sys, L2FlagBoxEnd[] flags)

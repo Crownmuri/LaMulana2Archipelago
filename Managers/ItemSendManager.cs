@@ -553,8 +553,14 @@ namespace LaMulana2Archipelago.Managers
                 // Moji-DB has "Whip"/"Whip2"/"Whip3" and "Shield"/"Shield2"/"Shield3"
                 // but never "Whip1"/"Shield1". Without renaming, vanilla StartSwitch
                 // calls getMojiText("02Items","Whip1",...) and crashes inside
-                // getMojiNameToNo. Compute the resulting level (current flag + 1)
-                // and rename so vanilla can resolve the entry.
+                // getMojiNameToNo. Rename to the player's CURRENT (resulting) level so
+                // vanilla can resolve the entry and the icon matches what was received.
+                //
+                // The item dialog always opens AFTER the grant has run (every delivery
+                // path — pot, freestanding, glossary/kataribe — writes the count flag
+                // before StartSwitch), so the count flag already includes this item.
+                // Use the post-increment mapping (count==1 → level 1) — NOT count+1,
+                // which would show one tier too high (e.g. Silver rendered as Angel).
                 var sys = Traverse.Create(__instance).Field("sys").GetValue<L2System>();
                 if (sys != null)
                 {
@@ -564,8 +570,8 @@ namespace LaMulana2Archipelago.Managers
                     else        sys.getFlag(2, 196, ref data);
 
                     string prefix = isWhip ? "Whip" : "Shield";
-                    messString[0] = data == 0 ? prefix
-                                  : data == 1 ? prefix + "2"
+                    messString[0] = data <= 1 ? prefix
+                                  : data == 2 ? prefix + "2"
                                               : prefix + "3";
                 }
                 else

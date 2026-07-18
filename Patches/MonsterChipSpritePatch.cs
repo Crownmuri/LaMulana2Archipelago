@@ -136,9 +136,13 @@ namespace LaMulana2Archipelago.Patches
                 ItemInfo info = ItemDB.GetItemInfo(placed);
                 if (info != null && !string.IsNullOrEmpty(info.BoxName))
                 {
-                    var data = L2SystemCore.getItemData(info.BoxName);
-                    if (data != null)
-                        return L2SystemCore.getMapIconSprite(data);
+                    // GetItemSprite resolves progressive Whip/Shield to the player's
+                    // current (resulting) tier via the count flag, instead of the fixed
+                    // placed instance — otherwise the floor icon sticks on whatever
+                    // Shield1/2/3 the seed placed here rather than the tier you'll get.
+                    var sprite = sr.GetItemSprite(info.BoxName, placed);
+                    if (sprite != null)
+                        return sprite;
                 }
             }
 

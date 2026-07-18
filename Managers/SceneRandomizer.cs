@@ -521,7 +521,7 @@ namespace LaMulana2Archipelago.Managers
         // Sprite helpers
         // ================================================================
 
-        private Sprite GetItemSprite(string itemName, ItemID itemID)
+        internal Sprite GetItemSprite(string itemName, ItemID itemID)
         {
             if (itemID == ItemID.Whip1 || itemID == ItemID.Whip2 || itemID == ItemID.Whip3)
             {
