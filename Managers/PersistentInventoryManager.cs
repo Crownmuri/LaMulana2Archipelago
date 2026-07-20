@@ -275,6 +275,7 @@ namespace LaMulana2Archipelago.Managers
 
                 _attempts.Remove(entry.Location);
                 StampProbeFlag(sys, entry);
+                CloseNpcGiveGate(sys, entry.Location);
                 Plugin.Log.LogInfo($"[Persist] Restored AP item {entry.ApItemId} from {entry.Location}");
             }
             finally
@@ -317,6 +318,89 @@ namespace LaMulana2Archipelago.Managers
 
             Plugin.Log.LogInfo(
                 $"[Persist] Stamped flag ({entry.Sheet},{entry.Flag}) for {entry.Location} — grant path leaves it to the pickup.");
+        }
+
+        // ==========================
+        // NPC talk-gift re-give gate
+        // ==========================
+
+        private struct GiveFlag
+        {
+            public int Sheet;
+            public int Flag;
+            public short Value;
+        }
+
+        // A handful of own-item locations are NPC talk-gifts, not chests: their
+        // item is handed over by a moji talk script that runs [@take,...] (a real
+        // in-engine item grant) and then writes its own get-flags. Most such NPCs
+        // gate whether they show the give-dialog on the ITEM'S OWN flag
+        // (SceneRandomizer.ChangeTalkFlagCheck emits [@iff,{itemSheet},{itemFlag},…]),
+        // so StampProbeFlag already closes their gate — replay and native give can't
+        // both fire.
+        //
+        // Nebur (talk cell 0/11) and Xelpud (cell 1/10) are the exceptions: their
+        // give is a plain ChangeTalkString with no item-flag guard, gated instead on
+        // a story/presence flag that memLoad rewinds alongside the item. On a load
+        // that predates the gift, both the replay AND the NPC restore the item — and
+        // because weapon grants increment (sys.setItem sub_add / [@take] add), that
+        // walks a Progressive Whip/Shield a level too far.
+        //
+        // Reproduce the give-script's own [@setf] writes so the NPC sees the gift as
+        // already handed over and its [@take] never fires. The routing gate is
+        // guaranteed to be among these flags — otherwise the NPC would re-give
+        // forever in vanilla — so writing all of them closes it whichever one it is.
+        // Values are transcribed verbatim from the talk scripts and applied
+        // monotonically (never regress a later story value).
+        private static readonly Dictionary<LocationID, GiveFlag[]> NpcGiveScriptFlags =
+            new Dictionary<LocationID, GiveFlag[]>
+            {
+                // "{0}[@setf,3,31,=,1]\n[@setf,5,2,=,1]\n[@setf,5,20,=,2]\n[@p,lastC]"
+                { LocationID.XelpudItem, new[]
+                    {
+                        new GiveFlag { Sheet = 3, Flag = 31, Value = 1 },
+                        new GiveFlag { Sheet = 5, Flag = 2,  Value = 1 },
+                        new GiveFlag { Sheet = 5, Flag = 20, Value = 2 },
+                    }
+                },
+                // "[@anim,thanks,1]\n{0}[@setf,2,127,=,1]…[@setf,2,130,=,1]\n[@setf,5,3,=,1]\n[@out]"
+                { LocationID.NeburItem, new[]
+                    {
+                        new GiveFlag { Sheet = 2, Flag = 127, Value = 1 },
+                        new GiveFlag { Sheet = 2, Flag = 128, Value = 1 },
+                        new GiveFlag { Sheet = 2, Flag = 129, Value = 1 },
+                        new GiveFlag { Sheet = 2, Flag = 130, Value = 1 },
+                        new GiveFlag { Sheet = 5, Flag = 3,   Value = 1 },
+                    }
+                },
+            };
+
+        /// <summary>
+        /// After restoring an NPC talk-gift, write the flags that NPC's give-script
+        /// would set, so the game's own event treats the gift as already handed over
+        /// and doesn't re-run its [@take] on the next approach (which would grant the
+        /// item a second time). Guarded so the writes can't be read as a fresh
+        /// location check, and monotonic so a later story value is left intact.
+        /// </summary>
+        private static void CloseNpcGiveGate(L2System sys, LocationID location)
+        {
+            if (!NpcGiveScriptFlags.TryGetValue(location, out GiveFlag[] flags))
+                return;
+
+            using (ItemGrantRecursiveGuard.Begin())
+            {
+                foreach (GiveFlag gf in flags)
+                {
+                    short cur = 0;
+                    sys.getFlag(gf.Sheet, gf.Flag, ref cur);
+                    if (cur >= gf.Value)
+                        continue;
+
+                    sys.setFlagData(gf.Sheet, gf.Flag, gf.Value);
+                    Plugin.Log.LogInfo(
+                        $"[Persist] Closed NPC give-gate ({gf.Sheet},{gf.Flag})={gf.Value} for {location} — suppresses native re-give.");
+                }
+            }
         }
 
         private static int Bump(LocationID location)

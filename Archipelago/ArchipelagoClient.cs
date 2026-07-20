@@ -1,6 +1,7 @@
 using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
+using Archipelago.MultiClient.Net.Exceptions;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.Models;
 using Archipelago.MultiClient.Net.Packets;
@@ -11,6 +12,7 @@ using LaMulana2RandomizerShared;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 
 namespace LaMulana2Archipelago.Archipelago
@@ -365,13 +367,10 @@ namespace LaMulana2Archipelago.Archipelago
 
                 ThreadPool.QueueUserWorkItem(
                     _ => HandleConnectResult(
-                        session.TryConnectAndLogin(
-                            Game,
+                        ManualConnectAndLogin(
                             ServerData.SlotName,
-                            ItemsHandlingFlags.RemoteItems,
-                            new Version(APVersion),
-                            password: ServerData.Password,
-                            requestSlotData: ServerData.NeedSlotData
+                            ServerData.Password,
+                            ServerData.NeedSlotData
                         )));
             }
             catch (Exception e)
@@ -379,6 +378,117 @@ namespace LaMulana2Archipelago.Archipelago
                 Plugin.Log.LogError(e);
                 HandleConnectResult(new LoginFailure(e.ToString()));
                 attemptingConnection = false;
+            }
+        }
+
+        // Seconds to wait for RoomInfo after the socket opens. RoomInfo is the
+        // first packet a live server sends, so this only needs to cover network
+        // latency + the socket's own ws/wss handshake fallback.
+        private const double RoomInfoTimeoutSeconds = 15.0;
+
+        // Seconds to wait for the Connected/ConnectionRefused packet after we
+        // send Connect. This is the wait the stock library caps at 4s — far too
+        // short here, because the server streams the full DataPackage for every
+        // checksum-mismatched game in the room first, and parsing that large
+        // JSON on Unity 2017's single websocket receive thread routinely takes
+        // longer than 4s (worse when our own frequently-rebuilt apworld's
+        // checksum never matches the on-disk cache). The parse blocks the same
+        // thread that would surface Connected, so the stock wait false-negatives
+        // with "Connection timed out" and tears down an otherwise-good socket.
+        private const double LoginResultTimeoutSeconds = 60.0;
+
+        /// <summary>
+        /// Drop-in replacement for the bundled MultiClient.Net
+        /// <c>ArchipelagoSession.TryConnectAndLogin</c>, which hardcodes a 4-second
+        /// wait for the Connected packet. We replicate the same handshake on the
+        /// same single socket (one lobby join, no reconnect spam) but wait with a
+        /// generous, bounded timeout so the DataPackage has time to parse.
+        ///
+        /// The session's own helpers (DataPackageCache, ConnectionInfoHelper,
+        /// ReceivedItemsHelper, …) are already subscribed to Socket.PacketReceived,
+        /// so driving the packets through the socket populates them exactly as the
+        /// stock path would. We only add our own observer to time the two waits and
+        /// to build the LoginResult via the public LoginResult.FromPacket.
+        /// </summary>
+        private LoginResult ManualConnectAndLogin(string name, string password, bool requestSlotData)
+        {
+            // The library keys item/location name resolution and the outgoing
+            // Connect packet off ConnectionInfo. SetConnectionParameters is
+            // internal, so mirror what TryConnectAndLogin does via reflection.
+            // (Game/Slot/Team are re-derived from the Connected packet anyway.)
+            string uuid = Guid.NewGuid().ToString();
+            var connInfo = session.ConnectionInfo;
+            var setParams = connInfo.GetType().GetMethod(
+                "SetConnectionParameters",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            setParams?.Invoke(connInfo, new object[]
+            {
+                Game, new string[0], ItemsHandlingFlags.RemoteItems, uuid
+            });
+
+            RoomInfoPacket roomInfo = null;
+            LoginResult loginResult = null;
+
+            void Observer(ArchipelagoPacketBase packet)
+            {
+                if (packet is RoomInfoPacket ri)
+                    roomInfo = ri;
+                else if (packet is ConnectedPacket || packet is ConnectionRefusedPacket)
+                    loginResult = LoginResult.FromPacket(packet);
+            }
+
+            session.Socket.PacketReceived += Observer;
+            try
+            {
+                session.Socket.Connect();
+
+                DateTime start = DateTime.UtcNow;
+                while (roomInfo == null)
+                {
+                    if (DateTime.UtcNow - start > TimeSpan.FromSeconds(RoomInfoTimeoutSeconds))
+                    {
+                        session.Socket.Disconnect();
+                        return new LoginFailure("Connection timed out waiting for room info.");
+                    }
+                    Thread.Sleep(25);
+                }
+
+                session.Socket.SendPacket(new ConnectPacket
+                {
+                    Game = Game,
+                    Name = name,
+                    Password = password,
+                    Uuid = uuid,
+                    Tags = new string[0],
+                    Version = new NetworkVersion(new Version(APVersion)),
+                    ItemsHandling = ItemsHandlingFlags.RemoteItems,
+                    RequestSlotData = requestSlotData
+                });
+
+                start = DateTime.UtcNow;
+                while (loginResult == null)
+                {
+                    if (DateTime.UtcNow - start > TimeSpan.FromSeconds(LoginResultTimeoutSeconds))
+                    {
+                        session.Socket.Disconnect();
+                        return new LoginFailure("Connection timed out waiting for login result.");
+                    }
+                    Thread.Sleep(25);
+                }
+
+                // Give the session's own PacketReceived subscribers a moment to
+                // finish applying the Connected packet (ConnectionInfo slot/team,
+                // ReceivedItems) before HandleConnectResult reads them.
+                Thread.Sleep(50);
+                return loginResult;
+            }
+            catch (ArchipelagoSocketClosedException)
+            {
+                return new LoginFailure("Socket closed unexpectedly.");
+            }
+            finally
+            {
+                session.Socket.PacketReceived -= Observer;
             }
         }
 
