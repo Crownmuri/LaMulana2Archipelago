@@ -926,7 +926,16 @@ namespace LaMulana2Archipelago.Managers
 
                 bool isApItem = (int)newItemID >= 410000;
 
-                if (newItemID < ItemID.ChestWeight01 || isApItem)
+                // DLC / extra-orb items (RebirthSigil..SacredOrb19) have game ids ABOVE
+                // the filler ranges, so a plain "< ChestWeight01" test misroutes them into
+                // the fake-weight branch below — a real item (e.g. an own-world Fish Suit)
+                // would then play the evil-tune FakeItem and grant nothing. Treat them as
+                // real items, matching ChangeTreasureChests' hasExistingSprite guard.
+                bool isExistingItem = newItemID < ItemID.ChestWeight01
+                                  || (newItemID >= ItemID.RebirthSigil && newItemID <= ItemID.SacredOrb19)
+                                  || isApItem;
+
+                if (isExistingItem)
                 {
                     item.itemGetFlags = CreateGetFlags(newItemID, newItemInfo);
                     item.itemLabel = newItemInfo.BoxName;
