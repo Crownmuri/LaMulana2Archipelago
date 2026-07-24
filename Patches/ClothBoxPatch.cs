@@ -25,7 +25,10 @@ namespace LaMulana2Archipelago.Patches
     {
         static void Postfix(L2System __instance, int no, ref bool __result)
         {
-            if (!CostumeManager.Enabled) return;
+            // Only override slots AP actually controls. The Fish Suit without
+            // oannesanity isn't AP-controlled, so leave its vanilla profile answer
+            // intact — the player keeps whatever they unlocked naturally.
+            if (!CostumeManager.IsApControlled(no)) return;
             __result = CostumeManager.IsReceived(__instance, no);
         }
     }

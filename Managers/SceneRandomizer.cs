@@ -126,7 +126,19 @@ namespace LaMulana2Archipelago.Managers
                 }
             }
             CostumeManager.Enabled = costumesanity;
-            Plugin.Log.LogInfo($"[SceneRando] Costumesanity {(costumesanity ? "enabled" : "disabled")}");
+
+            // Oannesanity (the DLC) gates whether the Fish Suit is under AP control.
+            // Without it the apworld never places the Fish Suit item or its closet,
+            // so it must fall back to the vanilla profile clothbox — a player who
+            // unlocked it naturally keeps it. Prefer the explicit slot_data flag;
+            // fall back to the Fish Suit closet's presence (only emitted when
+            // oannesanity is on) so the offline lm2ap path works without a bump.
+            bool oannesanity = slotData.TryGetValue("oannesanity", out object oanRaw)
+                               ? Convert.ToInt32(oanRaw) != 0
+                               : locationToItemMap.ContainsKey(LocationID.CostumeChestFishSuit);
+            CostumeManager.OannesanityEnabled = oannesanity;
+            Plugin.Log.LogInfo($"[SceneRando] Costumesanity {(costumesanity ? "enabled" : "disabled")}"
+                               + $", Oannesanity {(oannesanity ? "enabled" : "disabled")}");
 
             // Pot placements (offline lm2ap path — online sends pots inside
             // item_placements, but SeedToSlotData splits them into a separate

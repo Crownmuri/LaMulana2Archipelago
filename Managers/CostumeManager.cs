@@ -40,6 +40,15 @@ namespace LaMulana2Archipelago.Managers
             ItemID.FishSuit,        // clothbox 4 (DLC)
         };
 
+        /// <summary>
+        /// Clothbox index of the Fish Suit — the one DLC costume. It only comes
+        /// under AP control when oannesanity is also on: without it the apworld
+        /// never places the Fish Suit item or its closet, so AP can't deliver it,
+        /// and X-blocking would lock the player out of a costume they may already
+        /// own in their profile. See <see cref="OannesanityEnabled"/>.
+        /// </summary>
+        public static readonly int FishSuitClothBoxIndex = Array.IndexOf(Costumes, ItemID.FishSuit);
+
         // Bitmask of AP-received costumes, bit i = clothbox index i. Sheet-2 slot
         // 179 is a blank scratch flag ("d179"), free in the gap between SacredOrb19
         // (178) and Research1 (180). Flags save as a full short, so all 5 bits
@@ -65,11 +74,35 @@ namespace LaMulana2Archipelago.Managers
         private static bool _enabled;
         private static bool _applyPending;
 
+        /// <summary>
+        /// True when oannesanity (the DLC) is active for this seed. The Fish Suit
+        /// is only shuffled/blocked when this is on; otherwise its clothbox slot
+        /// falls back to the vanilla profile so a naturally-unlocked Fish Suit
+        /// stays wearable. Irrelevant to the four non-DLC costumes.
+        /// </summary>
+        public static bool OannesanityEnabled { get; set; }
+
         public static bool IsCostume(ItemID id) => Array.IndexOf(Costumes, id) >= 0;
+
+        /// <summary>
+        /// True when the given clothbox slot (0-4) is under AP control — i.e. its
+        /// unlock is an AP item the player must receive. The Fish Suit additionally
+        /// requires oannesanity; every other costume follows costumesanity alone.
+        /// When false, callers must fall back to the vanilla profile clothbox.
+        /// </summary>
+        public static bool IsApControlled(int clothBoxIndex)
+        {
+            if (!Enabled || clothBoxIndex < 0 || clothBoxIndex >= Costumes.Length)
+                return false;
+            if (clothBoxIndex == FishSuitClothBoxIndex && !OannesanityEnabled)
+                return false;
+            return true;
+        }
 
         public static void Reset()
         {
             Enabled = false;
+            OannesanityEnabled = false;
         }
 
         /// <summary>
@@ -124,6 +157,10 @@ namespace LaMulana2Archipelago.Managers
             {
                 for (int i = 0; i < Costumes.Length; i++)
                 {
+                    // Slots not under AP control (e.g. the Fish Suit without
+                    // oannesanity) keep their vanilla profile-derived flag — never
+                    // zero it, or a naturally-owned costume would be stripped on load.
+                    if (!IsApControlled(i)) continue;
                     ItemInfo info = ItemDB.GetItemInfo(Costumes[i]);
                     if (info == null) continue;
                     short want = (short)(((state >> i) & 1) != 0 ? 1 : 0);
