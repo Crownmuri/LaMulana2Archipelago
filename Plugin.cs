@@ -554,7 +554,7 @@ namespace LaMulana2Archipelago
                 if (GUI.Button(disconnectRect, "Disconnect"))
                 {
                     Log.LogInfo("[AP] Manual disconnect requested");
-                    ArchipelagoClient.Disconnect();
+                    ArchipelagoClient.DisconnectAndRevert();
                 }
 
                 // ===== DeathLink toggle button =====

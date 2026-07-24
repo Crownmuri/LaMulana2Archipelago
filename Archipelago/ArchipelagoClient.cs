@@ -256,6 +256,45 @@ namespace LaMulana2Archipelago.Archipelago
         {
             if (!OfflineMode || Authenticated) return false;
 
+            TearDownStandaloneState();
+
+            Patches.ItemPotPatch.Reset();
+            Managers.GlossaryManager.Reset();
+            Managers.CostumeManager.Reset();   // stop X-blocking costumes once AP is no longer active
+            Patches.VirtualFlagManager.Reset();
+            CheckManager.Reset();
+            ItemQueue.Clear();
+            ServerData?.ClearSessionCache();
+            if (ServerData != null)
+            {
+                ServerData.CheckedLocations.Clear();
+                ServerData.Index = 0;
+            }
+
+            GameDifficultyHandler = null;
+
+            OfflineMode = false;
+            ShadowSaveManager.InvalidateCaches();
+
+            Plugin.Log.LogInfo("[AP] Offline mode deactivated");
+            return true;
+        }
+
+        /// <summary>
+        /// Undo the world-altering state that <see cref="ApplyStandaloneFromSlotData"/>
+        /// installs, returning the mod to its pre-connection / pre-activation state:
+        /// standalone patches off, the SceneRandomizer torn down, the default
+        /// (non-AP) flag map rebuilt, and the previous session's scout cache dropped.
+        ///
+        /// Shared by <see cref="DeactivateOffline"/> and <see cref="DisconnectAndRevert"/>
+        /// so the offline and online teardown paths can't drift apart.
+        ///
+        /// Only safe from the title screen — the SceneRandomizer's cellData
+        /// rewrites are one-way once a scene has been played. Both callers are
+        /// reachable only from the title UI, which is where those constraints hold.
+        /// </summary>
+        private static void TearDownStandaloneState()
+        {
             Patches.SetItemPatch.Enabled = false;
             Patches.IsHaveItemPatch.Enabled = false;
             Patches.GetItemNumPatch.Enabled = false;
@@ -276,30 +315,43 @@ namespace LaMulana2Archipelago.Archipelago
             if (SceneRandomizer.Instance != null)
                 UnityEngine.Object.Destroy(SceneRandomizer.Instance.gameObject);
 
-            Patches.ItemPotPatch.Reset();
-            Managers.GlossaryManager.Reset();
-            Managers.CostumeManager.Reset();   // stop X-blocking costumes once AP is no longer active
-            Patches.VirtualFlagManager.Reset();
-            CheckManager.Reset();
-            ItemQueue.Clear();
-            ServerData?.ClearSessionCache();
-            if (ServerData != null)
-            {
-                ServerData.CheckedLocations.Clear();
-                ServerData.Index = 0;
-            }
+            // Persistent inventory is a per-seed setting; make sure a seed that
+            // had it on doesn't leak the replay behavior into the next one.
+            Managers.PersistentInventoryManager.Enabled = false;
+            Managers.PersistentInventoryManager.Reset();
 
             // Rebuild the default flag map from legacy seed.lm2r or defaults
             // so the mod returns to its pre-activation state.
             LocationFlagMap.InitializeFromSeed();
 
-            GameDifficultyHandler = null;
+            // Drop the previous session's pre-scouted placements so stale labels
+            // and chest colors can't leak into a connection to a different server.
+            lock (cacheLock)
+                ScoutedLocationsCache.Clear();
+            ScoutCacheReady = false;
+        }
 
-            OfflineMode = false;
-            ShadowSaveManager.InvalidateCaches();
+        /// <summary>
+        /// Manual disconnect from the title screen that also reverts every
+        /// world-altering change the connection installed, so the player can
+        /// connect to a different Archipelago server without restarting the game.
+        ///
+        /// This is the full teardown; the plain <see cref="Disconnect"/> is the
+        /// lightweight one used for unexpected socket drops and goal-send retries,
+        /// where the standalone patches must stay live (mid-game) or a deferred
+        /// goal must survive to be re-sent to the same server.
+        /// </summary>
+        public void DisconnectAndRevert()
+        {
+            Disconnect();
 
-            Plugin.Log.LogInfo("[AP] Offline mode deactivated");
-            return true;
+            TearDownStandaloneState();
+
+            // A manual disconnect is a clean slate: any deferred goal belonged to
+            // the server we just left and must not be re-sent to the next one.
+            GoalPending = false;
+
+            Plugin.Log.LogInfo("[AP] Disconnected and reverted to pre-connection state");
         }
 
         /// <summary>
@@ -660,6 +712,11 @@ namespace LaMulana2Archipelago.Archipelago
             ScoutCacheReady = false;
 
             GameDifficultyHandler = null;
+
+            // The DeathLink service is bound to the session we just dropped; a
+            // stale handler would keep Update()-ing against a dead socket. The
+            // next Connect() builds a fresh one from the new slot_data.
+            DeathLinkHandler = null;
 
             // Ensure next Connect() re-requests slot_data. Without this, slotData
             // from the previous session is still non-null, so NeedSlotData=false,
