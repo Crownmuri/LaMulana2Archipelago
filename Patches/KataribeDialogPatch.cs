@@ -136,7 +136,10 @@ namespace LaMulana2Archipelago.Patches
 
                 ItemDialogPatch.PendingDisplayLabel = scouted.ItemName;
                 if (isForOtherPlayer)
+                {
                     ItemDialogPatch.PendingRecipientName = scouted.PlayerName;
+                    ItemDialogPatch.PendingRecipientColorHex = scouted.ClassificationColorHex;
+                }
 
                 label = isForOtherPlayer
                     ? scouted.ItemName + " (" + scouted.PlayerName + ")"

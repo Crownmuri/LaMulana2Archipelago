@@ -59,6 +59,14 @@ namespace LaMulana2Archipelago.Patches
         public static string PendingRecipientName { get; set; }
 
         /// <summary>
+        /// TextMeshPro RRGGBBAA colour (no '#') for the sent item's name in the
+        /// "Sent … to …" dialog, chosen from the item's AP classification flags by
+        /// the send-site that primes <see cref="PendingRecipientName"/>. Null falls
+        /// back to the legacy gold. Reset alongside the other pending fields.
+        /// </summary>
+        public static string PendingRecipientColorHex { get; set; }
+
+        /// <summary>
         /// Set to true when this patch has already overwritten DialogText.
         /// Checked by ItemDialogApItemPatch to avoid clobbering the result.
         /// </summary>
@@ -195,6 +203,7 @@ namespace LaMulana2Archipelago.Patches
                     PendingDisplayLabel = null;
                     PendingSenderName = null;
                     PendingRecipientName = null;
+                    PendingRecipientColorHex = null;
                     CheckManager.PendingAnkhJewelName = null;
                 }
             }
@@ -231,7 +240,13 @@ namespace LaMulana2Archipelago.Patches
             if (_talkCellData != null)
                 _talkCellData[0][Row][ColEnglish][TextIndex] = OriginalEnglishSuffix;
 
-            string displayPrefix = !string.IsNullOrEmpty(recipientName) ? "Sent <color=#FFD700FF>" : "</color>";
+            // Colour the sent item's name by its AP classification (progression /
+            // useful / trap / filler) instead of a flat gold; fall back to gold when
+            // the send-site couldn't resolve the flags (offline, unscouted).
+            string sentColor = PendingRecipientColorHex ?? "FFD700FF";
+            string displayPrefix = !string.IsNullOrEmpty(recipientName)
+                ? $"Sent <color=#{sentColor}>"
+                : "</color>";
             con.DialogText.text = displayPrefix + label + text3;
             DialogHandled = true;
 
@@ -288,6 +303,7 @@ namespace LaMulana2Archipelago.Patches
             PendingDisplayLabel = null;
             PendingSenderName = null;
             PendingRecipientName = null;
+            PendingRecipientColorHex = null;
             DialogHandled = false;
             CheckManager.PendingAnkhJewelName = null;
             _activeCon = null;

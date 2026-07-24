@@ -237,6 +237,7 @@ namespace LaMulana2Archipelago.Managers
                         ItemDialogPatch.PendingDisplayLabel = null;
                         ItemDialogPatch.PendingSenderName = null;
                         ItemDialogPatch.PendingRecipientName = null;
+                        ItemDialogPatch.PendingRecipientColorHex = null;
                     }
 
                     var scouted = client.GetItemAtLocation(apLocation);
@@ -248,7 +249,10 @@ namespace LaMulana2Archipelago.Managers
                         ItemDialogPatch.PendingDisplayLabel = scouted.ItemName;
 
                         if (isForOtherPlayer)
+                        {
                             ItemDialogPatch.PendingRecipientName = scouted.PlayerName;
+                            ItemDialogPatch.PendingRecipientColorHex = scouted.ClassificationColorHex;
+                        }
 
                         string label = isForOtherPlayer
                             ? scouted.ItemName + " (" + scouted.PlayerName + ")"

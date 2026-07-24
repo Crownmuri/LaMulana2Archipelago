@@ -935,6 +935,31 @@ namespace LaMulana2Archipelago.Archipelago
             /// progressive icon.
             /// </summary>
             public bool IsProgression => (Flags & ItemFlags.Advancement) != 0;
+
+            /// <summary>
+            /// TextMeshPro RRGGBBAA colour for this item's name in the "Sent … to …"
+            /// acquisition dialog, chosen from the AP classification flags:
+            ///   progression + useful → F8E426, progression → AD8EE3,
+            ///   useful → 6C74C5, trap → F98072, filler → 36D7D9.
+            /// </summary>
+            public string ClassificationColorHex => ClassificationColor(Flags);
+        }
+
+        /// <summary>
+        /// Maps AP item classification flags to the "Sent … to …" dialog colour
+        /// (TextMeshPro RRGGBBAA hex, no leading '#').
+        /// </summary>
+        public static string ClassificationColor(ItemFlags flags)
+        {
+            bool advancement = (flags & ItemFlags.Advancement) != 0;
+            bool useful = (flags & ItemFlags.NeverExclude) != 0;
+            bool trap = (flags & ItemFlags.Trap) != 0;
+
+            if (advancement && useful) return "F8E426FF"; // progression + useful
+            if (advancement) return "AD8EE3FF";            // progression
+            if (trap) return "F98072FF";                   // trap
+            if (useful) return "6C74C5FF";                 // useful
+            return "36D7D9FF";                             // filler
         }
         public long? GetLocationIdByName(string locationName)
         {
