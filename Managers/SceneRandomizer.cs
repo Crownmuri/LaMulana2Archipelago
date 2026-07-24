@@ -820,8 +820,14 @@ namespace LaMulana2Archipelago.Managers
             if (itemID >= ItemID.ChestWeight01)
                 item.itemValue = itemInfo.ItemFlag;
 
-            if (itemID < ItemID.ChestWeight01)
-                item.gameObject.GetComponent<SpriteRenderer>().sprite = GetItemSprite(itemInfo.BoxName, itemID);
+            bool hasExistingSprite = itemID < ItemID.ChestWeight01
+                                 || (itemID >= ItemID.RebirthSigil && itemID <= ItemID.SacredOrb19);
+            if (hasExistingSprite)
+            {
+                Sprite sprite = GetItemSprite(itemInfo.BoxName, itemID);
+                if (sprite != null)
+                    item.gameObject.GetComponent<SpriteRenderer>().sprite = sprite;
+            }
         }
 
         // ================================================================
