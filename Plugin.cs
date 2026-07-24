@@ -612,8 +612,6 @@ namespace LaMulana2Archipelago
             }
             else
             {
-                GUI.Label(new Rect(150, 522, 400, 20), "Status: Disconnected", guiStyle); // APDisplayInfo + " Status: Disconnected"
-
                 GUI.Label(new Rect(16, 450, 150, 20), "Host:", guiStyle);
                 GUI.Label(new Rect(16, 470, 150, 20), "Player Name:", guiStyle);
                 GUI.Label(new Rect(16, 490, 150, 20), "Password:", guiStyle);
@@ -639,6 +637,27 @@ namespace LaMulana2Archipelago
 
                     Log.LogInfo("[AP] Manual connect requested");
                     ArchipelagoClient.Connect();
+                }
+
+                // Live connection-process indicator, right of the Connect button.
+                // Shows each stage (Connecting / Loading data package /
+                // Authenticating / Scouting) and the reason on failure.
+                {
+                    var phase = ArchipelagoClient.Phase;
+                    string statusText = phase == ArchipelagoClient.ConnectionPhase.Idle
+                        ? "Status: Disconnected"
+                        : "Status: " + ArchipelagoClient.PhaseText();
+
+                    Color oldStatusColor = GUI.color;
+                    GUI.color = phase switch
+                    {
+                        ArchipelagoClient.ConnectionPhase.Failed    => Color.red,
+                        ArchipelagoClient.ConnectionPhase.Connected => Color.green,
+                        ArchipelagoClient.ConnectionPhase.Idle      => Color.white,
+                        _                                           => Color.yellow,
+                    };
+                    GUI.Label(new Rect(150, 522, 640, 20), statusText, guiStyle);
+                    GUI.color = oldStatusColor;
                 }
 
                 // Offline mode toggle — activates immediately from seed.lm2r so

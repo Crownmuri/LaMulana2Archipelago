@@ -60,6 +60,54 @@ namespace LaMulana2Archipelago.Archipelago
 
         private bool attemptingConnection;
 
+        // =============================
+        // Connection progress (for title-screen UI)
+        // =============================
+        // Set from the background connect worker, read from the Unity main
+        // thread in Plugin.OnGUI. A volatile enum + immutable string are safe
+        // to share without a lock (reference/word-sized reads are atomic).
+
+        public enum ConnectionPhase
+        {
+            Idle,
+            Connecting,       // opening the socket
+            WaitingForServer, // socket open, waiting for RoomInfo
+            LoadingData,      // DataPackage streaming/parsing
+            Authenticating,   // Connect sent, waiting for login result
+            Scouting,         // logged in, pre-scouting locations
+            Connected,
+            Failed
+        }
+
+        private static volatile ConnectionPhase _phase = ConnectionPhase.Idle;
+        public static ConnectionPhase Phase => _phase;
+
+        // Short extra detail shown after a failure (first server error line).
+        public static string PhaseDetail = "";
+
+        private static void SetPhase(ConnectionPhase phase, string detail = "")
+        {
+            _phase = phase;
+            PhaseDetail = detail ?? "";
+        }
+
+        /// <summary>Human-readable label for the current connection phase.</summary>
+        public static string PhaseText()
+        {
+            switch (_phase)
+            {
+                case ConnectionPhase.Connecting:       return "Connecting…";
+                case ConnectionPhase.WaitingForServer: return "Waiting for server…";
+                case ConnectionPhase.LoadingData:      return "Loading data package…";
+                case ConnectionPhase.Authenticating:   return "Authenticating…";
+                case ConnectionPhase.Scouting:         return "Scouting locations…";
+                case ConnectionPhase.Connected:        return "Connected";
+                case ConnectionPhase.Failed:
+                    return string.IsNullOrEmpty(PhaseDetail) ? "Failed" : "Failed: " + PhaseDetail;
+                default:                               return "";
+            }
+        }
+
         public static ArchipelagoData ServerData = new();
         private ArchipelagoSession session;
 
@@ -338,6 +386,8 @@ namespace LaMulana2Archipelago.Archipelago
         {
             if (Authenticated || attemptingConnection || OfflineMode) return;
 
+            SetPhase(ConnectionPhase.Connecting);
+
             try
             {
                 session = ArchipelagoSessionFactory.CreateSession(ServerData.NormalizedUri);
@@ -346,6 +396,7 @@ namespace LaMulana2Archipelago.Archipelago
             catch (Exception e)
             {
                 Plugin.Log.LogError(e);
+                SetPhase(ConnectionPhase.Failed, e.Message);
             }
 
             TryConnect();
@@ -433,6 +484,8 @@ namespace LaMulana2Archipelago.Archipelago
             {
                 if (packet is RoomInfoPacket ri)
                     roomInfo = ri;
+                else if (packet is DataPackagePacket)
+                    SetPhase(ConnectionPhase.LoadingData);
                 else if (packet is ConnectedPacket || packet is ConnectionRefusedPacket)
                     loginResult = LoginResult.FromPacket(packet);
             }
@@ -440,8 +493,10 @@ namespace LaMulana2Archipelago.Archipelago
             session.Socket.PacketReceived += Observer;
             try
             {
+                SetPhase(ConnectionPhase.Connecting);
                 session.Socket.Connect();
 
+                SetPhase(ConnectionPhase.WaitingForServer);
                 DateTime start = DateTime.UtcNow;
                 while (roomInfo == null)
                 {
@@ -465,6 +520,11 @@ namespace LaMulana2Archipelago.Archipelago
                     RequestSlotData = requestSlotData
                 });
 
+                // Only move to "Authenticating" if the DataPackage step hasn't
+                // already taken over — that stream can arrive after Connect and
+                // is the slow part worth surfacing.
+                if (_phase != ConnectionPhase.LoadingData)
+                    SetPhase(ConnectionPhase.Authenticating);
                 start = DateTime.UtcNow;
                 while (loginResult == null)
                 {
@@ -546,9 +606,11 @@ namespace LaMulana2Archipelago.Archipelago
                     Plugin.Log.LogInfo($"[AP] Restored {alreadyChecked.Count} checked locations from server.");
                 }
 
+                SetPhase(ConnectionPhase.Scouting);
                 Patches.ShopDialogPatch.Reapply();
                 ScoutAllLocations();
 
+                SetPhase(ConnectionPhase.Connected);
                 outText = $"Successfully connected to {ServerData.NormalizedUri} as {ServerData.SlotName}!";
                 ArchipelagoConsole.LogMessage(outText);
 
@@ -570,6 +632,11 @@ namespace LaMulana2Archipelago.Archipelago
 
                 Authenticated = false;
                 Disconnect();
+
+                // Set AFTER Disconnect (which resets the phase to Idle) so the
+                // failure reason stays visible on the title screen.
+                SetPhase(ConnectionPhase.Failed,
+                    failure.Errors != null ? failure.Errors.FirstOrDefault() : null);
             }
             attemptingConnection = false;
         }
@@ -580,6 +647,7 @@ namespace LaMulana2Archipelago.Archipelago
         public void Disconnect()
         {
             Plugin.Log.LogDebug("disconnecting from server...");
+            SetPhase(ConnectionPhase.Idle);
             session?.Socket.Disconnect();
             session = null;
             Authenticated = false;
