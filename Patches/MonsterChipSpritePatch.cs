@@ -146,9 +146,11 @@ namespace LaMulana2Archipelago.Patches
                 }
             }
 
-            // AP / foreign → AP placeholder icon.
+            // AP / foreign → AP placeholder icon (progression/trap-aware, matching
+            // every other floor call-site — otherwise a foreign progression item
+            // dropped on a chip location shows the plain icon while its dialog is right).
             if (ApSpriteLoader.IsLoaded)
-                return ApSpriteLoader.GetMapSprite(false);
+                return ApSpriteLoader.GetMapSprite(CheckManager.GetApIconClassAt(locId));
 
             return ShellHornSprite();
         }

@@ -3,6 +3,7 @@ using L2Base;
 using L2Hit;
 using LaMulana2Archipelago.Managers;
 using LaMulana2RandomizerShared;
+using UnityEngine;
 
 namespace LaMulana2Archipelago.Patches
 {
@@ -314,6 +315,54 @@ namespace LaMulana2Archipelago.Patches
             ItemDialogApItemPatch.CurrentApPickupIconClass = iconClass;
             ItemDialogApItemPatch.PendingApPickupIconClass = iconClass;
         }
+
+        /// <summary>
+        /// Re-applies the correct hold-up sprite AFTER the itemGetAction body has run its
+        /// <c>setGetItemIcon</c> (line 27 of EventItemScript). The pickup-anim icon
+        /// (<see cref="SetGetItemIconApPatch"/>) reads the pre-captured
+        /// <see cref="ItemDialogApItemPatch.CurrentApPickupIconClass"/>, but that static
+        /// loses an ordering race — measured behaviour is that the hold-up renders one
+        /// pickup stale (icon N shows item N-1's class). Running as a Postfix guarantees we
+        /// execute after that icon set, so we resolve the class fresh from THIS item and
+        /// overwrite the player's hold-up renderer. No static-timing dependency.
+        ///
+        /// Resolves the item's AP location from its itemActiveFlag (chests/pots/freestanding).
+        /// </summary>
+        internal static void FixHoldupIcon(AbstractItemBase item)
+        {
+            if (!IsApHoldup(item)) return;
+            ApIconClass iconClass =
+                TreasureBoxSpritePatch.TryGetApLocation(item, out LocationID loc)
+                    ? CheckManager.GetApIconClassAt(loc)
+                    : ApIconClass.Plain;
+            ApplyHoldupSprite(item, iconClass);
+        }
+
+        /// <summary>
+        /// Same fix for callers that already hold the resolved location (glossary chips,
+        /// whose location comes from the chip's book flag, not its itemActiveFlag).
+        /// </summary>
+        internal static void FixHoldupIconAt(AbstractItemBase item, LocationID loc)
+        {
+            if (!IsApHoldup(item)) return;
+            ApplyHoldupSprite(item, CheckManager.GetApIconClassAt(loc));
+        }
+
+        // Only AP placeholders get the AP icon; own items (label = BoxName) and silent
+        // pickups (label = "Nothing") keep their real / suppressed sprite.
+        private static bool IsApHoldup(AbstractItemBase item) =>
+            item != null && ApSpriteLoader.IsLoaded
+            && !string.IsNullOrEmpty(item.itemLabel)
+            && item.itemLabel.StartsWith("AP Item", System.StringComparison.Ordinal);
+
+        private static void ApplyHoldupSprite(AbstractItemBase item, ApIconClass iconClass)
+        {
+            var pl = Traverse.Create(item).Field("pl").GetValue<NewPlayer>();
+            if (pl == null) return;
+            var renderer = Traverse.Create(pl).Field("itemRenderer").GetValue<SpriteRenderer>();
+            if (renderer == null) return;
+            renderer.sprite = ApSpriteLoader.GetMapSprite(iconClass);
+        }
     }
 
     [HarmonyPatch(typeof(EventItemScript), "itemGetAction")]
@@ -321,6 +370,9 @@ namespace LaMulana2Archipelago.Patches
     {
         static void Prefix(EventItemScript __instance) =>
             ApPickupProgressionCapture.Capture(__instance);
+
+        static void Postfix(EventItemScript __instance) =>
+            ApPickupProgressionCapture.FixHoldupIcon(__instance);
     }
 
     [HarmonyPatch(typeof(DropItemScript), "itemGetAction")]
@@ -328,6 +380,9 @@ namespace LaMulana2Archipelago.Patches
     {
         static void Prefix(DropItemScript __instance) =>
             ApPickupProgressionCapture.Capture(__instance);
+
+        static void Postfix(DropItemScript __instance) =>
+            ApPickupProgressionCapture.FixHoldupIcon(__instance);
     }
 
     [HarmonyPatch(typeof(CostumeSetScript), "itemGetAction")]
@@ -335,5 +390,8 @@ namespace LaMulana2Archipelago.Patches
     {
         static void Prefix(CostumeSetScript __instance) =>
             ApPickupProgressionCapture.Capture(__instance);
+
+        static void Postfix(CostumeSetScript __instance) =>
+            ApPickupProgressionCapture.FixHoldupIcon(__instance);
     }
 }

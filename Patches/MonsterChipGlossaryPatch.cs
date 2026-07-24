@@ -39,6 +39,22 @@ namespace LaMulana2Archipelago.Patches
     {
         private const int BookSheet = 20;
 
+        // Runs after the Prefix's setGetItemIcon. For a foreign/AP item at a chip location
+        // the hold-up icon (SetGetItemIconApPatch) reads the stale CurrentApPickupIconClass,
+        // so re-resolve the class from THIS chip's own location and overwrite it — same fix
+        // as pots/freestanding (see ApPickupProgressionCapture.FixHoldupIcon). The chip's
+        // location comes from its book flag, not its itemActiveFlag, so use the *At overload.
+        static void Postfix(MonsterChipScript __instance)
+        {
+            if (!GlossaryManager.Enabled || __instance == null) return;
+            int chipId = Traverse.Create(__instance).Field("chipId").GetValue<int>();
+            int bookFlag = chipId > -1
+                ? chipId
+                : Traverse.Create(__instance).Field("itemValue").GetValue<int>();
+            if (GlossaryManager.TryGetLocation(bookFlag, out LocationID locId))
+                ApPickupProgressionCapture.FixHoldupIconAt(__instance, locId);
+        }
+
         static bool Prefix(MonsterChipScript __instance)
         {
             if (!GlossaryManager.Enabled) return true;
