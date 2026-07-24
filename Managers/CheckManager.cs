@@ -181,7 +181,6 @@ namespace LaMulana2Archipelago.Managers
             }
 
             reportedLocations.Add(apLocation);
-            HangWatchdog.LastBreadcrumb = "ReportLocation:" + location + "(AP" + apLocation + ")"; // DIAGNOSTIC
             Plugin.Log.LogInfo("[CHECK] Reporting location: " + location + " (AP " + apLocation + ")");
 
             bool isFillerItem = false;
