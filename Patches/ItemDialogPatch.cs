@@ -67,6 +67,17 @@ namespace LaMulana2Archipelago.Patches
         public static string PendingRecipientColorHex { get; set; }
 
         /// <summary>
+        /// Icon class (progression / trap / plain) for the sent item in the
+        /// "Sent … to …" dialog, resolved from the item's scouted AP flags by the
+        /// send-site that primes <see cref="PendingRecipientName"/>. Authoritative for
+        /// the outgoing icon — the shared
+        /// <see cref="ItemDialogApItemPatch.CurrentApPickupIconClass"/> is a pickup-time
+        /// static that pot deliveries don't refresh, so it can carry a stale value from a
+        /// previous pickup. Reset alongside the other pending fields.
+        /// </summary>
+        public static ApIconClass? PendingRecipientIconClass { get; set; }
+
+        /// <summary>
         /// Set to true when this patch has already overwritten DialogText.
         /// Checked by ItemDialogApItemPatch to avoid clobbering the result.
         /// </summary>
@@ -204,6 +215,7 @@ namespace LaMulana2Archipelago.Patches
                     PendingSenderName = null;
                     PendingRecipientName = null;
                     PendingRecipientColorHex = null;
+                    PendingRecipientIconClass = null;
                     CheckManager.PendingAnkhJewelName = null;
                 }
             }
@@ -259,9 +271,17 @@ namespace LaMulana2Archipelago.Patches
                 // id at dialog setup (ItemDialogApItemPatch), so it survives renaming the items.
                 var chip = ItemDialogApItemPatch.CurrentApPickupIsGlossary
                     ? GlossaryChipSprite.DialogIcon(ItemDialogApItemPatch.CurrentApPickupGlossaryGameId) : null;
+                // For an outgoing "Sent … to …" dialog prefer the send-site's scouted
+                // icon class; the pickup-time static isn't refreshed on pot deliveries
+                // and would otherwise leak a stale icon from a prior pickup. Received-item
+                // dialogs (no recipient) keep the pickup static.
+                ApIconClass iconClass =
+                    !string.IsNullOrEmpty(recipientName) && PendingRecipientIconClass.HasValue
+                        ? PendingRecipientIconClass.Value
+                        : ItemDialogApItemPatch.CurrentApPickupIconClass;
                 con.Icon.sprite = chip != null
                     ? chip
-                    : ApSpriteLoader.GetMapSprite(ItemDialogApItemPatch.CurrentApPickupIsProgression);
+                    : ApSpriteLoader.GetMapSprite(iconClass);
                 con.Icon.gameObject.SetActive(true);
             }
         }
@@ -304,6 +324,7 @@ namespace LaMulana2Archipelago.Patches
             PendingSenderName = null;
             PendingRecipientName = null;
             PendingRecipientColorHex = null;
+            PendingRecipientIconClass = null;
             DialogHandled = false;
             CheckManager.PendingAnkhJewelName = null;
             _activeCon = null;

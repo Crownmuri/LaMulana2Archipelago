@@ -303,15 +303,16 @@ namespace LaMulana2Archipelago.Patches
                 || !item.itemLabel.StartsWith("AP Item", System.StringComparison.Ordinal))
                 return;
 
-            bool isProgression =
+            ApIconClass iconClass =
                 TreasureBoxSpritePatch.TryGetApLocation(item, out LocationID location)
-                && CheckManager.IsApItemProgressionAt(location);
+                    ? CheckManager.GetApIconClassAt(location)
+                    : ApIconClass.Plain;
 
             // Current drives the pickup animation, which plays before the dialog opens.
             // Pending hands the same answer to the dialog, which cannot re-derive it for
             // every pickup kind; ItemDialog's prefix consumes it and clears it.
-            ItemDialogApItemPatch.CurrentApPickupIsProgression = isProgression;
-            ItemDialogApItemPatch.PendingApPickupIsProgression = isProgression;
+            ItemDialogApItemPatch.CurrentApPickupIconClass = iconClass;
+            ItemDialogApItemPatch.PendingApPickupIconClass = iconClass;
         }
     }
 

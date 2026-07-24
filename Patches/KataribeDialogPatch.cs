@@ -139,6 +139,7 @@ namespace LaMulana2Archipelago.Patches
                 {
                     ItemDialogPatch.PendingRecipientName = scouted.PlayerName;
                     ItemDialogPatch.PendingRecipientColorHex = scouted.ClassificationColorHex;
+                    ItemDialogPatch.PendingRecipientIconClass = scouted.IconClass;
                 }
 
                 label = isForOtherPlayer

@@ -487,6 +487,7 @@ namespace LaMulana2Archipelago
                     Patches.ItemDialogPatch.PendingSenderName = null;
                     Patches.ItemDialogPatch.PendingRecipientName = null;
                     Patches.ItemDialogPatch.PendingRecipientColorHex = null;
+                    Patches.ItemDialogPatch.PendingRecipientIconClass = null;
                 }
 
                 ArchipelagoClient.ItemQueue.Dequeue();
@@ -505,6 +506,7 @@ namespace LaMulana2Archipelago
                 Patches.ItemDialogPatch.PendingSenderName = null;
                 Patches.ItemDialogPatch.PendingRecipientName = null;
                 Patches.ItemDialogPatch.PendingRecipientColorHex = null;
+                Patches.ItemDialogPatch.PendingRecipientIconClass = null;
             }
         }
 

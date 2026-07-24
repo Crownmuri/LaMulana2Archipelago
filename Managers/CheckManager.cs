@@ -238,6 +238,7 @@ namespace LaMulana2Archipelago.Managers
                         ItemDialogPatch.PendingSenderName = null;
                         ItemDialogPatch.PendingRecipientName = null;
                         ItemDialogPatch.PendingRecipientColorHex = null;
+                        ItemDialogPatch.PendingRecipientIconClass = null;
                     }
 
                     var scouted = client.GetItemAtLocation(apLocation);
@@ -252,6 +253,7 @@ namespace LaMulana2Archipelago.Managers
                         {
                             ItemDialogPatch.PendingRecipientName = scouted.PlayerName;
                             ItemDialogPatch.PendingRecipientColorHex = scouted.ClassificationColorHex;
+                            ItemDialogPatch.PendingRecipientIconClass = scouted.IconClass;
                         }
 
                         string label = isForOtherPlayer
@@ -369,6 +371,33 @@ namespace LaMulana2Archipelago.Managers
 
             var scouted = client.GetItemAtLocation(ToApLocationId(location));
             return scouted != null && scouted.IsProgression;
+        }
+
+        /// <summary>
+        /// Visual icon class (progression / trap / plain) for the AP item at the
+        /// world location (<paramref name="sheet"/>, <paramref name="flag"/>). Returns
+        /// <see cref="ApIconClass.Plain"/> when unknown — offline, unmapped flag, or
+        /// unscouted — so callers fall back to the plain AP icon.
+        /// </summary>
+        public static ApIconClass GetApIconClass(int sheet, int flag)
+        {
+            if (!LocationFlagMap.TryGetNumeric(sheet, flag, out LocationID location))
+                return ApIconClass.Plain;
+
+            return GetApIconClassAt(location);
+        }
+
+        /// <summary>
+        /// Same as <see cref="GetApIconClass"/> but for callers that already hold the
+        /// resolved <see cref="LocationID"/> (pots, free-standing items, dialogs).
+        /// </summary>
+        public static ApIconClass GetApIconClassAt(LocationID location)
+        {
+            var client = ArchipelagoClientProvider.Client;
+            if (client == null) return ApIconClass.Plain;
+
+            var scouted = client.GetItemAtLocation(ToApLocationId(location));
+            return scouted != null ? scouted.IconClass : ApIconClass.Plain;
         }
 
         // =====================================================================

@@ -332,8 +332,8 @@ namespace LaMulana2Archipelago.Patches
             // lets offline mode (no scout cache) still show the real sprite
             // instead of falling back to the AP map icon for every pot.
             bool isOwnItem = (scouted != null && scouted.IsOwnItem) || ownItemId.HasValue;
-            bool isProgression = scouted != null && scouted.IsProgression;
-            SetItemSprite(spawned, sys, isOwnItem, internalLabel, isProgression);
+            ApIconClass iconClass = scouted != null ? scouted.IconClass : ApIconClass.Plain;
+            SetItemSprite(spawned, sys, isOwnItem, internalLabel, iconClass);
 
             spawnedItem.initTask();
             spawnedItem.setTreasureBoxOut();
@@ -341,7 +341,7 @@ namespace LaMulana2Archipelago.Patches
             return true;
         }
 
-        private static void SetItemSprite(GameObject itemObj, L2System sys, bool isOwnItem, string internalLabel, bool isProgression)
+        private static void SetItemSprite(GameObject itemObj, L2System sys, bool isOwnItem, string internalLabel, ApIconClass iconClass)
         {
             var renderer = itemObj.GetComponent<SpriteRenderer>();
             if (renderer == null) return;
@@ -350,7 +350,7 @@ namespace LaMulana2Archipelago.Patches
             {
                 if (!isOwnItem)
                 {
-                    if (ApSpriteLoader.IsLoaded) renderer.sprite = ApSpriteLoader.GetMapSprite(isProgression);
+                    if (ApSpriteLoader.IsLoaded) renderer.sprite = ApSpriteLoader.GetMapSprite(iconClass);
                     else
                     {
                         var fallback = L2SystemCore.getItemData("Holy Grail");
@@ -396,7 +396,7 @@ namespace LaMulana2Archipelago.Patches
                 }
                 else if (ApSpriteLoader.IsLoaded)
                 {
-                    renderer.sprite = ApSpriteLoader.GetMapSprite(isProgression);
+                    renderer.sprite = ApSpriteLoader.GetMapSprite(iconClass);
                 }
             }
             catch (Exception ex)

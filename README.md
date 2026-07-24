@@ -27,7 +27,9 @@ For Linux users, additional settings are required to [run BepInEx through Proton
 - [Archipelago.MultiClient.Net.dll](https://github.com/ArchipelagoMW/Archipelago.MultiClient.Net)
 - [Newtonsoft.Json.dll](https://github.com/jamesnk/newtonsoft.json)
 - [c-wspp.dll](https://github.com/black-sliver/c-wspp-websocket-sharp/releases/tag/v0.4.1)
-- ap-icon.png (edited original asset) 
+- ap-icon.png (edited original asset)
+- ap-iconp.png (optional — progression "up arrow" AP icon variant)
+- ap-icont.png (optional — trap AP icon variant)
 
 ## Features
 - **Port of the original randomizer.** 

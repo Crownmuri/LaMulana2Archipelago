@@ -49,12 +49,13 @@ namespace LaMulana2Archipelago.Patches
                     // calls setTreasureBoxOut), so resolve the item's world flag to
                     // its AP location instead of assuming a chest's sheet 31. Both
                     // chest (sheet 31) and pot (pot sheet) flags are registered in
-                    // LocationFlagMap, so progression items show the "up arrow" icon
-                    // for either source.
-                    bool isProgression = TryGetApLocation(__instance, out LocationID location)
-                        && CheckManager.IsApItemProgressionAt(location);
+                    // LocationFlagMap, so progression/trap items show their icon
+                    // variant for either source.
+                    ApIconClass iconClass = TryGetApLocation(__instance, out LocationID location)
+                        ? CheckManager.GetApIconClassAt(location)
+                        : ApIconClass.Plain;
 
-                    sr.sprite = ApSpriteLoader.GetMapSprite(isProgression);
+                    sr.sprite = ApSpriteLoader.GetMapSprite(iconClass);
                 }
                 else
                 {

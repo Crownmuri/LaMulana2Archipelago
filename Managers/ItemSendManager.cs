@@ -428,16 +428,16 @@ namespace LaMulana2Archipelago.Managers
         public static bool WasApPlaceholder { get; set; }
 
         /// <summary>
-        /// True when the AP placeholder currently being picked up holds another
-        /// player's progression (Advancement) item.  Resolved once at pickup time
-        /// in <see cref="Patches.EventItemGetActionPatch"/> (and its sibling pot/
-        /// costume patches) from the item's world flag, then read by the pickup
-        /// animation (<see cref="SetGetItemIconApPatch"/>) and the item dialog
+        /// Icon class (progression / trap / plain) of the AP placeholder currently
+        /// being picked up.  Resolved once at pickup time in
+        /// <see cref="Patches.EventItemGetActionPatch"/> (and its sibling pot/costume
+        /// patches) from the item's world flag, then read by the pickup animation
+        /// (<see cref="SetGetItemIconApPatch"/>) and the item dialog
         /// (<see cref="SetupDialogManually"/> / <see cref="Patches.ItemDialogPatch"/>)
-        /// so they show the "up arrow" progressive AP icon — matching how chests,
-        /// pots and free-standing items already differentiate it.
+        /// so they show the matching AP icon variant — as chests, pots and
+        /// free-standing items already do.
         /// </summary>
-        public static bool CurrentApPickupIsProgression { get; set; }
+        public static ApIconClass CurrentApPickupIconClass { get; set; }
 
         /// <summary>True when the AP placeholder in the current dialog is one of this player's
         /// glossary ROMs (resolved by id, not name). Read by ItemDialogPatch to pick the chip /
@@ -454,13 +454,13 @@ namespace LaMulana2Archipelago.Managers
         /// -1 when none pending; consumed (reset to -1) each time an AP dialog opens.</summary>
         public static long PendingApLocationId { get; set; } = -1L;
 
-        /// <summary>Progression answer resolved at pickup time by
+        /// <summary>Icon class resolved at pickup time by
         /// <see cref="Patches.ApPickupProgressionCapture"/>, awaiting the dialog that follows.
         /// null when this pickup flow never ran the capture (murals, NPCs), in which case the
-        /// dialog resolves progression from its own location instead. Consumed (reset to null)
+        /// dialog resolves the class from its own location instead. Consumed (reset to null)
         /// each time an AP dialog opens, so a captured answer can never leak into a later
         /// dialog that has nothing to do with it.</summary>
-        public static bool? PendingApPickupIsProgression { get; set; }
+        public static ApIconClass? PendingApPickupIconClass { get; set; }
 
         /// <summary>
         /// Prefix: for AP/filler items, skip the vanilla StartSwitch entirely
@@ -472,12 +472,12 @@ namespace LaMulana2Archipelago.Managers
             WasApPlaceholder = false;
             CurrentApPickupIsGlossary = false;
             CurrentApPickupGlossaryGameId = -1;
-            CurrentApPickupIsProgression = false;
+            CurrentApPickupIconClass = ApIconClass.Plain;
 
             // Consume the pickup's captured answer up front, so it is dropped even on the
             // early-outs below and can never be read by a later, unrelated dialog.
-            bool? pickupIsProgression = PendingApPickupIsProgression;
-            PendingApPickupIsProgression = null;
+            ApIconClass? pickupIconClass = PendingApPickupIconClass;
+            PendingApPickupIconClass = null;
 
             string[] messString = Traverse.Create(__instance)
                 .Field("MessString")
@@ -521,10 +521,11 @@ namespace LaMulana2Archipelago.Managers
 
                 // Prefer the pickup's own captured answer; flows that skip the capture
                 // (murals, NPCs) resolve from the location primed above. Never inherit.
-                CurrentApPickupIsProgression =
-                    pickupIsProgression
+                CurrentApPickupIconClass =
+                    pickupIconClass
                     ?? (glossaryApLoc >= 0
-                        && CheckManager.IsApItemProgressionAt((LocationID)(glossaryApLoc - 430000L)));
+                        ? CheckManager.GetApIconClassAt((LocationID)(glossaryApLoc - 430000L))
+                        : ApIconClass.Plain);
 
                 PendingApLocationId = -1L; // consume — never carry over to the next dialog
             }
@@ -646,7 +647,7 @@ namespace LaMulana2Archipelago.Managers
                 // which arrive as a bare "AP Item"; mirrors Patches.ItemDialogPatch.
                 var chip = CurrentApPickupIsGlossary
                     ? Patches.GlossaryChipSprite.DialogIcon(CurrentApPickupGlossaryGameId) : null;
-                con.Icon.sprite = chip ?? ApSpriteLoader.GetMapSprite(CurrentApPickupIsProgression);
+                con.Icon.sprite = chip ?? ApSpriteLoader.GetMapSprite(CurrentApPickupIconClass);
                 con.Icon.gameObject.SetActive(true);
             }
             else if (isAp)
@@ -802,7 +803,7 @@ namespace LaMulana2Archipelago.Managers
 
                     if (renderer != null)
                         renderer.sprite = ApSpriteLoader.GetMapSprite(
-                            ItemDialogApItemPatch.CurrentApPickupIsProgression);
+                            ItemDialogApItemPatch.CurrentApPickupIconClass);
                 }
                 catch (Exception ex)
                 {
@@ -884,14 +885,14 @@ namespace LaMulana2Archipelago.Managers
                         }
                         else
                         {
-                            // Show the "up arrow" progressive icon when this slot holds a
-                            // progression (Advancement) item, so the player can tell at a
-                            // glance whether it's worth buying.
-                            bool isProgression;
-                            Patches.ShopDialogPatch.TryGetSlotProgression(__instance, idx, out isProgression);
+                            // Show the progressive ("up arrow") or trap icon variant for
+                            // this slot's AP item, so the player can tell at a glance what
+                            // kind of item it is before buying.
+                            ApIconClass iconClass =
+                                Patches.ShopDialogPatch.GetSlotIconClass(__instance, idx);
 
                             if (ApSpriteLoader.IsLoaded)
-                                chosenSprite = ApSpriteLoader.GetShopSprite(isProgression);
+                                chosenSprite = ApSpriteLoader.GetShopSprite(iconClass);
                             else
                             {
                                 var data = L2SystemCore.getItemData("Holy Grail");

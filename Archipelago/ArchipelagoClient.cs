@@ -936,6 +936,18 @@ namespace LaMulana2Archipelago.Archipelago
             /// </summary>
             public bool IsProgression => (Flags & ItemFlags.Advancement) != 0;
 
+            /// <summary>True when the item carries the AP Trap flag.</summary>
+            public bool IsTrap => (Flags & ItemFlags.Trap) != 0;
+
+            /// <summary>
+            /// Visual icon class for this item, with progression outranking trap so
+            /// the precedence matches <see cref="ClassificationColor"/>.
+            /// </summary>
+            public ApIconClass IconClass =>
+                IsProgression ? ApIconClass.Progression
+                : IsTrap ? ApIconClass.Trap
+                : ApIconClass.Plain;
+
             /// <summary>
             /// TextMeshPro RRGGBBAA colour for this item's name in the "Sent … to …"
             /// acquisition dialog, chosen from the AP classification flags:

@@ -5,6 +5,19 @@ using UnityEngine;
 namespace LaMulana2Archipelago
 {
     /// <summary>
+    /// Visual class of an AP item's world/UI icon, in priority order. Progression
+    /// outranks Trap so an item that is somehow both shows the up-arrow — matching
+    /// the "Sent … to …" text-colour precedence in
+    /// <see cref="Archipelago.ArchipelagoClient.ClassificationColor"/>.
+    /// </summary>
+    public enum ApIconClass
+    {
+        Plain,
+        Progression,
+        Trap,
+    }
+
+    /// <summary>
     /// Loads custom Archipelago icons from the plugin directory and creates
     /// reusable Unity Sprite objects for every context:
     ///
@@ -39,6 +52,18 @@ namespace LaMulana2Archipelago
         /// </summary>
         public static Sprite ShopSpriteProgression { get; private set; }
 
+        /// <summary>
+        /// Trap variant for SpriteRenderer contexts. Null when "ap-icont.png" is
+        /// absent — callers then fall back to <see cref="MapSprite"/>.
+        /// </summary>
+        public static Sprite MapSpriteTrap { get; private set; }
+
+        /// <summary>
+        /// Trap variant for UI Image contexts (shop slots). Null when "ap-icont.png"
+        /// is absent — callers then fall back to <see cref="ShopSprite"/>.
+        /// </summary>
+        public static Sprite ShopSpriteTrap { get; private set; }
+
         /// <summary>True once at least the map sprite has been created successfully.</summary>
         public static bool IsLoaded => MapSprite != null;
 
@@ -47,14 +72,44 @@ namespace LaMulana2Archipelago
         /// variant when the item carries the AP Advancement flag and that icon loaded.
         /// </summary>
         public static Sprite GetMapSprite(bool progression)
-            => (progression && MapSpriteProgression != null) ? MapSpriteProgression : MapSprite;
+            => GetMapSprite(progression ? ApIconClass.Progression : ApIconClass.Plain);
 
         /// <summary>
         /// Shop-context sprite for an AP item, choosing the progression ("up arrow")
         /// variant when the item carries the AP Advancement flag and that icon loaded.
         /// </summary>
         public static Sprite GetShopSprite(bool progression)
-            => (progression && ShopSpriteProgression != null) ? ShopSpriteProgression : ShopSprite;
+            => GetShopSprite(progression ? ApIconClass.Progression : ApIconClass.Plain);
+
+        /// <summary>
+        /// Map-context sprite for an AP item, choosing the progression or trap variant
+        /// by <paramref name="iconClass"/> and falling back to the plain icon when the
+        /// chosen variant's PNG is absent.
+        /// </summary>
+        public static Sprite GetMapSprite(ApIconClass iconClass)
+        {
+            switch (iconClass)
+            {
+                case ApIconClass.Progression: return MapSpriteProgression ?? MapSprite;
+                case ApIconClass.Trap:        return MapSpriteTrap ?? MapSprite;
+                default:                      return MapSprite;
+            }
+        }
+
+        /// <summary>
+        /// Shop-context sprite for an AP item, choosing the progression or trap variant
+        /// by <paramref name="iconClass"/> and falling back to the plain icon when the
+        /// chosen variant's PNG is absent.
+        /// </summary>
+        public static Sprite GetShopSprite(ApIconClass iconClass)
+        {
+            switch (iconClass)
+            {
+                case ApIconClass.Progression: return ShopSpriteProgression ?? ShopSprite;
+                case ApIconClass.Trap:        return ShopSpriteTrap ?? ShopSprite;
+                default:                      return ShopSprite;
+            }
+        }
 
         /// <summary>
         /// Loads icon PNGs from <paramref name="pluginDir"/> and creates the
@@ -80,6 +135,10 @@ namespace LaMulana2Archipelago
             // the plain icon, so the feature degrades cleanly on older installs.
             MapSpriteProgression = LoadSprite(pluginDir, "ap-iconp.png", "AP_Icon_Map_Prog", 25f);
             ShopSpriteProgression = LoadSprite(pluginDir, "ap-iconp.png", "AP_Icon_Shop_Prog", 100f);
+
+            // Trap variants — optional, same clean-degrade behaviour via "ap-icont.png".
+            MapSpriteTrap = LoadSprite(pluginDir, "ap-icont.png", "AP_Icon_Map_Trap", 25f);
+            ShopSpriteTrap = LoadSprite(pluginDir, "ap-icont.png", "AP_Icon_Shop_Trap", 100f);
         }
 
         private static Sprite LoadSprite(string dir, string fileName, string spriteName, float ppu)
