@@ -28,8 +28,8 @@ For Linux users, additional settings are required to [run BepInEx through Proton
 - [Newtonsoft.Json.dll](https://github.com/jamesnk/newtonsoft.json)
 - [c-wspp.dll](https://github.com/black-sliver/c-wspp-websocket-sharp/releases/tag/v0.4.1)
 - ap-icon.png (edited original asset)
-- ap-iconp.png (optional — progression "up arrow" AP icon variant)
-- ap-icont.png (optional — trap AP icon variant)
+- ap-iconp.png (progression AP icon variant)
+- ap-icont.png (trap AP icon variant)
 
 ## Features
 - **Port of the original randomizer.** 
@@ -45,7 +45,10 @@ For Linux users, additional settings are required to [run BepInEx through Proton
 - **Three-way Chest Colors.** Regular items, filler items and AP items.
 - **DeathLink.** It will trigger the mantra instant death sequence upon receiving a death from AP.  
 - **Release upon reaching credits.** If the server is set to release items upon game clear, the flag is set after the sequence at the Cliff transitioning into the credits.
-- [WIP] Potsanity: Currently the first 49 locations (from Village of Departure to Annwfn) are mapped and have their contents shuffled if enabled in the YAML.
+- Costumesanity: Hides all your costumes upon connecting to AP and shuffles them into the pool (the chests are unlocked by default -- not sure why I called it a sanity)
+- Potsanity: All item pots have been mapped and can be shuffled. Toggles per pot category.
+- Glossanity: All glossary entries have been mapped and can be shuffled. Toggles per pot category.
+- Oannesanity: DLC content is added into the pool (chests, glossaries). Entrances separately toggleable.
 - Offline Mode: If you wish to just play offline, you can either write seeds through AP or the original randomizer and load the `seed.lm2r` from the title screen.
   - Filepath should be `La-Mulana 2\LaMulana2Randomizer\Seed\seed.lm2r`
   - If you play with an AP generated seed, you can turn on the toggles for AP based filler rewards and restricting ankhs to be guardian specific.
@@ -55,7 +58,4 @@ For Linux users, additional settings are required to [run BepInEx through Proton
 - Minor: Death Link sometimes not sending out to other players
 - Fake items are currently overwritten as the new filler, so there are no actual traps at this point in development.
 - There could be some issues not listed here, feel free to share on Discord or on GitHub.
-
-## Future plans
-- Potsanity: Add all static reward pots to the location pool
-- Glossanity: Add all static glossary entries to the location pool 
+- DLC logic is not 100% verified (beatable, but two bosses can be skipped due to flags and may block entrances)
