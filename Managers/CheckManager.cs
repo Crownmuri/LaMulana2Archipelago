@@ -10,6 +10,9 @@ namespace LaMulana2Archipelago.Managers
         // Must match your AP world base location id (LocationTable used 430000)
         private const long BaseApLocationId = 430000;
 
+        // Own AP items are BASE_ITEM_ID + game_id (see GlossaryManager.ApBaseItemId).
+        private const long BaseApItemId = 420000;
+
         private static bool gameplayReady = false;
 
         // Dedup by AP location id (works even if multiple LM2 flags map to same location)
@@ -122,6 +125,7 @@ namespace LaMulana2Archipelago.Managers
             Plugin.Log.LogInfo("[CHECK] Reporting location: AP " + apLocationId + " (shop auto-collect)");
             client.SendLocationCheck(apLocationId);
             TryDeliverOwnGlossaryRom(apLocationId);
+            TryDeliverOwnCostume(apLocationId);
         }
 
         /// <summary>
@@ -151,6 +155,70 @@ namespace LaMulana2Archipelago.Managers
             {
                 Plugin.Log.LogWarning("[GLOSSARY] direct delivery on check failed: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Persist an own-world costume the moment its location check is reported.
+        /// Similar implementation to <see cref="TryDeliverOwnGlossaryRom"/>.
+        ///
+        /// Costumes (costumesanity) live in <see cref="CostumeManager"/>'s received
+        /// bitmask, not the vanilla clothbox — <see cref="Patches.ClothBoxPatch"/>
+        /// regenerates the sheet-2 cloth flags from that mask on every load. The AP
+        /// receive path calls <see cref="CostumeManager.MarkReceived"/>, but an
+        /// OWN-world costume (solo seed, or self-placed) never rides that path: we
+        /// connect with ItemsHandlingFlags.RemoteItems instead.
+        /// </summary>
+        private static void TryDeliverOwnCostume(long apLocation)
+        {
+            try
+            {
+                if (!CostumeManager.Enabled) return;
+                if (!TryResolveOwnCostume(apLocation, out ItemID costumeId)) return;
+
+                var sys = UnityEngine.Object.FindObjectOfType<L2Base.L2System>();
+                if (sys == null) return;
+
+                CostumeManager.MarkReceived(sys, costumeId);
+                Plugin.Log.LogInfo("[COSTUME] Own costume persisted on check: " + costumeId
+                    + " (AP loc " + apLocation + ")");
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Log.LogWarning("[COSTUME] own-costume persistence on check failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the own-world costume at an AP location, if any. Prefers the
+        /// online scout cache (an own item whose id maps to a costume); falls back
+        /// to the seed's placement map for offline seeds, where every placed item is
+        /// own-world. Returns false for foreign costumes and non-costume items.
+        /// </summary>
+        private static bool TryResolveOwnCostume(long apLocation, out ItemID costumeId)
+        {
+            costumeId = default(ItemID);
+
+            var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(apLocation);
+            if (scouted != null)
+            {
+                if (!scouted.IsOwnItem) return false;
+                var id = (ItemID)(scouted.ItemId - BaseApItemId);
+                if (!CostumeManager.IsCostume(id)) return false;
+                costumeId = id;
+                return true;
+            }
+
+            // Offline / pre-scout race: everything in a solo seed is own-world, so
+            // the seed placement map is authoritative for ownership.
+            LocationID loc = (LocationID)(apLocation - BaseApLocationId);
+            if (SeedFlagMapBuilder.LocationToItem.TryGetValue(loc, out ItemID seedItem)
+                && CostumeManager.IsCostume(seedItem))
+            {
+                costumeId = seedItem;
+                return true;
+            }
+
+            return false;
         }
 
         // =====================================================================
@@ -291,6 +359,7 @@ namespace LaMulana2Archipelago.Managers
 
             client.SendLocationCheck(apLocation);
             TryDeliverOwnGlossaryRom(apLocation);
+            TryDeliverOwnCostume(apLocation);
         }
 
         // =====================================================================
