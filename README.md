@@ -1,4 +1,4 @@
-# La-Mulana 2 Archipelago v0.8.0
+# La-Mulana 2 Archipelago v0.9.0
 Archipelago mod for La-Mulana 2 using BepInEx.
 Functions as a port of the original **[La-Mulana 2 Randomizer](https://github.com/Coookie93/LaMulana2Randomizer)** by **Coookie93**, with additional features for AP.
 
@@ -20,7 +20,7 @@ For Linux users, additional settings are required to [run BepInEx through Proton
 5. Launch La-Mulana 2. On startup it will load some sprites from certain areas. 
 6. On the title screen, manually fill in the server, slotname and password into the AP GUI on the bottom left.
 7. Once you're connected you're good to go!
-8. [Optionally] [Connect the La-Mulana 2 PopTracker pack for auto-tracking](https://github.com/Crownmuri/LaMulana2AP-PopTracker)
+8. [Recommended] [Connect the La-Mulana 2 PopTracker pack for auto-tracking](https://github.com/Crownmuri/LaMulana2AP-PopTracker)
 
 ## Packaged dependencies
 - BepInEx **5** [last built with **5.4.23.4**] (https://github.com/BepInEx/BepInEx/releases)
@@ -40,22 +40,24 @@ For Linux users, additional settings are required to [run BepInEx through Proton
   - NPC: acts like a regular item grant and will update your resources.
   - Mural: acts like a regular item grant and will update your resources.
   - Shop: instead of falling back to Weights, will act as a regular item purchase showing as Codices (Annoyingly, the Weight sprite comes with the +5). Currently I have set the price multiplier to 0 -- balancing might be required.
-- **AP item sprite.** Currently AP items appear as a darkened version of the original AP logo asset.
+- **AP item sprite.** Currently AP items appear as a darkened version of the original AP logo asset (normal, progressive, trap)
 - **Shops will tell what AP item is for sale.** So that you don't end up wasting money on another world's filler.
 - **Three-way Chest Colors.** Regular items, filler items and AP items.
 - **DeathLink.** It will trigger the mantra instant death sequence upon receiving a death from AP.  
 - **Release upon reaching credits.** If the server is set to release items upon game clear, the flag is set after the sequence at the Cliff transitioning into the credits.
-- Costumesanity: Hides all your costumes upon connecting to AP and shuffles them into the pool (the chests are unlocked by default -- not sure why I called it a sanity)
-- Potsanity: All item pots have been mapped and can be shuffled. Toggles per pot category.
-- Glossanity: All glossary entries have been mapped and can be shuffled. Toggles per pot category.
-- Oannesanity: DLC content is added into the pool (chests, glossaries). Entrances separately toggleable.
+- **Costumesanity**: Hides all your costumes upon connecting to AP and shuffles them into the pool (the chests are unlocked by default -- not sure why I called it a sanity)
+- **Potsanity**: All item pots have been mapped and can be shuffled. Toggles per pot category.
+- **Glossanity**: All glossary entries have been mapped and can be shuffled. Toggles per pot category.
+- **Oannesanity**: DLC content is added into the pool (chests, glossaries). Entrances separately toggleable.
 - Offline Mode: If you wish to just play offline, you can either write seeds through AP or the original randomizer and load the `seed.lm2r` from the title screen.
   - Filepath should be `La-Mulana 2\LaMulana2Randomizer\Seed\seed.lm2r`
   - If you play with an AP generated seed, you can turn on the toggles for AP based filler rewards and restricting ankhs to be guardian specific.
 
 ## Issues
 - Minor: Some text does not wrap nicely after patching in AP label names.
-- Minor: Death Link sometimes not sending out to other players
 - Fake items are currently overwritten as the new filler, so there are no actual traps at this point in development.
 - There could be some issues not listed here, feel free to share on Discord or on GitHub.
-- DLC logic is not 100% verified (beatable, but two bosses can be skipped due to flags and may block entrances)
+
+## AI Disclaimer
+The project started off using [this Bepinex for AP template](https://github.com/alwaysintreble/ArchipelagoBepInExPluginTemplate). Claude Code has been used help port logic into Python, read through decompiled code to expedite finding flags to make further adjustments, and making bulk changes to the tracker. All commits were manually pushed after testing and verifying myself. APWorld stability has been tested using [Eijebong's fuzzer](https://github.com/Eijebong/Archipelago-fuzzer). No AI art has been made in this project.
+
