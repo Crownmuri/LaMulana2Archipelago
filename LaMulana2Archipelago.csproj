@@ -32,6 +32,12 @@
         <ZipDirectory SourceDirectory="bin\Release\$(AssemblyName)" DestinationFile="bin\Release\$(AssemblyName)-$(Version).zip" Overwrite="true" />
     </Target>
 
+    <Target Name="ExcludeWebSocketSharp" AfterTargets="ResolveAssemblyReferences" Condition=" '$(Configuration)' == 'Debug' ">
+        <ItemGroup>
+            <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(FileName)' == 'websocket-sharp'" />
+        </ItemGroup>
+    </Target>
+
     <ItemGroup>
       <Compile Remove="dev\**" />
       <Compile Remove="Trackers\**" />
