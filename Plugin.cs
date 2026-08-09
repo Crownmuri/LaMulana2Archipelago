@@ -185,6 +185,11 @@ namespace LaMulana2Archipelago
             _harmony.PatchAll();
             Log.LogInfo("Harmony patches applied");
 
+            // DIAGNOSTIC: background hang watchdog (own thread, so a frozen main
+            // thread can't silence it). Reports where the intermittent shop /
+            // NPC-glossary freeze stalls. Remove with HangWatchdog once fixed.
+            Managers.HangWatchdog.Start();
+
             // Flag map is populated on demand — from AP slot_data on successful
             // Connect, or from seed.lm2r when the player clicks "Load seed.lm2r
             // (offline)". AP-only players never need to touch seed.lm2r at all.
@@ -195,6 +200,8 @@ namespace LaMulana2Archipelago
         private void OnDestroy()
         {
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+
+            Managers.HangWatchdog.Stop();
 
             Log.LogInfo("Unpatching Harmony");
             _harmony?.UnpatchSelf();
@@ -234,6 +241,10 @@ namespace LaMulana2Archipelago
 
         private void Update()
         {
+            // DIAGNOSTIC: main-thread liveness tick for the hang watchdog. Must be
+            // first so it beats every frame regardless of the early-returns below.
+            Managers.HangWatchdog.Heartbeat();
+
             // Re-scan only if cache is stale (scene transitions null it out).
             if (_cachedSys == null)
                 _cachedSys = UnityEngine.Object.FindObjectOfType<L2System>();
