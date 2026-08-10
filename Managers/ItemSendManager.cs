@@ -222,7 +222,6 @@ namespace LaMulana2Archipelago.Managers
             // Suppress AP placeholder (matches "AP Item", "AP Item 0", "AP Item 123", etc.)
             if (item_name == "AP Item" || item_name.StartsWith("AP Item "))
             {
-                HangWatchdog.LastBreadcrumb = "setItem-suppress:" + item_name; // DIAGNOSTIC
                 Plugin.Log.LogInfo($"[AP] Suppressed setItem for AP placeholder: {item_name}");
                 return false;
             }
