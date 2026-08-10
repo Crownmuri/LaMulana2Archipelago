@@ -67,6 +67,13 @@ namespace LaMulana2Archipelago.Managers
             public long ApItemId;
             public int Sheet;
             public int Flag;
+
+            /// <summary>
+            /// The value the probe flag carries once this item is owned — the same
+            /// value CreateGetFlags' CALCU.EQR writes. 1 for everything except the
+            /// Mobile Super X3p upgrade, whose flag is a level, not a boolean.
+            /// </summary>
+            public short Value;
         }
 
         // Resolved at scan time and drained one per frame by Update, so a big
@@ -160,10 +167,10 @@ namespace LaMulana2Archipelago.Managers
                 long apItemId = ResolveOwnApItemId(location, apLocation);
                 if (apItemId <= BaseApItemId) continue;
 
-                if (!TryGetProbeFlag(location, apItemId, out int sheet, out int flag))
+                if (!TryGetProbeFlag(location, apItemId, out int sheet, out int flag, out short value))
                     continue;
 
-                if (HasFlag(sys, sheet, flag))
+                if (HasFlag(sys, sheet, flag, value))
                     continue;
 
                 _pending.Enqueue(new ReplayEntry
@@ -171,7 +178,8 @@ namespace LaMulana2Archipelago.Managers
                     Location = location,
                     ApItemId = apItemId,
                     Sheet = sheet,
-                    Flag = flag
+                    Flag = flag,
+                    Value = value
                 });
                 missing++;
             }
@@ -212,7 +220,7 @@ namespace LaMulana2Archipelago.Managers
 
         /// <summary>
         /// The save-state flag that says whether this item has already been
-        /// granted.
+        /// granted, plus the value that flag carries once it has been.
         ///
         /// Glossary ROMs are special-cased: a ROM's book flag belongs to the ROM,
         /// not to the location it was found at (a shuffled ROM can turn up
@@ -220,27 +228,46 @@ namespace LaMulana2Archipelago.Managers
         /// entry. Every other item is identified by its location, whose single
         /// registered flag is the one a physical pickup sets.
         /// </summary>
-        private static bool TryGetProbeFlag(LocationID location, long apItemId, out int sheet, out int flag)
+        private static bool TryGetProbeFlag(LocationID location, long apItemId, out int sheet, out int flag, out short value)
         {
             int gameId = (int)(apItemId - BaseApItemId);
+
+            value = OwnedFlagValue((ItemID)gameId);
 
             if (GlossaryManager.TryGetBookFlagForItem(gameId, out int bookFlag))
             {
                 sheet = GlossaryManager.BookSheet;
                 flag = bookFlag;
+                value = 1;
                 return true;
             }
 
             return LocationFlagMap.TryGetFlagForLocation(location, out sheet, out flag);
         }
 
-        private static bool HasFlag(L2System sys, int sheet, int flag)
+        /// <summary>
+        /// The value CreateGetFlags' CALCU.EQR stamps on this item's own flag.
+        ///
+        /// Nearly every item is a boolean 1, but the Mobile Super X3p is an
+        /// *upgrade*: its flag (2,15 "MSX") is a level, it starts at 1 on a fresh
+        /// game (L2FlagsData seeds "MSX" = 1 for the base unit), and owning the
+        /// 3p is encoded as 2 — which is why SceneRandomizer.ChangeChestItemFlags
+        /// and ItemGrantManager both special-case it. A plain "> 0" probe would
+        /// read the base unit's 1 and conclude the save already has the upgrade,
+        /// so a rewind would silently drop MSX3p forever.
+        /// </summary>
+        private static short OwnedFlagValue(ItemID itemId)
+        {
+            return itemId == ItemID.MobileSuperx3P ? (short)2 : (short)1;
+        }
+
+        private static bool HasFlag(L2System sys, int sheet, int flag, short owned)
         {
             short data = 0;
             if (!sys.getFlag(sheet, flag, ref data))
                 return true; // unreadable flag: assume present rather than risk a double grant
 
-            return data > 0;
+            return data >= owned;
         }
 
         // ==========================
@@ -306,18 +333,21 @@ namespace LaMulana2Archipelago.Managers
         /// physical pickup sets, and the check really has been sent, so the chest
         /// is spent. Wrapped in the recursive guard so the write can't be
         /// mistaken for a fresh location check. Grants that DO set their own flag
-        /// (DeliverGlossaryRom, Sacred Orbs, maps, skulls) no-op here.
+        /// (DeliverGlossaryRom, Sacred Orbs, maps, skulls, MSX3p) no-op here.
+        ///
+        /// Writes ReplayEntry.Value, not a hardcoded 1, so an upgrade flag lands on
+        /// the level CreateGetFlags would have written (MSX3p = 2).
         /// </summary>
         private static void StampProbeFlag(L2System sys, ReplayEntry entry)
         {
-            if (HasFlag(sys, entry.Sheet, entry.Flag))
+            if (HasFlag(sys, entry.Sheet, entry.Flag, entry.Value))
                 return;
 
             using (ItemGrantRecursiveGuard.Begin())
-                sys.setFlagData(entry.Sheet, entry.Flag, 1);
+                sys.setFlagData(entry.Sheet, entry.Flag, entry.Value);
 
             Plugin.Log.LogInfo(
-                $"[Persist] Stamped flag ({entry.Sheet},{entry.Flag}) for {entry.Location} — grant path leaves it to the pickup.");
+                $"[Persist] Stamped flag ({entry.Sheet},{entry.Flag})={entry.Value} for {entry.Location} — grant path leaves it to the pickup.");
         }
 
         // ==========================
