@@ -19,7 +19,7 @@ namespace LaMulana2Archipelago.Archipelago
 {
     public class ArchipelagoClient
     {
-        public const string APVersion = "0.9.1";
+        public const string APVersion = "0.9.2";
         private const string Game = "La-Mulana 2";
 
         public static bool Authenticated;
