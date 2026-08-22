@@ -66,6 +66,11 @@ namespace LaMulana2Archipelago.Managers
         private L2ShopDataBase shopDataBase;
         private L2TalkDataBase talkDataBase;
 
+        // Exposed so the teardown can hand them to WorldDataRestore without
+        // re-resolving them off L2System.
+        internal L2ShopDataBase ShopDataBase => shopDataBase;
+        internal L2TalkDataBase TalkDataBase => talkDataBase;
+
         // One-time initialization flag for shop/dialogue rewrites
         private bool shopDialogueInitialized;
 
@@ -73,7 +78,10 @@ namespace LaMulana2Archipelago.Managers
         // Captured on first ChangeThanksStrings call so we can restore + reapply
         // on reconnect (those cells use += which would otherwise double-stamp).
         // Key: "sheet:row"
-        private readonly Dictionary<string, string> _shopThanksOriginals = new();
+        // Static: a disconnect destroys this component, and a fresh instance
+        // re-capturing "originals" from already-appended cells would stack the
+        // previous seed's get-flags onto the next seed's thank scripts.
+        private static readonly Dictionary<string, string> _shopThanksOriginals = new();
 
         public static void Create()
         {
@@ -793,6 +801,10 @@ namespace LaMulana2Archipelago.Managers
 
             EventItemScript item = chest.itemObj.GetComponent<EventItemScript>();
             if (item == null) return;
+
+            // itemObj is the chest's item *prefab*, not a scene child, so these
+            // writes outlive the scene and must be undone on disconnect.
+            WorldDataRestore.CaptureItemPrefab(item);
 
             // Update active flags
             item.itemActiveFlag = new L2FlagBoxParent[]
@@ -2148,6 +2160,11 @@ namespace LaMulana2Archipelago.Managers
 
             if (shopDataBase == null || talkDataBase == null)
                 return;
+
+            // Snapshot the vanilla scripts before the first write so a disconnect
+            // can put them back (these databases live for the whole process).
+            WorldDataRestore.EnsureShopBaseline(shopDataBase);
+            WorldDataRestore.EnsureTalkBaseline(talkDataBase);
 
             ChangeShopItems();
             ChangeShopThanks();

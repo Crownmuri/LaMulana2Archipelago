@@ -312,6 +312,13 @@ namespace LaMulana2Archipelago.Archipelago
 
             Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = false;
 
+            // Revert the rewrites that outlive a scene: the shop/talk moji script
+            // databases (L2System field initialisers, so process-lifetime) and the
+            // chest item prefabs. Without this the next session still sees the last
+            // seed's shop stock, NPC gifts and chest contents.
+            Managers.WorldDataRestore.RestoreAll();
+            Patches.ShopDialogPatch.Reset();
+
             if (SceneRandomizer.Instance != null)
                 UnityEngine.Object.Destroy(SceneRandomizer.Instance.gameObject);
 

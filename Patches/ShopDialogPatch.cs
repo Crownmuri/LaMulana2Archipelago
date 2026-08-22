@@ -71,9 +71,7 @@ namespace LaMulana2Archipelago.Patches
                 return;
             }
             // Clear the old (empty) data
-            _slotDisplayNames.Clear();
-            _slotApLocationIds.Clear();
-            _slotIconClass.Clear();
+            Reset();
 
             // Re-run the logic now that the ScoutedLocationsCache is full
             Apply(_cachedInstance);
@@ -81,13 +79,30 @@ namespace LaMulana2Archipelago.Patches
             Plugin.Log.LogInfo($"[ShopPatch] Re-applied overrides. New count: {_slotDisplayNames.Count}");
         }
 
-        // ── Core apply ───────────────────────────────────────────────────────
+        // ── Teardown ─────────────────────────────────────────────────────────
 
-        private static void Apply(L2ShopDataBase instance)
+        /// <summary>
+        /// Drop the previous seed's slot overrides. Without this the shop item
+        /// listing keeps rendering the old seed's AP names after a disconnect
+        /// (ItemCallBack_Postfix only stands down when the cache is empty).
+        /// The cellData names this patch wrote are reverted by WorldDataRestore.
+        /// </summary>
+        public static void Reset()
         {
             _slotDisplayNames.Clear();
             _slotApLocationIds.Clear();
             _slotIconClass.Clear();
+        }
+
+        // ── Core apply ───────────────────────────────────────────────────────
+
+        private static void Apply(L2ShopDataBase instance)
+        {
+            Reset();
+
+            // First write of the process into shop cellData may come from here
+            // rather than SceneRandomizer, so arm the restore baseline too.
+            Managers.WorldDataRestore.EnsureShopBaseline(instance);
 
             var client = ArchipelagoClientProvider.Client;
             if (client == null) return;

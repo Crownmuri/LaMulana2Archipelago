@@ -131,7 +131,11 @@ namespace LaMulana2Archipelago.Patches
                 }
             }
 
-            MaybeInjectEventItemFlag(chest.itemObj.GetComponent<EventItemScript>(), itemID, locationID);
+            EventItemScript item = chest.itemObj.GetComponent<EventItemScript>();
+            // itemObj is a shared prefab whose rewrite outlives the scene; snapshot
+            // it so a disconnect can revert this chest to vanilla.
+            Managers.WorldDataRestore.CaptureItemPrefab(item);
+            MaybeInjectEventItemFlag(item, itemID, locationID);
         }
 
         /// <summary>
