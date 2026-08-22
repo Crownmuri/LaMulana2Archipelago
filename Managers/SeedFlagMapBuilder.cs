@@ -37,12 +37,18 @@ namespace LaMulana2Archipelago.Managers
         /// <summary>
         /// NPCMoney script sets sheet=31 flag=200..209 (NPCMoney01..10).
         /// Reserve mapping for filler purposes.
+        /// NOTE: sheet 31 only has 200 real rows, so these flags are virtual
+        /// (VirtualFlagManager) and this map is what restores them from AP check
+        /// state on a fresh session — see VirtualFlagManager.GetFlag.
         /// </summary>
         public static readonly Dictionary<int, LocationID> NpcMoneyFlagToLocation = new Dictionary<int, LocationID>();
 
         /// <summary>
         /// FakeScan script sets sheet=31 flag=210..224 (FakeScan01..15).
         /// Reserve mapping for filler purposes.
+        /// NOTE: sheet 31 only has 200 real rows, so these flags are virtual
+        /// (VirtualFlagManager) and this map is what restores them from AP check
+        /// state on a fresh session — see VirtualFlagManager.GetFlag.
         /// </summary>
         public static readonly Dictionary<int, LocationID> FakeScanFlagToLocation = new Dictionary<int, LocationID>();
 

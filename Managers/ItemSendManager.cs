@@ -42,20 +42,25 @@ namespace LaMulana2Archipelago
 
         /// <summary>
         /// Sheet-31 flag layout for real game items:
-        ///   ChestWeight01-100 → flags   0-99
-        ///   FakeItem01-100    → flags 100-199
-        ///   NPCMoney01-10     → flags 200-209
-        ///   FakeScan01-15     → flags 210-224
+        ///   ChestWeight01-100 → flags   0-99   (real rows in the game flag data)
+        ///   FakeItem01-100    → flags 100-199  (real rows in the game flag data)
+        ///   NPCMoney01-10     → flags 200-209  (VIRTUAL — past the end of the sheet)
+        ///   FakeScan01-15     → flags 210-224  (VIRTUAL — past the end of the sheet)
+        ///
+        /// Sheet 31 ("31ext8") only declares 200 flag rows (d000..d199), so the last
+        /// two families above have no backing storage and must be served by
+        /// VirtualFlagManager — see VirtualFlagManager.FirstVirtualFlag (200), which
+        /// is the boundary the flag patches actually key off.
         ///
         /// AP placeholder flags start at 225 (FlagOffset). Sheet 31 with
         /// flag >= 225 is fully virtualised by VirtualFlagManager (a
-        /// Dictionary&lt;int, short&gt;), so the upper bound is unbounded — do
-        /// NOT clamp here, or distinct foreign-item locations will collide
+        /// Dictionary), so the upper bound is unbounded — do NOT clamp here,
+        /// or distinct foreign-item locations will collide
         /// once a seed has more than ~149 of them.
         ///
-        /// NOTE: VirtualFlagManager (SetFlagDataPatch) keys its boundary off
-        /// this constant, so the two stay in sync. Do not reintroduce a magic
-        /// number there.
+        /// NOTE: this is the base for placeholder → flag arithmetic only. The
+        /// virtualisation boundary is VirtualFlagManager.FirstVirtualFlag (200),
+        /// which is set by the sheet's real row count, not by this constant.
         /// </summary>
         internal const int FlagOffset = 225;
 

@@ -4,12 +4,20 @@ using L2Flag;
 using LaMulana2Archipelago.Archipelago;
 using LaMulana2Archipelago.Managers;
 using LaMulana2Archipelago.Utils;
+using LaMulana2RandomizerShared;
 using System.Collections.Generic;
 
 namespace LaMulana2Archipelago.Patches
 {
     public static class VirtualFlagManager
     {
+        /// <summary>
+        /// Covers both AP placeholders (>= ApItemIDs.FlagOffset, 225) and the two
+        /// filler families whose ItemDB flags overflow the sheet — NPCMoney01-10
+        /// (200-209) and FakeScan01-15 (210-224).
+        /// </summary>
+        internal const int FirstVirtualFlag = 200;
+
         private static Dictionary<int, short> _virtualFlags = new Dictionary<int, short>();
         // Persistent L2FlagBase instances returned from getFlagBaseObject.
         // L2FlagBox caches flgBaseL on first call, so we must hand back the
@@ -18,27 +26,56 @@ namespace LaMulana2Archipelago.Patches
 
         public static short GetFlag(int flagno)
         {
-            int itemId = flagno - ApItemIDs.FlagOffset + ApItemIDs.Placeholder;
-            foreach (var kvp in SeedFlagMapBuilder.LocationToItem)
+            if (flagno >= ApItemIDs.FlagOffset)
             {
-                if ((int)kvp.Value == itemId)
+                int itemId = flagno - ApItemIDs.FlagOffset + ApItemIDs.Placeholder;
+                foreach (var kvp in SeedFlagMapBuilder.LocationToItem)
                 {
-                    long apLoc = 430000 + (long)kvp.Key;
-                    // reportedLocations covers the current session; CheckedLocations
-                    // is repopulated from the server on connect, so it covers items
-                    // collected in previous sessions after a fresh launch.
-                    if (CheckManager.IsLocationReported(apLoc)
-                        || ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc))
-                        return 1;
+                    if ((int)kvp.Value == itemId)
+                    {
+                        long apLoc = 430000 + (long)kvp.Key;
+                        // reportedLocations covers the current session; CheckedLocations
+                        // is repopulated from the server on connect, so it covers items
+                        // collected in previous sessions after a fresh launch.
+                        if (CheckManager.IsLocationReported(apLoc)
+                            || ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc))
+                            return 1;
 
-                    break;
+                        break;
+                    }
                 }
+            }
+            else if (TryResolveOverflowFillerLocation(flagno, out LocationID fillerLoc))
+            {
+                // NPCMoney / FakeScan container flags (200-224). These have no row in
+                // sheet 31 and so are never written to the game save; resolve them from
+                // AP check state exactly like placeholder flags, otherwise an NPC would
+                // hand out its gift again on every relaunch.
+                long apLoc = 430000 + (long)fillerLoc;
+                if (CheckManager.IsLocationReported(apLoc)
+                    || ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc))
+                    return 1;
             }
 
             if (_virtualFlags.TryGetValue(flagno, out short val))
                 return val;
 
             return 0;
+        }
+
+        /// <summary>
+        /// Maps an overflow filler container flag (NPCMoney 200-209 / FakeScan 210-224)
+        /// back to the location holding it, using the maps SeedFlagMapBuilder already
+        /// builds for exactly these two families.
+        /// </summary>
+        private static bool TryResolveOverflowFillerLocation(int flagno, out LocationID location)
+        {
+            if (SeedFlagMapBuilder.NpcMoneyFlagToLocation.TryGetValue(flagno, out location)
+                || SeedFlagMapBuilder.FakeScanFlagToLocation.TryGetValue(flagno, out location))
+                return location != LocationID.None;
+
+            location = LocationID.None;
+            return false;
         }
 
         public static void SetFlag(int flagno, short data)
@@ -83,7 +120,7 @@ namespace LaMulana2Archipelago.Patches
         // Verified: getFlag uses "seetno" and "flagno"
         static bool Prefix(L2FlagSystem __instance, int seetno, int flagno, ref short data, ref bool __result)
         {
-            if (seetno == 31 && flagno >= ApItemIDs.FlagOffset)
+            if (seetno == 31 && flagno >= VirtualFlagManager.FirstVirtualFlag)
             {
                 data = VirtualFlagManager.GetFlag(flagno);
                 __result = true;
@@ -127,7 +164,7 @@ namespace LaMulana2Archipelago.Patches
         static bool Prefix(L2FlagSystem __instance, int seet_no, int flag_no, short data, out short __state)
         {
             __state = 0;
-            if (seet_no == 31 && flag_no >= ApItemIDs.FlagOffset)
+            if (seet_no == 31 && flag_no >= VirtualFlagManager.FirstVirtualFlag)
             {
                 VirtualFlagManager.SetFlag(flag_no, data);
                 return false;
@@ -211,7 +248,7 @@ namespace LaMulana2Archipelago.Patches
         // Verified parameter names in L2FlagSystem.cs: seet_no, flag_no
         static bool Prefix(L2FlagSystem __instance, int seet_no, int flag_no, ref L2FlagBase flgBase, ref bool __result)
         {
-            if (seet_no == 31 && flag_no >= ApItemIDs.FlagOffset)
+            if (seet_no == 31 && flag_no >= VirtualFlagManager.FirstVirtualFlag)
             {
                 flgBase = VirtualFlagManager.GetOrCreateBase(flag_no);
                 __result = true;
@@ -265,7 +302,7 @@ namespace LaMulana2Archipelago.Patches
         // Verified parameter names in L2FlagSystem.cs: seet_no1, flag_no1
         static bool Prefix(int seet_no1, int flag_no1, short value, CALCU cul)
         {
-            if (seet_no1 == 31 && flag_no1 >= ApItemIDs.FlagOffset)
+            if (seet_no1 == 31 && flag_no1 >= VirtualFlagManager.FirstVirtualFlag)
             {
                 short current = VirtualFlagManager.GetFlag(flag_no1);
                 short nextValue = current;
