@@ -276,7 +276,17 @@ namespace LaMulana2Archipelago.Managers
                 bool potFillerHandled = ItemPotPatch.PotFillerDialog;
                 ItemPotPatch.PotFillerDialog = false;
 
-                if (isFillerItem)
+                // A guardian kill is an event-only check — no item, no dialog of its
+                // own. Leave any pending label completely alone: item grants are held
+                // across the death fanfare, so a label primed for a queued AP item
+                // routinely outlives the frame it was primed on and its dialog only
+                // opens after the auto-return. Treating it as stale here would eat it.
+                if (BossKillTracker.IsGuardianLocation(location))
+                {
+                    Plugin.Log.LogDebug("[CHECK] Skipping dialog prime — guardian kill");
+                }
+
+                else if (isFillerItem)
                 {
                     Plugin.Log.LogDebug("[CHECK] Skipping dialog prime — filler item");
                 }
@@ -298,15 +308,7 @@ namespace LaMulana2Archipelago.Managers
                     // never opened to consume it), wipe all of its sidecar
                     // state so it can't leak into this pickup's dialog.
                     if (ItemDialogPatch.PendingDisplayLabel != null)
-                    {
-                        Plugin.Log.LogWarning("[CHECK] Discarding stale dialog label: \""
-                            + ItemDialogPatch.PendingDisplayLabel + "\"");
-                        ItemDialogPatch.PendingDisplayLabel = null;
-                        ItemDialogPatch.PendingSenderName = null;
-                        ItemDialogPatch.PendingRecipientName = null;
-                        ItemDialogPatch.PendingRecipientColorHex = null;
-                        ItemDialogPatch.PendingRecipientIconClass = null;
-                    }
+                        DiscardStaleDialogPrime();
 
                     var scouted = client.GetItemAtLocation(apLocation);
 
@@ -360,6 +362,22 @@ namespace LaMulana2Archipelago.Managers
             client.SendLocationCheck(apLocation);
             TryDeliverOwnGlossaryRom(apLocation);
             TryDeliverOwnCostume(apLocation);
+        }
+
+        /// <summary>
+        /// Wipes a dialog prime (and all of its sidecar state) that survived from an
+        /// earlier frame without a dialog opening to consume it, so it can't leak
+        /// into an unrelated pickup's dialog.
+        /// </summary>
+        private static void DiscardStaleDialogPrime()
+        {
+            Plugin.Log.LogWarning("[CHECK] Discarding stale dialog label: \""
+                + ItemDialogPatch.PendingDisplayLabel + "\"");
+            ItemDialogPatch.PendingDisplayLabel = null;
+            ItemDialogPatch.PendingSenderName = null;
+            ItemDialogPatch.PendingRecipientName = null;
+            ItemDialogPatch.PendingRecipientColorHex = null;
+            ItemDialogPatch.PendingRecipientIconClass = null;
         }
 
         // =====================================================================

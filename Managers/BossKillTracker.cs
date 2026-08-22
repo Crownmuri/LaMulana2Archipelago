@@ -52,6 +52,16 @@ namespace LaMulana2Archipelago.Managers
                 { "guardian08", LocationID.Hel },
             };
 
+        /// <summary>
+        /// True for the nine guardian-kill LocationIDs. These are event-only checks —
+        /// the guardian drops nothing itself — so callers must not treat them like a
+        /// pickup (no item dialog ever opens for one).
+        /// </summary>
+        public static bool IsGuardianLocation(LocationID location)
+        {
+            return GuardianFlagToLocation.ContainsValue(location);
+        }
+
         private static LocationID? pendingGuardian;
         private static string originatingScene;
         private static string lastSceneName;
