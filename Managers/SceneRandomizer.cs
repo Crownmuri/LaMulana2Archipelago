@@ -983,8 +983,9 @@ namespace LaMulana2Archipelago.Managers
             if (!randomDissonance || field == "lastBoss")
                 return;
 
-            // Destroy dissonance use-item targets
+            // Destroy dissonance use-item targets but keep effectFlags
             GameObject toDestroy = null;
+            L2FlagBoxEnd[] beheritEffects = null;
             foreach (var useItem in FindObjectsOfType<UsingItemTargetScript>())
             {
                 if (useItem == null)
@@ -1000,6 +1001,7 @@ namespace LaMulana2Archipelago.Managers
                         if (flags.seet_no1 == 2 && flags.flag_no1 == 3)
                         {
                             toDestroy = useItem.gameObject;
+                            beheritEffects = target.effectFlags;
                             break;
                         }
                     }
@@ -1166,12 +1168,102 @@ namespace LaMulana2Archipelago.Managers
             };
 
             ChangeChestItemFlags(chest, itemID);
+            L2FlagBoxEnd[] captureFlags = BuildDissonanceCaptureFlags(beheritEffects, sheet, flag);
+            chest.openActionFlags = captureFlags;
+            ReapplyDissonanceCaptureFlags(locationID, sheet, flag, captureFlags);
+
             chest.gameObject.SetActive(true);
 
             Plugin.Log.LogInfo($"[SceneRando] DissonanceChests: chest spawned — " +
                 $"active={chest.gameObject.activeInHierarchy} " +
                 $"pos={chest.transform.position} " +
                 $"parent={chest.transform.parent?.name ?? "ROOT"}");
+        }
+
+        /// <summary>
+        /// Vanilla absorbs a dissonance through the field's UsingItemTargetScript: using a
+        /// Beherit on it runs that target's effectFlags, which bump the Beherit counter
+        /// (2,3)+1 AND stamp the field's dissonance flag (sheet,flag)=2 
+        /// minusGus, minusSmoke, C7_minus, minusGusL02, minusGusSP
+        /// 1 = released, which is what the chest's unlockFlags already gate on; 
+        /// 2 = absorbed, which is what the re-scan dialog wants before it hands over the glossary entry. 
+        /// DSLM and EPG also carry an unnamed scratch flag ((1,19)=0, (18,93)=1) for their own presentation.
+        /// DissonanceChests destroys that object, so the writes have to move onto the chest.
+        /// Everything except the (2,3) counter carries over: the dissonance is an AP item
+        /// now, and its counter is driven by Progressive Beherit grants instead.
+        /// </summary>
+        private static L2FlagBoxEnd[] BuildDissonanceCaptureFlags(L2FlagBoxEnd[] beheritEffects, int sheet, int flag)
+        {
+            List<L2FlagBoxEnd> carried = new List<L2FlagBoxEnd>();
+
+            if (beheritEffects != null)
+            {
+                foreach (L2FlagBoxEnd effect in beheritEffects)
+                {
+                    if (effect == null)
+                        continue;
+                    if (effect.seet_no1 == 2 && effect.flag_no1 == 3)
+                        continue; // Beherit counter — AP owns it now
+
+                    // Clone: the source array belongs to the object we just destroyed.
+                    carried.Add(new L2FlagBoxEnd
+                    {
+                        seet_no1 = effect.seet_no1,
+                        flag_no1 = effect.flag_no1,
+                        calcu = effect.calcu,
+                        data = effect.data
+                    });
+                }
+            }
+
+            if (carried.Count == 0)
+            {
+                Plugin.Log.LogWarning("[SceneRando] DissonanceChests: no Beherit effect flags harvested — " +
+                    $"falling back to ({sheet},{flag})=2");
+                carried.Add(new L2FlagBoxEnd { seet_no1 = sheet, flag_no1 = flag, calcu = CALCU.EQR, data = 2 });
+            }
+
+            Plugin.Log.LogInfo("[SceneRando] DissonanceChests: capture flags → " +
+                string.Join(", ", carried.Select(f => $"({f.seet_no1},{f.flag_no1}) {f.calcu} {f.data}").ToArray()));
+
+            return carried.ToArray();
+        }
+
+        /// <summary>
+        /// A dissonance chest opened before the carry-over existed (or on a save whose checks
+        /// were re-synced from the server) leaves the dissonance flag stuck at 1 — released,
+        /// never absorbed — because openActionFlags only fire on the frame the chest opens.
+        /// Re-stamp on scene load once the check is banked.
+        ///
+        /// Only the dissonance flag is repaired, never the scratch flags DSLM and EPG carry:
+        /// those sit in slots shared with other events, so replaying them every scene load
+        /// could stomp unrelated state. The write is EQR, so re-stamping is idempotent.
+        /// </summary>
+        private void ReapplyDissonanceCaptureFlags(LocationID locationID, int sheet, int flag, L2FlagBoxEnd[] captureFlags)
+        {
+            if (sys == null || captureFlags == null || captureFlags.Length == 0)
+                return;
+
+            long apLocation = 430000L + (int)locationID;
+            bool banked = CheckManager.IsLocationReported(apLocation)
+                || (ArchipelagoClient.ServerData?.CheckedLocations?.Contains(apLocation) ?? false);
+            if (!banked)
+                return;
+
+            L2FlagBoxEnd[] stateOnly = captureFlags
+                .Where(f => f != null && f.seet_no1 == sheet && f.flag_no1 == flag)
+                .ToArray();
+            if (stateOnly.Length == 0)
+                return;
+
+            short released = 0;
+            sys.getFlag(sheet, flag, ref released);
+            if (released < 1)
+                return;
+
+            Plugin.Log.LogInfo($"[SceneRando] DissonanceChests: {locationID} already checked — " +
+                $"re-stamping dissonance flag (({sheet},{flag})={released})");
+            sys.setEffectFlag(stateOnly);
         }
 
         // ================================================================
