@@ -134,8 +134,13 @@ namespace LaMulana2Archipelago.Managers
             int idx = Array.IndexOf(Costumes, id);
             if (idx < 0 || sys == null) return;
 
+            // Cast through ushort before the OR: a short is sign-extended to
+            // int, so a set bit 15 would flood the high bits. The (short) cast
+            // truncates them back today, but the widened form says what is
+            // meant and drops the CS0675 warning.
             using (ItemGrantRecursiveGuard.Begin())
-                sys.setFlagData(StateSheet, StateFlag, (short)(ReadState(sys) | (1 << idx)));
+                sys.setFlagData(StateSheet, StateFlag,
+                    (short)((ushort)ReadState(sys) | (1 << idx)));
 
             // No cloth-flag sync happens on item receipt, so apply now rather than
             // waiting for the next load.

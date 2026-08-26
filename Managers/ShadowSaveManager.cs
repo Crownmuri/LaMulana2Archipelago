@@ -356,23 +356,20 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         private static void DrainProcessedItems(int upToIndex)
         {
-            var queue = ArchipelagoClient.ItemQueue;
-            if (queue.Count == 0) return;
-
-            var keep = new Queue<ArchipelagoClient.QueuedApItem>();
             int drained = 0;
 
-            while (queue.Count > 0)
+            // Under the queue lock: an item the socket thread delivers partway
+            // through must not be dropped on the floor.
+            ArchipelagoClient.MutateItemQueue(current =>
             {
-                var item = queue.Dequeue();
-                if (item.Index <= upToIndex)
-                    drained++;
-                else
-                    keep.Enqueue(item);
-            }
-
-            while (keep.Count > 0)
-                queue.Enqueue(keep.Dequeue());
+                var keep = new List<ArchipelagoClient.QueuedApItem>(current.Count);
+                foreach (var item in current)
+                {
+                    if (item.Index <= upToIndex) drained++;
+                    else keep.Add(item);
+                }
+                return keep;
+            });
 
             if (drained > 0)
                 Plugin.Log.LogInfo($"[Shadow] Drained {drained} already-processed items from queue.");
@@ -398,29 +395,35 @@ namespace LaMulana2Archipelago.Managers
             // Replay in the order they were originally received.
             restoreItems.Sort((a, b) => a.Index.CompareTo(b.Index));
 
-            // Snapshot any live items already queued (e.g. items the AP
-            // server delivered after our last record), then rebuild the queue
-            // with restore items first and live items appended (deduped).
-            var pending = ArchipelagoClient.ItemQueue.ToArray();
-            ArchipelagoClient.ItemQueue.Clear();
-
-            foreach (var pi in restoreItems)
+            // Rebuild the queue with restore items first and any live items
+            // appended (deduped). Done under the queue lock as one operation:
+            // the old snapshot-then-clear pair silently lost anything the
+            // socket thread delivered between the two calls.
+            ArchipelagoClient.MutateItemQueue(pending =>
             {
-                ArchipelagoClient.ItemQueue.Enqueue(new ArchipelagoClient.QueuedApItem(
-                    pi.Index, pi.ItemId, pi.ItemName, pi.SenderName));
-            }
+                var rebuilt = new List<ArchipelagoClient.QueuedApItem>(
+                    restoreItems.Count + pending.Count);
 
-            foreach (var qi in pending)
-            {
-                if (qi.Index <= afterIndex) continue;
-
-                bool dup = false;
                 foreach (var pi in restoreItems)
                 {
-                    if (pi.Index == qi.Index) { dup = true; break; }
+                    rebuilt.Add(new ArchipelagoClient.QueuedApItem(
+                        pi.Index, pi.ItemId, pi.ItemName, pi.SenderName));
                 }
-                if (!dup) ArchipelagoClient.ItemQueue.Enqueue(qi);
-            }
+
+                foreach (var qi in pending)
+                {
+                    if (qi.Index <= afterIndex) continue;
+
+                    bool dup = false;
+                    foreach (var pi in restoreItems)
+                    {
+                        if (pi.Index == qi.Index) { dup = true; break; }
+                    }
+                    if (!dup) rebuilt.Add(qi);
+                }
+
+                return rebuilt;
+            });
 
             _restoreItemsRemaining += restoreItems.Count;
             Plugin.Log.LogInfo($"[Shadow] Re-queued {restoreItems.Count} items from master (afterIndex={afterIndex}).");

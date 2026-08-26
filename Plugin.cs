@@ -234,6 +234,13 @@ namespace LaMulana2Archipelago
 
         private void Update()
         {
+            // Drain whatever the networking threads handed back: a completed
+            // login handshake, a finished location scout. Must run before the
+            // L2System gate below, because the player connects from the title
+            // screen, and everything these handlers touch (GameObjects,
+            // prefabs, the shop/moji script databases) is main-thread-only.
+            ArchipelagoClientProvider.Client?.PumpMainThreadWork();
+
             // Re-scan only if cache is stale (scene transitions null it out).
             if (_cachedSys == null)
                 _cachedSys = UnityEngine.Object.FindObjectOfType<L2System>();
@@ -450,11 +457,11 @@ namespace LaMulana2Archipelago
             if (Managers.PersistentInventoryManager.Update(sys, pl))
                 return;
 
-            if (ArchipelagoClient.ItemQueue.Count <= 0)
+            // One item at a time; dequeue only if successful. Peek/Dequeue are
+            // individually locked, and only this thread ever dequeues, so an
+            // item the socket enqueues in between just lands behind this one.
+            if (!ArchipelagoClient.TryPeekItem(out var q))
                 return;
-
-            // One item at a time; dequeue only if successful
-            var q = ArchipelagoClient.ItemQueue.Peek();
 
             // Prime the dialog patch with AP display info BEFORE granting.
             // ItemDialogPatch.setItemDialogOption Prefix will read these and
@@ -479,7 +486,7 @@ namespace LaMulana2Archipelago
                     Patches.ItemDialogPatch.PendingRecipientIconClass = null;
                 }
 
-                ArchipelagoClient.ItemQueue.Dequeue();
+                ArchipelagoClient.TryDequeueItem(out _);
                 ArchipelagoClient.MarkItemProcessed(q.Index);
 
                 if (ShadowSaveManager.IsRestoringItem)

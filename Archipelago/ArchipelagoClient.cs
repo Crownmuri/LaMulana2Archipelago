@@ -1,4 +1,4 @@
-using Archipelago.MultiClient.Net;
+﻿using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Exceptions;
@@ -58,7 +58,14 @@ namespace LaMulana2Archipelago.Archipelago
         /// </summary>
         public static bool ApFillerActive => !OfflineMode || OfflineApFillerEnabled;
 
-        private bool attemptingConnection;
+        // Written by the background connect worker, read on the Unity main
+        // thread (Connect's guard, PumpConnectResult). volatile so the main
+        // thread cannot keep reading a stale cached value.
+        private volatile bool attemptingConnection;
+
+        // Result handed back by the connect worker, consumed on the main
+        // thread by PumpConnectResult. See TryConnect for why.
+        private volatile LoginResult pendingLoginResult;
 
         // =============================
         // Connection progress (for title-screen UI)
@@ -137,8 +144,73 @@ namespace LaMulana2Archipelago.Archipelago
             }
         }
 
-        // Main-thread consumed queue (index + item id)
-        public static Queue<QueuedApItem> ItemQueue = new();
+        // =============================
+        // Item queue
+        // =============================
+        // Filled from the MultiClient socket thread (OnItemReceived) and
+        // drained on the Unity main thread (Plugin.Update, ShadowSaveManager).
+        // Queue<T> is not thread-safe and net35 has no ConcurrentQueue, so the
+        // instance is private and every operation goes through the accessors
+        // below, all of which take _itemQueueLock. Left public and unguarded,
+        // an item arriving mid-drain could be lost outright -- ShadowSaveManager
+        // snapshots with ToArray() and then Clear()s, and anything the socket
+        // enqueued between those two calls vanished.
+        private static readonly Queue<QueuedApItem> _itemQueue = new();
+        private static readonly object _itemQueueLock = new object();
+
+        public static int ItemQueueCount
+        {
+            get { lock (_itemQueueLock) { return _itemQueue.Count; } }
+        }
+
+        public static void EnqueueItem(QueuedApItem item)
+        {
+            lock (_itemQueueLock) { _itemQueue.Enqueue(item); }
+        }
+
+        public static bool TryPeekItem(out QueuedApItem item)
+        {
+            lock (_itemQueueLock)
+            {
+                if (_itemQueue.Count == 0) { item = default(QueuedApItem); return false; }
+                item = _itemQueue.Peek();
+                return true;
+            }
+        }
+
+        public static bool TryDequeueItem(out QueuedApItem item)
+        {
+            lock (_itemQueueLock)
+            {
+                if (_itemQueue.Count == 0) { item = default(QueuedApItem); return false; }
+                item = _itemQueue.Dequeue();
+                return true;
+            }
+        }
+
+        public static void ClearItemQueue()
+        {
+            lock (_itemQueueLock) { _itemQueue.Clear(); }
+        }
+
+        /// <summary>
+        /// Rewrite the queue under the lock. <paramref name="transform"/> is
+        /// handed the current contents in order and returns the replacement,
+        /// so a read-modify-write cannot lose an item the socket thread
+        /// enqueues partway through.
+        /// </summary>
+        public static void MutateItemQueue(
+            Func<List<QueuedApItem>, List<QueuedApItem>> transform)
+        {
+            if (transform == null) return;
+            lock (_itemQueueLock)
+            {
+                var next = transform(new List<QueuedApItem>(_itemQueue));
+                if (next == null) return;
+                _itemQueue.Clear();
+                foreach (var item in next) _itemQueue.Enqueue(item);
+            }
+        }
 
         private static bool GoalReported;
 
@@ -263,7 +335,7 @@ namespace LaMulana2Archipelago.Archipelago
             Managers.CostumeManager.Reset();   // stop X-blocking costumes once AP is no longer active
             Patches.VirtualFlagManager.Reset();
             CheckManager.Reset();
-            ItemQueue.Clear();
+            ClearItemQueue();
             ServerData?.ClearSessionCache();
             if (ServerData != null)
             {
@@ -454,8 +526,16 @@ namespace LaMulana2Archipelago.Archipelago
             }
             catch (Exception e)
             {
+                // A malformed address reaches UriFormatException here. Falling
+                // through to TryConnect would queue a worker against a null
+                // session, and ManualConnectAndLogin dereferences it on its
+                // first line -- the NRE escapes onto the ThreadPool, so
+                // attemptingConnection is never cleared and the guard above
+                // turns every later Connect into a silent no-op.
                 Plugin.Log.LogError(e);
                 SetPhase(ConnectionPhase.Failed, e.Message);
+                session = null;
+                return;
             }
 
             TryConnect();
@@ -471,22 +551,97 @@ namespace LaMulana2Archipelago.Archipelago
 
         private void TryConnect()
         {
+            attemptingConnection = true;
+            pendingLoginResult = null;
+
             try
             {
-                attemptingConnection = true;
-
-                ThreadPool.QueueUserWorkItem(
-                    _ => HandleConnectResult(
-                        ManualConnectAndLogin(
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    // Only the socket handshake belongs on this thread.
+                    // HandleConnectResult builds a GameObject, loads prefabs
+                    // and rewrites the shop/talk script databases -- Unity API
+                    // that is only legal on the main thread -- so the result is
+                    // parked here and picked up by PumpConnectResult from
+                    // Plugin.Update instead.
+                    LoginResult result;
+                    try
+                    {
+                        result = ManualConnectAndLogin(
                             ServerData.SlotName,
                             ServerData.Password,
-                            ServerData.NeedSlotData
-                        )));
+                            ServerData.NeedSlotData);
+                    }
+                    catch (Exception e)
+                    {
+                        // An unhandled exception on a ThreadPool thread takes
+                        // the process down and would strand
+                        // attemptingConnection at true either way.
+                        Plugin.Log.LogError(e);
+                        result = new LoginFailure(e.ToString());
+                    }
+                    pendingLoginResult = result;
+                });
             }
             catch (Exception e)
             {
                 Plugin.Log.LogError(e);
-                HandleConnectResult(new LoginFailure(e.ToString()));
+                pendingLoginResult = new LoginFailure(e.ToString());
+            }
+        }
+
+        // Set from the scout callback (socket thread), consumed by
+        // PumpMainThreadWork.
+        private static volatile bool _scoutReapplyPending;
+
+        /// <summary>
+        /// Main-thread half of everything the networking threads hand back.
+        /// Called every frame from <see cref="Plugin.Update"/>; does nothing
+        /// until a background worker parks some work.
+        /// </summary>
+        public void PumpMainThreadWork()
+        {
+            if (_scoutReapplyPending)
+            {
+                _scoutReapplyPending = false;
+                try
+                {
+                    Patches.ShopDialogPatch.Reapply();
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log.LogError("[AP] Deferred shop reapply failed: " + e);
+                }
+            }
+
+            LoginResult result = pendingLoginResult;
+            if (result == null) return;
+            pendingLoginResult = null;
+
+            if (!attemptingConnection)
+            {
+                // Disconnect ran while the handshake was in flight -- the
+                // result belongs to a session we have already torn down.
+                Plugin.Log.LogInfo("[AP] Discarding login result from a cancelled connect.");
+                return;
+            }
+
+            try
+            {
+                HandleConnectResult(result);
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogError("[AP] Connect handling failed: " + e);
+                Authenticated = false;
+                Disconnect();
+                SetPhase(ConnectionPhase.Failed, e.Message);
+            }
+            finally
+            {
+                // Cleared on every path. HandleConnectResult's own assignment
+                // is not enough: if anything above throws, the guard in
+                // Connect() would block every retry until the game restarts.
                 attemptingConnection = false;
             }
         }
@@ -712,7 +867,7 @@ namespace LaMulana2Archipelago.Archipelago
             Authenticated = false;
             attemptingConnection = false;
             GoalReported = false;
-            ItemQueue.Clear();
+            ClearItemQueue();
 
             // The next Connect() re-runs ScoutAllLocations; until its async
             // callback lands, scout answers belong to the previous session.
@@ -767,7 +922,14 @@ namespace LaMulana2Archipelago.Archipelago
         /// PersistentInventoryManager, which cannot identify an own glossary ROM
         /// without one — must wait on this rather than treat null as an answer.
         /// </summary>
-        public static bool ScoutCacheReady { get; private set; }
+        // volatile: set from the scout callback on the socket thread, polled on
+        // the main thread by PersistentInventoryManager and friends.
+        private static volatile bool _scoutCacheReady;
+        public static bool ScoutCacheReady
+        {
+            get { return _scoutCacheReady; }
+            private set { _scoutCacheReady = value; }
+        }
 
         public void SendLocationCheck(long locationId)
         {
@@ -937,7 +1099,10 @@ namespace LaMulana2Archipelago.Archipelago
                     ScoutCacheReady = true;
                     Plugin.Log.LogInfo($"[AP] Pre-scouted {scoutResult.Count} locations into cache.");
 
-                    LaMulana2Archipelago.Patches.ShopDialogPatch.Reapply();
+                    // Reapply rewrites the shared L2ShopDataBase cellData that
+                    // the main thread reads while a shop is open. Hand it over
+                    // rather than racing it from the socket callback.
+                    _scoutReapplyPending = true;
                 },
                 all.ToArray());
         }
@@ -1080,7 +1245,7 @@ namespace LaMulana2Archipelago.Archipelago
                     catch { /* session may not be fully ready */ }
                 }
 
-                ItemQueue.Enqueue(new QueuedApItem(itemIndex, item.ItemId, item.ItemName, senderName));
+                EnqueueItem(new QueuedApItem(itemIndex, item.ItemId, item.ItemName, senderName));
                 Plugin.Log.LogInfo($"[AP] Queued item: {item.ItemName} (ID: {item.ItemId}) from {senderName ?? "self"} at Index: {itemIndex}");
 
             }
@@ -1106,7 +1271,7 @@ namespace LaMulana2Archipelago.Archipelago
 
         public static void ResetSession()
         {
-            ItemQueue.Clear();
+            ClearItemQueue();
             GoalReported = false;
             GoalPending = false;
             Patches.ItemPotPatch.Reset();

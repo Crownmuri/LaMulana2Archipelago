@@ -12,11 +12,16 @@
         <RootNamespace>LaMulana2Archipelago</RootNamespace>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <LM2Path Condition=" '$(LM2Path)' == '' ">D:\Games\Steam\steamapps\common\La-Mulana 2</LM2Path>
+        <LM2Managed>$(LM2Path)\LaMulana2_Data\Managed</LM2Managed>
+    </PropertyGroup>
+
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <DebugSymbols>true</DebugSymbols>
         <DebugType>full</DebugType>
         <Optimize>false</Optimize>
-        <OutputPath>D:\Games\Steam\steamapps\common\La-Mulana 2\BepInEx\plugins\$(AssemblyName)</OutputPath>
+        <OutputPath>$(LM2Path)\BepInEx\plugins\$(AssemblyName)</OutputPath>
         <DefineConstants>DEBUG;TRACE</DefineConstants>
         <ErrorReport>prompt</ErrorReport>
     </PropertyGroup>
@@ -98,15 +103,15 @@
 
     <ItemGroup>
       <Reference Include="Assembly-CSharp">
-        <HintPath>..\..\..\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\Assembly-CSharp.dll</HintPath>
+        <HintPath>$(LM2Managed)\Assembly-CSharp.dll</HintPath>
         <Private>False</Private>
       </Reference>
       <Reference Include="TextMeshPro">
-        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\TextMeshPro.dll</HintPath>
+        <HintPath>$(LM2Managed)\TextMeshPro.dll</HintPath>
         <Private>False</Private>
       </Reference>
       <Reference Include="UnityEngine.UI">
-        <HintPath>D:\Games\Steam\steamapps\common\La-Mulana 2\LaMulana2_Data\Managed\UnityEngine.UI.dll</HintPath>
+        <HintPath>$(LM2Managed)\UnityEngine.UI.dll</HintPath>
         <Private>False</Private>
       </Reference>
     </ItemGroup>

@@ -10,6 +10,12 @@ using UnityEngine.UI;
 
 namespace LaMulana2Archipelago.Patches
 {
+// Harmony003 fires on every `name = ...` / `vale *= ...` below. These
+// prefixes are full replacements -- they set __result and return false,
+// so the original never runs and reassigning a by-value parameter is
+// exactly how the ported MonoMod code is meant to read. Suppressed here
+// rather than project-wide so a genuine Harmony003 elsewhere still shows.
+#pragma warning disable Harmony003
     /// <summary>
     /// Replaces ShopScript.itemCallBack so that randomized items display
     /// correct icons, names, and prices in shops.
@@ -273,3 +279,4 @@ namespace LaMulana2Archipelago.Patches
         }
     }
 }
+#pragma warning restore Harmony003
