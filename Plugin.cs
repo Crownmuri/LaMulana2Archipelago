@@ -747,6 +747,7 @@ namespace LaMulana2Archipelago
             // datastorage so PopTracker picks up the value after save loads
             // and reconnects, where setFlagData isn't replayed by the engine.
             Managers.DissonanceTracker.NotifySceneLoaded();
+            Managers.HarpShopPriceTracker.NotifySceneLoaded();
 
             // DLC-boss goal recovery: if the boss was beaten in a prior session,
             // the flag is restored on load without a setFlagData call, so re-check

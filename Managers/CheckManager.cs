@@ -500,6 +500,7 @@ namespace LaMulana2Archipelago.Managers
             ItemGrantStateGuard.PostTalkGraceUntil = 0f;
             BossKillTracker.Reset();
             DissonanceTracker.Reset();
+            HarpShopPriceTracker.Reset();
             DlcBossGoalTracker.Reset();
             GlossaryGoalTracker.Reset();
             Plugin.Log.LogInfo("[CHECK] CheckManager reset");

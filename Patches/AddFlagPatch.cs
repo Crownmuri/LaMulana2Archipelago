@@ -37,6 +37,7 @@ namespace LaMulana2Archipelago.Patches
             CheckManager.NotifyNumericFlag(seet_no1, flag_no1, reportedValue);
             BossKillTracker.NotifyFlagSet(seet_no1, flag_no1, reportedValue);
             DissonanceTracker.NotifyFlagSet(seet_no1, flag_no1, reportedValue);
+            HarpShopPriceTracker.NotifyFlagSet(seet_no1, flag_no1, reportedValue);
         }
     }
 }

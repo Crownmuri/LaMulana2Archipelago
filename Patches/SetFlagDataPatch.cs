@@ -204,6 +204,7 @@ namespace LaMulana2Archipelago.Patches
             // Natural-dissonance count → PopTracker datastorage. Filters
             // internally to flag [2,3] and to random_dissonance==false seeds.
             DissonanceTracker.NotifyFlagSet(seet_no, flag_no, data);
+            HarpShopPriceTracker.NotifyFlagSet(seet_no, flag_no, data);
 
             // Rebirth Seal (2,55) obtained → advance DLC story flag (25,5) to 4.
             // Filters internally to the seal flag.

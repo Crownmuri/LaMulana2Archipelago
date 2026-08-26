@@ -2204,6 +2204,54 @@ namespace LaMulana2Archipelago.Managers
             shopDataBase.cellData[20][24][1][0] = CreateShopItemsString(LocationID.FairylanShop1, LocationID.FairylanShop2, LocationID.FairylanShop3);
         }
 
+        // ================================================================
+        // Expensive shop slot ("Include Expensive Item In Shop")
+        // ================================================================
+
+        // Sentinel multiplier written by the apworld for the one 1000-coin
+        // slot (randomizer.py: EXPENSIVE_SHOP_PRICE // 10). Rank-scaled items
+        // use 5-10 and ammo uses 10, so this value cannot collide.
+        // Ammo prices are ItemDB.ShopPrice x this, matching vanilla.
+        internal const int VanillaAmmoMultiplier = 10;
+
+        internal const int ExpensiveShopMultiplier = 100;
+        internal const int ExpensiveShopPrice = 1000;
+        internal const int ExpensiveShopDiscountPrice = 50;
+
+        // Harp: ItemDB lists it as itemSheet 2, itemFlag 46.
+        private const int HarpSheet = 2;
+        private const int HarpFlag = 46;
+
+        internal bool HasHarp()
+        {
+            var sys = this.sys != null ? this.sys : FindObjectOfType<L2System>();
+            if (sys == null) return false;
+            short v = 0;
+            try { sys.getFlag(HarpSheet, HarpFlag, ref v); }
+            catch { return false; }
+            return v > 0;
+        }
+
+        /// <summary>
+        /// Re-stamp the shop database so the expensive slot picks up the Harp
+        /// discount. ChangeShopItems() bakes prices into shopDataBase.cellData
+        /// once after connection, so acquiring the Harp later has no effect
+        /// until the strings are rebuilt.
+        /// </summary>
+        internal void RefreshShopPrices()
+        {
+            if (shopDataBase == null || !shopDialogueInitialized)
+                return;
+            try
+            {
+                ChangeShopItems();
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError("[SHOP] RefreshShopPrices failed: " + ex);
+            }
+        }
+
         private string CreateShopItemsString(LocationID first, LocationID second, LocationID third)
         {
             return $"{CreateSetItemString(first)}\n{CreateSetItemString(second)}\n{CreateSetItemString(third)}";
@@ -2280,6 +2328,19 @@ namespace LaMulana2Archipelago.Managers
                     price = 0;
                 else if (isWeight)
                     price = 10;
+                else if (isAmmo)
+                    // Ammo is a static vanilla price, never sphere-scaled: the
+                    // apworld pins its multiplier to 10, and applying that here
+                    // rather than trusting shopItem.Multiplier keeps the tag
+                    // right even if a stray multiplier reaches this slot.
+                    price = shopPrice * VanillaAmmoMultiplier;
+                else if (shopItem.Multiplier == ExpensiveShopMultiplier)
+                    // "Include Expensive Item In Shop": the apworld marks one
+                    // slot with this sentinel multiplier. Price it absolutely
+                    // rather than ShopPrice * Multiplier, so the tag is exactly
+                    // 1000 whatever item landed there. Follows the vanilla Enga
+                    // Musica shape: expensive until the Harp, 50 afterwards.
+                    price = HasHarp() ? ExpensiveShopDiscountPrice : ExpensiveShopPrice;
                 else
                     price = shopPrice * shopItem.Multiplier;
 
