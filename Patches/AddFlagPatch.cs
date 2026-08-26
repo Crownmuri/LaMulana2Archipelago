@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using L2Flag;
 using LaMulana2Archipelago.Managers;
 
@@ -38,6 +38,7 @@ namespace LaMulana2Archipelago.Patches
             BossKillTracker.NotifyFlagSet(seet_no1, flag_no1, reportedValue);
             DissonanceTracker.NotifyFlagSet(seet_no1, flag_no1, reportedValue);
             HarpShopPriceTracker.NotifyFlagSet(seet_no1, flag_no1, reportedValue);
+            ResearchReportSync.NotifyFlagSet(seet_no1, flag_no1, reportedValue);
         }
     }
 }

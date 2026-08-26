@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using L2Base;
 using L2Flag;
 using LaMulana2Archipelago.Archipelago;
@@ -206,6 +206,10 @@ namespace LaMulana2Archipelago.Patches
             DissonanceTracker.NotifyFlagSet(seet_no, flag_no, data);
             HarpShopPriceTracker.NotifyFlagSet(seet_no, flag_no, data);
 
+            // Journal ("Research" app): recount papers held and mirror the total
+            // into (0,38) report-b. Filters internally to the research flags.
+            ResearchReportSync.NotifyFlagSet(seet_no, flag_no, data);
+
             // Rebirth Seal (2,55) obtained → advance DLC story flag (25,5) to 4.
             // Filters internally to the seal flag.
             RebirthSigilFlagSync.OnNumericFlagWrite(__instance, seet_no, flag_no);
@@ -231,6 +235,10 @@ namespace LaMulana2Archipelago.Patches
             // Rebirth Seal ("02Items"/"Rebirth Seal") obtained via sys.setItem
             // (AP grant / shop) → advance DLC story flag (25,5) to 4.
             RebirthSigilFlagSync.OnNamedFlagWrite(__instance, seet_no, name);
+
+            // sys.setItem("Research", …) — the AP-grant / shop route to the
+            // paper count flag, which is written by name rather than number.
+            ResearchReportSync.NotifyNamedFlagSet(seet_no, name);
         }
     }
     [HarmonyPatch] // MUST be empty because we use TargetMethod below

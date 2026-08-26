@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -748,6 +748,10 @@ namespace LaMulana2Archipelago
             // and reconnects, where setFlagData isn't replayed by the engine.
             Managers.DissonanceTracker.NotifySceneLoaded();
             Managers.HarpShopPriceTracker.NotifySceneLoaded();
+
+            // Journal counter recovery: papers held from a prior session are
+            // restored without a setFlagData call, so recount them here.
+            Managers.ResearchReportSync.NotifySceneLoaded();
 
             // DLC-boss goal recovery: if the boss was beaten in a prior session,
             // the flag is restored on load without a setFlagData call, so re-check
