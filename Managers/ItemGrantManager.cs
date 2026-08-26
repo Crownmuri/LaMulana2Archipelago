@@ -558,6 +558,33 @@ namespace LaMulana2Archipelago.Managers
             catch { }
         }
 
+        /// <summary>
+        /// Hold-up / dialog icon for a placed item label.
+        ///
+        /// Mantra, Research and Beherit are placed under instance labels
+        /// ("Mantra01", "ProgressiveBeherit1", ...) that L2SystemCore.getItemData
+        /// has no entry for, so they have to be mapped to their generic icon by
+        /// hand. Callers that skipped this and used the raw label got null back
+        /// and left the previous pickup's sprite on screen.
+        ///
+        /// Returns null only when the label genuinely has no icon; callers
+        /// should leave the renderer alone in that case.
+        /// </summary>
+        public static ItemData ResolveGetItemIcon(string itemLabel)
+        {
+            if (string.IsNullOrEmpty(itemLabel))
+                return null;
+
+            if (itemLabel.Contains("Mantra"))
+                return L2SystemCore.getItemData("Mantra");
+            if (itemLabel.Contains("Research"))
+                return L2SystemCore.getItemData("Research");
+            if (itemLabel.Contains("Beherit"))
+                return L2SystemCore.getItemData("Beherit");
+
+            return L2SystemCore.getItemData(itemLabel);
+        }
+
         private static void FinishGrant(int queueIndex, float now)
         {
             GlobalCooldownUntil = now + 0.20f;
@@ -828,26 +855,7 @@ namespace LaMulana2Archipelago.Managers
                 string shown = itemLabel;
                 pl.setGetItem(ref shown);
 
-                if (itemLabel.Contains("Mantra"))
-                {
-                    var d = L2SystemCore.getItemData("Mantra");
-                    if (d != null) pl.setGetItemIcon(d);
-                    return;
-                }
-                if (itemLabel.Contains("Research"))
-                {
-                    var d = L2SystemCore.getItemData("Research");
-                    if (d != null) pl.setGetItemIcon(d);
-                    return;
-                }
-                if (itemLabel.Contains("Beherit"))
-                {
-                    var d = L2SystemCore.getItemData("Beherit");
-                    if (d != null) pl.setGetItemIcon(d);
-                    return;
-                }
-
-                var dataDefault = L2SystemCore.getItemData(itemLabel);
+                var dataDefault = ResolveGetItemIcon(itemLabel);
                 if (dataDefault != null)
                     pl.setGetItemIcon(dataDefault);
             }

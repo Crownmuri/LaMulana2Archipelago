@@ -175,7 +175,13 @@ namespace LaMulana2Archipelago.Patches
             // placed BoxName so the unique-instance marker flag is stamped correctly.
             string displayName = isOwn ? ResolveProgressiveDisplay(sys, label) : label;
             pl.setGetItem(ref displayName);
-            var iconData = L2SystemCore.getItemData(isOwn ? displayName : "AP Item");
+            // Route our own items through the shared resolver: Mantra / Research
+            // / Beherit have no getItemData entry under their placed label, and
+            // reading the raw label here returned null, which left the previous
+            // pickup's sprite up on the hold-up and in the dialog.
+            var iconData = isOwn
+                ? ItemGrantManager.ResolveGetItemIcon(displayName)
+                : L2SystemCore.getItemData("AP Item");
             if (iconData != null)
                 pl.setGetItemIcon(iconData);
 
