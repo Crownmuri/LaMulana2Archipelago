@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -17,19 +17,38 @@ namespace LaMulana2Archipelago.Managers
     /// If a companion seed.lm2ap file is present next to seed.lm2r, its AP-only
     /// settings (guardian_specific_ankhs, potsanity, ap_chest_color, death_link,
     /// logic_difficulty, costume_clip, dlc_item_logic, life_sigil_to_awaken_hom,
-    /// random_research, game_difficulty) plus pot placements and pot_flag_map
-    /// are merged in, letting the mod replay AP seeds solo with the same
-    /// behavior as online.
+    /// random_research, game_difficulty, glossanity, costumesanity,
+    /// persistent_inventory, goal, glossary_hunt_count, and the per-pool
+    /// potsanity/glossanity partitions plus oannesanity/gate_entrances)
+    /// plus pot placements,
     /// </summary>
     internal static class SeedToSlotData
     {
+        // Pot pools and glossary categories, in the exact order seed.py
+        // writes them (ids.py POT_POOLS / GLOSS_POOLS). Order is part of
+        // the binary format: adding a pool means bumping the version.
+        private static readonly string[] PotPools =
+        {
+            "low_value", "high_value", "shuriken", "rolling_shuriken", "earth_spear",
+            "flare", "caltrops", "chakram", "bomb",
+        };
+        private static readonly string[] GlossPools =
+        {
+            "freestanding", "scannable", "npc", "enemy",
+        };
+
         // ASCII "LM2A" — must match LM2AP_MAGIC in seed.py.
         private static readonly byte[] Lm2apMagic = new byte[] { (byte)'L', (byte)'M', (byte)'2', (byte)'A' };
         // v1 had no location_labels section; v2 appends it after pot_flag_map.
         // v3 appends greedy_charon after location_labels.
         // v4 appends game_difficulty int32 after greedy_charon.
+        // v5 appends the AP-only placements (glossary/DLC/costume, which the
+        // writer stopped putting in seed.lm2r), the glossary flag map, the
+        // goal fields, the costumesanity/persistent_inventory toggles, and
+        // the per-pool potsanity/glossanity partitions plus oannesanity
+        // and gate_entrances.
         // All versions remain readable: missing sections fall back to defaults.
-        private const int Lm2apSupportedVersion = 4;
+        private const int Lm2apSupportedVersion = 5;
 
         public static string SeedPath
         {
@@ -170,6 +189,21 @@ namespace LaMulana2Archipelago.Managers
                 dict["guardian_specific_ankhs"] = 0;
                 dict["greedy_charon"] = 0;
                 dict["game_difficulty"] = 0;
+                dict["glossanity"] = 0;
+                dict["costumesanity"] = 0;
+                dict["persistent_inventory"] = 0;
+                dict["goal"] = 0;
+                dict["glossary_hunt_count"] = 0;
+                dict["oannesanity"] = 0;
+                dict["gate_entrances"] = 0;
+                foreach (string pool in PotPools) dict["potsanity_" + pool] = 0;
+                foreach (string pool in GlossPools) dict["glossanity_" + pool] = 0;
+                // Online slot_data nests these under "options"; mirror that
+                // shape so a consumer written against the online payload
+                // reads the same path offline. Only the keys seed.lm2ap
+                // actually encodes appear here -- everything else stays a
+                // flat top-level key, which offline populates in full.
+                dict["options"] = new Dictionary<string, object>();
 
                 // Merge the AP-extended companion file if it exists. Failure to
                 // load is non-fatal: a stock LM2 randomizer seed has no .lm2ap.
@@ -235,6 +269,16 @@ namespace LaMulana2Archipelago.Managers
                     dict["random_research"]          = br.ReadBoolean() ? 1 : 0;
                     dict["death_link"]               = br.ReadBoolean() ? 1 : 0;
 
+                    // Online slot_data carries pot and AP-only placements inside
+                    // item_placements; the seed splits them across files, so both
+                    // are folded back in here. SeedFlagMapBuilder and
+                    // LocationFlagMap only ever look at item_placements, so
+                    // without this the offline flag map is missing every pot,
+                    // glossary, DLC and costume location.
+                    JArray itemPlacements = dict.TryGetValue("item_placements", out object rawItems)
+                        ? rawItems as JArray
+                        : null;
+
                     // --- Pot placements: same shape as item_placements so the
                     //     runtime can treat them uniformly. ItemPotPatch keys
                     //     pickups off pot_flag_map; the placements list is for
@@ -250,6 +294,7 @@ namespace LaMulana2Archipelago.Managers
                             ["location"] = loc,
                             ["item"] = item,
                         });
+                        AppendPlacement(itemPlacements, loc, item);
                     }
                     dict["pot_placements"] = potPlacements;
 
@@ -298,6 +343,78 @@ namespace LaMulana2Archipelago.Managers
                     {
                         dict["game_difficulty"] = br.ReadInt32();
                     }
+
+                    // --- v5+ AP-only placements: glossary, DLC and costume
+                    //     locations. The writer stopped emitting these into
+                    //     seed.lm2r (the legacy mod cannot parse them), so
+                    //     item_placements is the only place they can land.
+                    if (version >= 5)
+                    {
+                        int apCount = br.ReadInt32();
+                        for (int i = 0; i < apCount; i++)
+                        {
+                            int loc = br.ReadInt32();
+                            int item = br.ReadInt32();
+                            AppendPlacement(itemPlacements, loc, item);
+                        }
+
+                        // --- Glossanity: same shape as pot_flag_map, keyed by
+                        //     stringified LocationID for GlossaryManager's
+                        //     GetSlotDict consumption.
+                        dict["glossanity"] = br.ReadBoolean() ? 1 : 0;
+                        int glossaryFlagCount = br.ReadInt32();
+                        var glossaryFlagMap = new Dictionary<string, object>();
+                        for (int i = 0; i < glossaryFlagCount; i++)
+                        {
+                            int locationIdValue = br.ReadInt32();
+                            int bookFlagNo = br.ReadInt32();
+                            glossaryFlagMap[locationIdValue.ToString()] = bookFlagNo;
+                        }
+                        dict["glossary_flag_map"] = glossaryFlagMap;
+
+                        // --- Goal: without these both goal trackers read 0 and
+                        //     no non-default victory condition can fire offline.
+                        dict["goal"] = br.ReadInt32();
+                        dict["glossary_hunt_count"] = br.ReadInt32();
+
+                        // --- Remaining slot_data toggles. costumesanity was
+                        //     previously inferred by SceneRandomizer from the
+                        //     costume closets showing up in the placements.
+                        dict["costumesanity"] = br.ReadBoolean() ? 1 : 0;
+                        dict["persistent_inventory"] = br.ReadBoolean() ? 1 : 0;
+
+                        // --- Pool partitions. The collapsed potsanity /
+                        //     glossanity bools only say "any pool on";
+                        //     these say which. Read in PotPools /
+                        //     GlossPools order to match the writer.
+                        var options = dict["options"] as Dictionary<string, object>;
+                        foreach (string pool in PotPools)
+                        {
+                            int on = br.ReadBoolean() ? 1 : 0;
+                            dict["potsanity_" + pool] = on;
+                            if (options != null) options["potsanity_" + pool] = on;
+                        }
+                        foreach (string pool in GlossPools)
+                        {
+                            int on = br.ReadBoolean() ? 1 : 0;
+                            dict["glossanity_" + pool] = on;
+                            if (options != null) options["glossanity_" + pool] = on;
+                        }
+
+                        // oannesanity was inferred from the Fish Suit closet
+                        // appearing in the placements; gate_entrances had no
+                        // offline source at all. Both are explicit now.
+                        int oannesanity = br.ReadBoolean() ? 1 : 0;
+                        int gateEntrances = br.ReadBoolean() ? 1 : 0;
+                        dict["oannesanity"] = oannesanity;
+                        dict["gate_entrances"] = gateEntrances;
+                        if (options != null)
+                        {
+                            options["oannesanity"] = oannesanity;
+                            options["gate_entrances"] = gateEntrances;
+                            options["costumesanity"] = dict["costumesanity"];
+                        }
+                    }
                 }
                 return true;
             }
@@ -306,6 +423,22 @@ namespace LaMulana2Archipelago.Managers
                 error = "Failed reading seed.lm2ap: " + ex;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Appends one (location, item) pair to the item_placements array in
+        /// the online slot_data shape. Null-tolerant: a seed.lm2r that somehow
+        /// parsed without an item_placements array just skips the merge rather
+        /// than taking down the whole .lm2ap load.
+        /// </summary>
+        private static void AppendPlacement(JArray itemPlacements, int loc, int item)
+        {
+            if (itemPlacements == null) return;
+            itemPlacements.Add(new JObject
+            {
+                ["location"] = loc,
+                ["item"] = item,
+            });
         }
     }
 }
