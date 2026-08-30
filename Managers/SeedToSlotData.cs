@@ -43,8 +43,8 @@ namespace LaMulana2Archipelago.Managers
         // to vanilla and the seed's real pairings are ignored.
         private static readonly string[] EntranceCategories =
         {
-            "horizontal_entrances", "vertical_entrances", "unique_transitions",
-            "include_dlc_entrances", "soul_gate_entrances",
+            "horizontal_entrances", "vertical_entrances", "gate_entrances",
+            "unique_transitions", "include_dlc_entrances", "soul_gate_entrances",
         };
 
         // ASCII "LM2A" — must match LM2AP_MAGIC in seed.py.
@@ -416,13 +416,10 @@ namespace LaMulana2Archipelago.Managers
                         // appearing in the placements; gate_entrances had no
                         // offline source at all. Both are explicit now.
                         int oannesanity = br.ReadBoolean() ? 1 : 0;
-                        int gateEntrances = br.ReadBoolean() ? 1 : 0;
                         dict["oannesanity"] = oannesanity;
-                        dict["gate_entrances"] = gateEntrances;
                         if (options != null)
                         {
                             options["oannesanity"] = oannesanity;
-                            options["gate_entrances"] = gateEntrances;
                             options["costumesanity"] = dict["costumesanity"];
                         }
 
