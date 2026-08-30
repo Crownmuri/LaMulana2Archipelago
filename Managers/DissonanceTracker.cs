@@ -1,4 +1,4 @@
-using L2Base;
+﻿using L2Base;
 using LaMulana2Archipelago.Archipelago;
 
 namespace LaMulana2Archipelago.Managers
@@ -44,6 +44,7 @@ namespace LaMulana2Archipelago.Managers
 
             Plugin.Log.LogInfo($"[DissonanceTracker] flag[2,3]={value}, reporting to datastorage");
             ArchipelagoClientProvider.Client?.RecordDissonanceCount(value);
+            UAT.UATServer.SetDissonanceCount(value);
         }
 
         /// <summary>

@@ -37,6 +37,16 @@ namespace LaMulana2Archipelago.Managers
             "freestanding", "scannable", "npc", "enemy",
         };
 
+        // Entrance shuffle categories, in seed.py's write order. The tracker
+        // pre-fills a pair as vanilla whenever its category is off, so all of
+        // these must reach slot_data.options or the whole entrance graph locks
+        // to vanilla and the seed's real pairings are ignored.
+        private static readonly string[] EntranceCategories =
+        {
+            "horizontal_entrances", "vertical_entrances", "unique_transitions",
+            "include_dlc_entrances", "soul_gate_entrances",
+        };
+
         // ASCII "LM2A" — must match LM2AP_MAGIC in seed.py.
         private static readonly byte[] Lm2apMagic = new byte[] { (byte)'L', (byte)'M', (byte)'2', (byte)'A' };
         // v1 had no location_labels section; v2 appends it after pot_flag_map.
@@ -196,6 +206,7 @@ namespace LaMulana2Archipelago.Managers
                 dict["glossary_hunt_count"] = 0;
                 dict["oannesanity"] = 0;
                 dict["gate_entrances"] = 0;
+                foreach (string category in EntranceCategories) dict[category] = 0;
                 foreach (string pool in PotPools) dict["potsanity_" + pool] = 0;
                 foreach (string pool in GlossPools) dict["glossanity_" + pool] = 0;
                 // Online slot_data nests these under "options"; mirror that
@@ -413,6 +424,13 @@ namespace LaMulana2Archipelago.Managers
                             options["oannesanity"] = oannesanity;
                             options["gate_entrances"] = gateEntrances;
                             options["costumesanity"] = dict["costumesanity"];
+                        }
+
+                        foreach (string category in EntranceCategories)
+                        {
+                            int on = br.ReadBoolean() ? 1 : 0;
+                            dict[category] = on;
+                            if (options != null) options[category] = on;
                         }
                     }
                 }

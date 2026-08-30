@@ -1,11 +1,11 @@
-# La-Mulana 2 Archipelago v0.9.1
+# La-Mulana 2 Archipelago v1.0.0
 Archipelago mod for La-Mulana 2 using BepInEx.
 Functions as a port of the original **[La-Mulana 2 Randomizer](https://github.com/Coookie93/LaMulana2Randomizer)** by **Coookie93**, with additional features for AP.
 
 Current version no longer runs on the original mod and can be run by simply placing the zipped files into the La-Mulana 2 Steam folder.
 **NOTE: If you have played on the original randomizer before, you will need to undo the original mod first:**
-- Revert the Assembly-CSharp.dll to its original version (either through a backup or Steam verification)
-- Remove the Monomod tools from the Managed folder, specifically `MonoMod.Utils.dll`.
+- Revert the Assembly-CSharp.dll to its original version (either through a backup or Steam verification* -- note: does not delete mod added files)
+- **ADDITIONALLY**, make sure the Monomod tools from the Managed folder are no longer present, specifically `MonoMod.Utils.dll`.
 
 ## Installing La-Mulana 2 Archipelago v0.7.0+
 1. Get the latest release of the AP Mod from https://github.com/Crownmuri/LaMulana2Archipelago/releases 
@@ -42,16 +42,18 @@ For Linux users, additional settings are required to [run BepInEx through Proton
   - Shop: instead of falling back to Weights, will act as a regular item purchase showing as Codices (Annoyingly, the Weight sprite comes with the +5). Currently I have set the price multiplier to 0 -- balancing might be required.
 - **AP item sprite.** Currently AP items appear as a darkened version of the original AP logo asset (normal, progressive, trap)
 - **Shops will tell what AP item is for sale.** So that you don't end up wasting money on another world's filler.
+- **Optional Expensive Shop Item.** Makes the Harp and Ganesha's Talisman required instead of filler.
 - **Three-way Chest Colors.** Regular items, filler items and AP items.
 - **DeathLink.** It will trigger the mantra instant death sequence upon receiving a death from AP.  
-- **Release upon reaching credits.** If the server is set to release items upon game clear, the flag is set after the sequence at the Cliff transitioning into the credits.
 - **Costumesanity**: Hides all your costumes upon connecting to AP and shuffles them into the pool (the chests are unlocked by default -- not sure why I called it a sanity)
 - **Potsanity**: All item pots have been mapped and can be shuffled. Toggles per pot category.
 - **Glossanity**: All glossary entries have been mapped and can be shuffled. Toggles per pot category.
 - **Oannesanity**: DLC content is added into the pool (chests, glossaries). Entrances separately toggleable.
-- Offline Mode: If you wish to just play offline, you can either write seeds through AP or the original randomizer and load the `seed.lm2r` from the title screen.
-  - Filepath should be `La-Mulana 2\LaMulana2Randomizer\Seed\seed.lm2r`
-  - If you play with an AP generated seed, you can turn on the toggles for AP based filler rewards and restricting ankhs to be guardian specific.
+- **Other Quality of Life**: Starting game difficulty, Additional Sacred Orbs, Charon taking all coins, Persistent Inventory on death, Warp to Start button for the grailless challengers, and more! 
+- **Offline Mode**: If you wish to just play offline, you can either write seeds through AP or the original randomizer and load the `seed.lm2r` from the title screen.
+  - Filepath should be `La-Mulana 2\LaMulana2Randomizer\Seed\seed.lm2r` (+ `seed.lm2ap` when ít includes AP only options)
+  - If you play with an AP generated seed, you can toggle AP generic filler rewards over the standalone (NPC 30 Coins, Chest 1 Weight, Freestanding Fake, Mural Nothing).
+  - Offline autotracking: you can toggle to host a UAT server on `127.0.0.1:65399` (falling back to `44444`). On the Poptracker, click on UAT after with the **Map Tracker + Entrances (Offline)** pack.
 
 ## Issues
 - Minor: Some text does not wrap nicely after patching in AP label names.

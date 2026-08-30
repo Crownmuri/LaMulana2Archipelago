@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using L2Base;
 using L2Hit;
 using LaMulana2RandomizerShared;
@@ -184,10 +184,10 @@ namespace LaMulana2Archipelago.Managers
                 }
 
                 // Pot filler items. ItemID.PotFiller01 = 1001 → game ids run
-                // 1001..1049 for the 49 pots produced by POT_FILLER_DISTRIBUTION
-                // in the AP world. Range allows headroom up to PotFiller250 (1250)
-                // so we don't crash if the world later expands the table.
-                if (gameId >= 1001 && gameId <= 1250)
+                // 1001..1307, matching PotFiller01..PotFiller307 in ItemID.cs
+                // and the 307 entries POT_FILLER_DISTRIBUTION produces in the
+                // AP world. 
+                if (gameId >= 1001 && gameId <= 1307)
                 {
                     LastGrantUsedPopupOnly = true;
                     GrantPotFiller(sys, gameId, apItemId);
@@ -686,8 +686,11 @@ namespace LaMulana2Archipelago.Managers
 
         // Mirrors POT_FILLER_DISTRIBUTION in worlds/lamulana2/items.py. Order
         // and counts must stay in lockstep with Python — the AP world hands out
-        // PotFillerNN ids by walking this same list, and we map them back here.
-        // Sum = 49 pots → uses PotFiller01..PotFiller49 (gameId 1001..1049).
+        // PotFillerNN ids by walking this same list, and we map them back here,
+        // so a stale count here does not just miss rewards, it hands out the
+        // WRONG ones: every id past the drifted boundary resolves to the next
+        // reward along.
+        // Sum = 307 pots → uses PotFiller01..PotFiller307 (gameId 1001..1307).
         private static readonly string[] PotFillerRewards =
         {
             "Weight1", "Coin10", "Coin30", "Coin50", "Coin80", "Coin100",
@@ -696,9 +699,9 @@ namespace LaMulana2Archipelago.Managers
         };
         private static readonly int[] PotFillerCounts =
         {
-            14, 17, 4, 0, 1, 1,
-            6, 4, 0, 0, 0,
-            1, 1,
+            39, 74, 31, 8, 7, 9,
+            23, 16, 23, 24, 17,
+            10, 26,
         };
 
         /// <summary>

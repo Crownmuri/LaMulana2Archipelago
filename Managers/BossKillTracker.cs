@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using HarmonyLib;
 using LaMulana2RandomizerShared;
 
@@ -162,6 +162,10 @@ namespace LaMulana2Archipelago.Managers
                 // broadcast. Mirror to slot-scoped datastorage so PopTracker can pick up
                 // the kill via SetNotify.
                 ArchipelagoClientProvider.Client?.RecordBossKill(guardian);
+
+                // Offline equivalent of that datastorage mirror: same enum
+                // name, published as a UAT variable instead of a slot key.
+                UAT.UATServer.AddGuardianKill(guardian.ToString());
 
                 // Hand the window's tail half to memSaveRequested. The AP check above
                 // is already server-side durable regardless of the local save.

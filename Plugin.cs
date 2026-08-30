@@ -17,7 +17,7 @@ namespace LaMulana2Archipelago
     {
         public const string PluginGUID = "com.Crownmuri.Archipelago.LaMulana2";
         public const string PluginName = "LaMulana2Archipelago";
-        public const string PluginVersion = "0.9.2";
+        public const string PluginVersion = "1.0.0";
 
         public const string ModDisplayInfo = $"{PluginName} v{PluginVersion}";
         private const string APDisplayInfo = $"Archipelago v{ArchipelagoClient.APVersion}";
@@ -701,20 +701,30 @@ namespace LaMulana2Archipelago
                 Log.LogInfo($"[AP] OfflineApFillerEnabled -> {ArchipelagoClient.OfflineApFillerEnabled}");
             }
 
-            Rect ankhRect = new Rect(960 - 16 - 160, 490, 160, 20);
-            bool ankhOn = ArchipelagoClient.OfflineGuardianAnkhsEnabled;
-            GUI.color = ankhOn ? Color.green : Color.red;
-            string ankhLabel = ankhOn ? "Guardian Ankhs: ON" : "Guardian Ankhs: OFF";
-            if (GUI.Button(ankhRect, ankhLabel))
+            // UAT hosts a listening socket for PopTracker's offline variant.
+            // Opt-in, and not started at launch: PopTracker probes 65399 on its
+            // own, so an always-on server means it connects the moment the pack
+            // is opened whether or not the player wanted autotracking.
+            Rect uatRect = new Rect(960 - 16 - 160, 490, 160, 20);
+            bool uatOn = ArchipelagoClient.UatEnabled;
+            GUI.color = uatOn ? Color.green : Color.red;
+            string uatLabel = uatOn ? "UAT Tracker: ON" : "UAT Tracker: OFF";
+            if (GUI.Button(uatRect, uatLabel))
             {
-                ArchipelagoClient.OfflineGuardianAnkhsEnabled = !ankhOn;
-                Log.LogInfo($"[AP] OfflineGuardianAnkhsEnabled -> {ArchipelagoClient.OfflineGuardianAnkhsEnabled}");
-
-                // If offline mode is already live, mirror the preference into
-                // the patch flag so scene Ankhs refresh immediately.
-                if (ArchipelagoClient.OfflineMode)
-                    Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled =
-                        ArchipelagoClient.OfflineGuardianAnkhsEnabled;
+                if (uatOn)
+                {
+                    ArchipelagoClient.UatEnabled = false;
+                    UAT.UATServer.Stop();
+                    Log.LogInfo("[UAT] Disabled by player");
+                }
+                else
+                {
+                    // Publish immediately when offline mode is already live;
+                    // otherwise ActivateOffline picks it up from UatEnabled.
+                    ArchipelagoClient.UatEnabled =
+                        !ArchipelagoClient.OfflineMode || ArchipelagoClient.PublishUat();
+                    Log.LogInfo($"[UAT] Enabled by player -> {ArchipelagoClient.UatEnabled}");
+                }
             }
 
             GUI.color = oldColor;

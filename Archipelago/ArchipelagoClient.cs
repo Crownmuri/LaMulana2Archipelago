@@ -19,7 +19,7 @@ namespace LaMulana2Archipelago.Archipelago
 {
     public class ArchipelagoClient
     {
-        public const string APVersion = "0.9.2";
+        public const string APVersion = "1.0.0";
         private const string Game = "La-Mulana 2";
 
         public static bool Authenticated;
@@ -43,13 +43,29 @@ namespace LaMulana2Archipelago.Archipelago
         /// </summary>
         public static bool OfflineApFillerEnabled = false;
 
-        /// <summary>
-        /// Offline-only preference: forces guardian-specific Ankh Jewels.
-        /// Applied into slot_data at ActivateOffline time so
-        /// <see cref="Patches.GuardianSpecificAnkhPatch"/> picks it up.
-        /// Ignored while connected to AP (that uses the server's slot value).
+         /// <summary>
+        /// Player opted in to the UAT autotracking server (title-screen
+        /// toggle). Off by default: the server is a listening socket, so it
+        /// only opens when asked for.
         /// </summary>
-        public static bool OfflineGuardianAnkhsEnabled = false;
+        public static bool UatEnabled = false;
+
+        /// <summary>slot_data from the last offline activation, for PublishUat.</summary>
+        public static Dictionary<string, object> LastOfflineSlotData;
+
+        /// <summary>
+        /// Bring the UAT server up and hand it the current seed. Safe to call
+        /// whether offline mode came first or the toggle did. ResetRun before
+        /// the seed: a different save must publish a shorter items array so the
+        /// tracker rebuilds rather than stacking onto the previous run.
+        /// </summary>
+        public static bool PublishUat()
+        {
+            if (!UAT.UATServer.Start()) return false;
+            UAT.UATServer.ResetRun();
+            if (LastOfflineSlotData != null) UAT.UATServer.SetSlotData(LastOfflineSlotData);
+            return true;
+        }
 
         /// <summary>
         /// True when AP-style filler intercepts should replace the vanilla
@@ -291,8 +307,14 @@ namespace LaMulana2Archipelago.Archipelago
                 return false;
             }
 
-            // Offline toggles override whatever the seed baked in.
-            slotData["guardian_specific_ankhs"] = OfflineGuardianAnkhsEnabled ? 1 : 0;
+
+            // Remembered so the "Enable UAT" button can publish the seed even
+            // when it is switched on after offline mode is already live.
+            LastOfflineSlotData = slotData;
+
+            // Stand in for the server's scout replies. Must run before the
+            // standalone patches below, which read the cache as they apply.
+            BuildOfflineScoutCache(slotData);
 
             ServerData.SetupSession(slotData, "offline");
             ApplyStandaloneFromSlotData(slotData);
@@ -315,6 +337,12 @@ namespace LaMulana2Archipelago.Archipelago
             // that OfflineMode is true and seed.lm2ap labels are loaded.
             LaMulana2Archipelago.Patches.ShopDialogPatch.Reapply();
 
+            // Offline there is no AP room for PopTracker to watch, so a UAT
+            // server can host for it -- but only when the player has asked for
+            // one. Starting it unconditionally makes PopTracker latch on the
+            // moment the pack loads, which is not wanted by default.
+            if (UatEnabled) PublishUat();
+
             Plugin.Log.LogInfo("[AP] Offline mode activated from seed.lm2r");
             return true;
         }
@@ -327,6 +355,8 @@ namespace LaMulana2Archipelago.Archipelago
         public bool DeactivateOffline()
         {
             if (!OfflineMode || Authenticated) return false;
+
+            UAT.UATServer.Stop();
 
             TearDownStandaloneState();
 
@@ -911,6 +941,14 @@ namespace LaMulana2Archipelago.Archipelago
         // =============================
         // Scout results, pre-cached once on connect (see ScoutAllLocations). Read by
         // GetItemAtLocation so gameplay never blocks on a network scout.
+        // AP id windows, mirroring worlds/lamulana2/ids.py. Foreign players'
+        // items are represented by placeholders in [410000, 420000); our own
+        // items are BASE_ITEM_ID + game id.
+        private const int ApItemPlaceholderMin = 410000;
+        private const int ApItemPlaceholderMax = 420000;
+        private const long OfflineBaseApItemId = 420000;
+        private const long OfflineBaseApLocationId = 430000;
+
         private static readonly object cacheLock = new object();
         public static Dictionary<long, ScoutedItem> ScoutedLocationsCache = new Dictionary<long, ScoutedItem>();
 
@@ -933,6 +971,16 @@ namespace LaMulana2Archipelago.Archipelago
 
         public void SendLocationCheck(long locationId)
         {
+            // Offline autotracking. Deliberately ABOVE the guard below, which
+            // always trips offline (no session), and in this funnel rather than
+            // at the call sites: CheckManager reports through two separate
+            // paths -- ReportLocation and the silent shop auto-collect in
+            // NotifyApLocationId -- and hooking only the first meant a shop
+            // slot never reached the tracker, so it stayed an unchecked blank
+            // instead of turning into its Weights/ammo icon. UATServer dedupes,
+            // so a location offered twice is harmless.
+            UAT.UATServer.AddCheckedLocation(locationId);
+
             if (!Authenticated || session == null)
                 return;
 
@@ -1051,8 +1099,6 @@ namespace LaMulana2Archipelago.Archipelago
         // connect. Cache-only by design — see the note inside about the removed live scout.
         public ScoutedItem GetItemAtLocation(long locationId)
         {
-            if (session == null) return null;
-
             lock (cacheLock)
             {
                 if (ScoutedLocationsCache.TryGetValue(locationId, out var cachedItem))
@@ -1065,6 +1111,95 @@ namespace LaMulana2Archipelago.Archipelago
             // We removed the dynamic session.Locations.ScoutLocationsAsync call because sending 
             // a network request during gameplay was the source of the remaining micro-stutter.
             return null;
+        }
+
+        /// <summary>
+        /// Offline equivalent of ScoutAllLocations: fills the same cache from the
+        /// seed instead of from the server.
+        ///
+        /// The seed already carries everything a scout reply would: which item
+        /// sits at each location (item_placements / shop_placements) and its
+        /// display name (location_labels, written by seed.py). Filling the cache
+        /// here means every consumer works offline unchanged, rather than each
+        /// patch needing its own seed-reading fallback.
+        ///
+        /// Ownership: AP placeholders for other players' items live in
+        /// [410000, 420000); anything below that is one of ours, and its AP item
+        /// id is BASE_ITEM_ID + game id.
+        /// </summary>
+        public static void BuildOfflineScoutCache(Dictionary<string, object> slotData)
+        {
+            if (slotData == null) return;
+
+            // Read straight from slotData, not ServerData: this runs before
+            // SetupSession so the session dict is not populated yet. Offline the
+            // labels arrive as Dictionary<int,string> from SeedToSlotData; the
+            // online slot_data shape is a JObject with string keys.
+            var labels = new Dictionary<int, string>();
+            object labelObj;
+            if (slotData.TryGetValue("location_labels", out labelObj))
+            {
+                var typed = labelObj as Dictionary<int, string>;
+                if (typed != null)
+                {
+                    foreach (var kvp in typed) labels[kvp.Key] = kvp.Value;
+                }
+                else
+                {
+                    var asJson = labelObj as JObject;
+                    if (asJson != null)
+                    {
+                        foreach (var prop in asJson)
+                        {
+                            int locId;
+                            if (int.TryParse(prop.Key, out locId) && prop.Value != null)
+                                labels[locId] = prop.Value.ToString();
+                        }
+                    }
+                }
+            }
+
+            int cached = 0;
+            lock (cacheLock)
+            {
+                ScoutedLocationsCache.Clear();
+
+                foreach (string key in new[] { "item_placements", "shop_placements" })
+                {
+                    var placements = slotData.ContainsKey(key) ? slotData[key] as JArray : null;
+                    if (placements == null) continue;
+
+                    foreach (var entry in placements)
+                    {
+                        var locTok = entry["location"];
+                        var itemTok = entry["item"];
+                        if (locTok == null || itemTok == null) continue;
+
+                        int gameLocation = (int)locTok;
+                        int rawItem = (int)itemTok;
+                        bool foreign = rawItem >= ApItemPlaceholderMin
+                                       && rawItem < ApItemPlaceholderMax;
+
+                        string name;
+                        if (!labels.TryGetValue(gameLocation, out name))
+                            name = foreign ? "AP Item" : null;
+
+                        ScoutedLocationsCache[OfflineBaseApLocationId + gameLocation] = new ScoutedItem
+                        {
+                            ItemId = foreign ? rawItem : OfflineBaseApItemId + rawItem,
+                            ItemName = name,
+                            PlayerName = "Player",
+                            IsOwnItem = !foreign,
+                            // Offline there is no AP classification; nothing that
+                            // matters offline reads Flags.
+                            Flags = default(ItemFlags),
+                        };
+                        cached++;
+                    }
+                }
+            }
+
+            Plugin.Log.LogInfo($"[AP] Offline scout cache built from seed: {cached} locations");
         }
 
         // Pre-caches every location's scout result on connect so shop/chest labels are

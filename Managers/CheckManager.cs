@@ -1,4 +1,4 @@
-using LaMulana2Archipelago.Archipelago;
+﻿using LaMulana2Archipelago.Archipelago;
 using LaMulana2Archipelago.Patches;
 using LaMulana2RandomizerShared;
 using System.Collections.Generic;
@@ -403,9 +403,21 @@ namespace LaMulana2Archipelago.Managers
             {
                 if (!seen.Add(locName)) continue;
 
-                long? id = client.GetLocationIdByName(locName);
+                long? id = client == null ? null : client.GetLocationIdByName(locName);
                 if (id.HasValue)
+                {
                     _shopApLocationIds.Add(id.Value);
+                    continue;
+                }
+
+                // Offline there is no session to resolve names against, so the
+                // set came out empty and IsShopLocation answered false for
+                // everything -- which is why shop purchases still primed an
+                // item dialog. The seed's own name->LocationID map works
+                // without a server.
+                LocationID resolved = ShopCellMap.ResolveLocationId(locName);
+                if (resolved != LocationID.None)
+                    _shopApLocationIds.Add(ToApLocationId(resolved));
             }
 
             Plugin.Log.LogInfo("[CHECK] Built shop location id set: " + _shopApLocationIds.Count + " entries");
