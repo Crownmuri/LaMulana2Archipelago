@@ -213,6 +213,10 @@ namespace LaMulana2Archipelago.Patches
             // Rebirth Seal (2,55) obtained → advance DLC story flag (25,5) to 4.
             // Filters internally to the seal flag.
             RebirthSigilFlagSync.OnNumericFlagWrite(__instance, seet_no, flag_no);
+
+            // Annwfn DLC ladder (25,0) armed by the Heimdall kill → spawn the
+            // Ixtab rematch (25,2)=1. Filters internally to the ladder flag.
+            IxtabRespawnSync.OnNumericFlagWrite(__instance, seet_no, flag_no);
         }
     }
 
@@ -336,6 +340,11 @@ namespace LaMulana2Archipelago.Patches
         static void Postfix(L2FlagSystem __instance, int seet_no1, int flag_no1)
         {
             RebirthSigilFlagSync.OnNumericFlagWrite(__instance, seet_no1, flag_no1);
+
+            // FlagWatcherScript action flags reach the flag system through
+            // setEffectFlag → addFlag, so field02's "Ex_ladder" write of
+            // (25,0)=1 (the post-Heimdall ladder) lands here, not in setFlagData.
+            IxtabRespawnSync.OnNumericFlagWrite(__instance, seet_no1, flag_no1);
         }
     }
 }

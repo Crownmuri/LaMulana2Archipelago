@@ -780,6 +780,11 @@ namespace LaMulana2Archipelago
             // unless the seed's goal is glossary_hunt.
             Managers.GlossaryGoalTracker.NotifySceneLoaded();
 
+            // DLC Ixtab rematch recovery: if Heimdall was killed in a prior
+            // session the (25,0) ladder write is never replayed, so re-check it
+            // here and stamp (25,2)=1 if it is still missing.
+            Managers.IxtabRespawnSync.NotifySceneLoaded();
+
             if (ArchipelagoClient == null) return;
 
             // Clear DeathLink edge state on the freshly loaded field. DeathLinkHandler.Update()
