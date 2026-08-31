@@ -132,7 +132,12 @@ namespace LaMulana2Archipelago.Patches
 
             if (scouted != null)
             {
-                bool isForOtherPlayer = scouted.PlayerName != ArchipelagoClient.ServerData.SlotName;
+                // Ownership comes from the scout, never from a name compare:
+                // offline every scout carries the placeholder name "Player"
+                // while SlotName is whatever the config holds, so the compare
+                // was always true and even our own filler got framed as an AP
+                // send ("80 Coins (Player)").
+                bool isForOtherPlayer = !scouted.IsOwnItem;
 
                 ItemDialogPatch.PendingDisplayLabel = scouted.ItemName;
                 if (isForOtherPlayer)

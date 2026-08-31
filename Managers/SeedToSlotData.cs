@@ -56,7 +56,8 @@ namespace LaMulana2Archipelago.Managers
         // writer stopped putting in seed.lm2r), the glossary flag map, the
         // goal fields, the costumesanity/persistent_inventory toggles, and
         // the per-pool potsanity/glossanity partitions plus oannesanity
-        // and gate_entrances.
+        // and gate_entrances, plus own_placeholder_items (the real own-world
+        // ItemID behind each per-location AP placeholder).
         // All versions remain readable: missing sections fall back to defaults.
         private const int Lm2apSupportedVersion = 5;
 
@@ -429,6 +430,35 @@ namespace LaMulana2Archipelago.Managers
                             dict[category] = on;
                             if (options != null) options[category] = on;
                         }
+
+                        // --- Own items hidden behind AP placeholders. The
+                        //     generator routes our OWN glossary ROMs and pot
+                        //     filler through the per-location sheet-31
+                        //     placeholder (410000+n) so the location's AP
+                        //     machinery fires the check. Online the scout reply
+                        //     still names the real item and its owner; offline
+                        //     the seed is the only source, and a placeholder
+                        //     there is indistinguishable from another player's
+                        //     item. This map resolves them back.
+                        //
+                        //     Guarded on remaining length rather than a version
+                        //     bump: this landed inside v5 before v5 shipped, so
+                        //     a seed generated from an earlier v5 build has the
+                        //     same version stamp and simply ends here. Reading
+                        //     past it would throw and take the whole offline
+                        //     activation down with it.
+                        if (br.BaseStream.Position < br.BaseStream.Length)
+                        {
+                            int ownCount = br.ReadInt32();
+                            var ownItems = new Dictionary<string, object>();
+                            for (int i = 0; i < ownCount; i++)
+                            {
+                                int loc = br.ReadInt32();
+                                int item = br.ReadInt32();
+                                ownItems[loc.ToString()] = item;
+                            }
+                            dict["own_placeholder_items"] = ownItems;
+                        }
                     }
                 }
                 return true;
@@ -438,6 +468,35 @@ namespace LaMulana2Archipelago.Managers
                 error = "Failed reading seed.lm2ap: " + ex;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Reads the own_placeholder_items section back out of a parsed
+        /// slot_data dict as game LocationID -> real own game ItemID.
+        ///
+        /// Empty for a pre-v5 seed (and online, where the section never
+        /// exists), which is the correct answer there: every consumer falls
+        /// back to reading the placement at face value.
+        /// </summary>
+        public static Dictionary<int, int> GetOwnPlaceholderItems(Dictionary<string, object> slotData)
+        {
+            var result = new Dictionary<int, int>();
+            if (slotData == null) return result;
+
+            object raw;
+            if (!slotData.TryGetValue("own_placeholder_items", out raw)) return result;
+
+            var map = raw as Dictionary<string, object>;
+            if (map == null) return result;
+
+            foreach (var kvp in map)
+            {
+                int loc;
+                if (!int.TryParse(kvp.Key, out loc) || kvp.Value == null) continue;
+                try { result[loc] = Convert.ToInt32(kvp.Value); }
+                catch { /* malformed entry -- fall back to the raw placement */ }
+            }
+            return result;
         }
 
         /// <summary>

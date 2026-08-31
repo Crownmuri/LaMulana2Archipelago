@@ -1159,6 +1159,13 @@ namespace LaMulana2Archipelago.Archipelago
                 }
             }
 
+            // Our OWN glossary ROMs and pot filler are written into the
+            // placements as per-location AP placeholders (410000+n) so the
+            // location's sheet-31 machinery fires the check -- see
+            // randomizer.get_own_placeholder_items. Taken at face value they
+            // read as another player's item, which offline is never true.
+            var ownBehindPlaceholder = SeedToSlotData.GetOwnPlaceholderItems(slotData);
+
             int cached = 0;
             lock (cacheLock)
             {
@@ -1179,6 +1186,18 @@ namespace LaMulana2Archipelago.Archipelago
                         int rawItem = (int)itemTok;
                         bool foreign = rawItem >= ApItemPlaceholderMin
                                        && rawItem < ApItemPlaceholderMax;
+
+                        // Resolve a placeholder that is really one of ours back
+                        // to the item it stands for, so ownership-sensitive
+                        // consumers (IsOwnGlossaryRom, the dialog's
+                        // "Sent ... to ..." framing, UAT's item feed) see the
+                        // truth the scout reply would have carried online.
+                        int ownItem;
+                        if (foreign && ownBehindPlaceholder.TryGetValue(gameLocation, out ownItem))
+                        {
+                            rawItem = ownItem;
+                            foreign = false;
+                        }
 
                         string name;
                         if (!labels.TryGetValue(gameLocation, out name))

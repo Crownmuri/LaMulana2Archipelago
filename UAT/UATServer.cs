@@ -125,12 +125,20 @@ namespace LaMulana2Archipelago.UAT
                 return;
             }
 
+            // Own glossary ROMs and own pot filler are written into the
+            // placements as per-location AP placeholders (410000+n) so the
+            // location's sheet-31 machinery fires the check. The tracker keys
+            // ITEM_MAPPING on real ids, so a placeholder published here is
+            // simply unmappable -- glossary_count would never move offline.
+            var ownBehindPlaceholder =
+                Managers.SeedToSlotData.GetOwnPlaceholderItems(slotData);
+
             var shops = new JObject();
             lock (StateLock)
             {
                 Placements.Clear();
-                IndexPlacements(json["item_placements"] as JArray);
-                IndexPlacements(json["shop_placements"] as JArray);
+                IndexPlacements(json["item_placements"] as JArray, ownBehindPlaceholder);
+                IndexPlacements(json["shop_placements"] as JArray, ownBehindPlaceholder);
 
                 var shopPlacements = json["shop_placements"] as JArray;
                 if (shopPlacements != null)
@@ -139,8 +147,9 @@ namespace LaMulana2Archipelago.UAT
                     {
                         var loc = entry["location"];
                         var item = entry["item"];
-                        if (loc != null && item != null)
-                            shops[((int)loc).ToString()] = (int)item;
+                        if (loc == null || item == null) continue;
+                        shops[((int)loc).ToString()] =
+                            ResolveItem((int)loc, (int)item, ownBehindPlaceholder);
                     }
                 }
 
@@ -170,15 +179,33 @@ namespace LaMulana2Archipelago.UAT
                 $"[UAT] Published slot_data ({Placements.Count} placements, {shops.Count} shop slots)");
         }
 
-        private static void IndexPlacements(JArray placements)
+        private static void IndexPlacements(
+            JArray placements, Dictionary<int, int> ownBehindPlaceholder)
         {
             if (placements == null) return;
             foreach (var entry in placements)
             {
                 var loc = entry["location"];
                 var item = entry["item"];
-                if (loc != null && item != null) Placements[(int)loc] = (int)item;
+                if (loc == null || item == null) continue;
+                Placements[(int)loc] =
+                    ResolveItem((int)loc, (int)item, ownBehindPlaceholder);
             }
+        }
+
+        /// <summary>
+        /// Substitutes the real own-world item id for a per-location AP
+        /// placeholder. Anything not listed is published unchanged -- a pre-v5
+        /// seed has no map, and offline that is the best answer available.
+        /// </summary>
+        private static int ResolveItem(
+            int gameLocation, int rawItem, Dictionary<int, int> ownBehindPlaceholder)
+        {
+            int ownItem;
+            if (ownBehindPlaceholder != null
+                && ownBehindPlaceholder.TryGetValue(gameLocation, out ownItem))
+                return ownItem;
+            return rawItem;
         }
 
         /// <summary>

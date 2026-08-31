@@ -304,7 +304,13 @@ namespace LaMulana2Archipelago.Patches
             var itemInfo = client.GetItemAtLocation(locationId.Value);
             if (itemInfo != null)
             {
-                if (itemInfo.PlayerName != ArchipelagoClient.ServerData.SlotName)
+                // Scout-reported ownership rather than a name compare. Only
+                // reached online (the offline branch in Apply labels shop slots
+                // straight from location_labels), where the two agree — but a
+                // name compare is the wrong question to ask of a scout, and it
+                // is exactly what broke the equivalent test in
+                // KataribeDialogPatch once offline started using this cache.
+                if (!itemInfo.IsOwnItem)
                     return itemInfo.ItemName + " (" + itemInfo.PlayerName + ")";
 
                 return itemInfo.ItemName;

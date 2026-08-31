@@ -434,8 +434,9 @@ namespace LaMulana2Archipelago.Managers
         /// Chest color by item type. Own glossary ROMs / pot filler are written as AP
         /// placeholders (≥410000) so the location machinery fires their check, but they are
         /// OUR items — show them in the filler color, not the AP (other-world) color. A genuine
-        /// foreign item is also a placeholder but scouts as NOT-own → AP color. (Offline has no
-        /// scout, so placeholders fall back to the AP color there.)
+        /// foreign item is also a placeholder but scouts as NOT-own → AP color. Offline the
+        /// seed's own_placeholder_items resolves the same distinction, so both modes agree;
+        /// only a pre-own_placeholder_items seed still falls back to the AP color.
         /// </summary>
         private int ChestColourForItem(LocationID locationID, ItemID itemID)
         {
