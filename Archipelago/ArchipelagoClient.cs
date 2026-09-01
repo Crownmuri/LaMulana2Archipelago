@@ -1265,6 +1265,13 @@ namespace LaMulana2Archipelago.Archipelago
         {
             if (GoalReported) return;
 
+            // Offline there is no AP session and never will be for this run, so
+            // there is no goal to owe anyone. Bail BEFORE recording intent:
+            // GoalPending would otherwise survive DeactivateOffline and make the
+            // next Connect() fire a CLIENT_GOAL at an unrelated server on login
+            // (HandleConnectResult's deferred-goal retry).
+            if (OfflineMode) return;
+
             // Record intent up-front so any retry path (reconnect, Ending2
             // fallback) knows we still owe the server a CLIENT_GOAL.
             GoalPending = true;
