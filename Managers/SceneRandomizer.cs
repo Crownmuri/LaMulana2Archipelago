@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -1484,6 +1484,10 @@ namespace LaMulana2Archipelago.Managers
                 foreach (HolyGrailCancellerScript grailCanceller in FindObjectsOfType<HolyGrailCancellerScript>())
                     grailCanceller.gameObject.SetActive(false);
             }
+            else if (fieldName == "fieldL00")
+            {
+                WidenHinerTalkGate();
+            }
             else if (fieldName == "fieldL08")
             {
                 foreach (ShopGateScript talkGate in FindObjectsOfType<ShopGateScript>())
@@ -1524,6 +1528,56 @@ namespace LaMulana2Archipelago.Managers
                                     flags.data = 2;
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Keeps Hiner reachable in the vanilla gate hole.
+        ///
+        /// Three ShopGateScripts share Hiner's spot in fieldL00, each enabled by its own
+        /// L2TaskShadow.startflag (assets in sharedassets19):
+        ///     TalkGate      "fL11 openGate not"  (5,17)==0 AND (3,0)>=2   - talk sheet f01shop
+        ///     ShopGate      "fL11 openGate"      (5,17)>=1 AND (5,96)==0  - shop sheet fL00-1
+        ///     ShopGateNext  "fL11 nextShop"      (5,96)>=1                - shop sheet fL00-2
+        /// (5,17) = 11C0_gate, opened by Fobos; (3,0) = guardian kills;
+        /// (5,96) = ankshopNext, set Shop Slot 3 is purchased with 3+ guardians.
+        ///
+        /// Vanilla assumes Fobos is met long before the third guardian, so nobody hits
+        /// (5,17)==0 AND (3,0)>=3 AND (5,96)==0 — where all three gates are dead and Hiner
+        /// cannot be talked to at all. Randomised items make that ordering ordinary, and it
+        /// also costs the glossary chip, whose only spawn trigger (1,31) is written by
+        /// f01shop/firstTalk and the two shops' s-welcome rows.
+        ///
+        /// Swapping TalkGate's guardian box for (5,96)==0 makes its condition
+        /// (5,17)==0 AND (5,96)==0 — a strict superset of the original ((5,96) can only be
+        /// set with 3+ guardians) that still never overlaps the two shop gates.
+        /// </summary>
+        private void WidenHinerTalkGate()
+        {
+            foreach (ShopGateScript gate in FindObjectsOfType<ShopGateScript>())
+            {
+                if (gate.name != "TalkGate" || gate.shdowtask == null || gate.shdowtask.startflag == null)
+                    continue;
+
+                foreach (L2FlagBoxParent flagBoxParent in gate.shdowtask.startflag)
+                {
+                    if (flagBoxParent == null || flagBoxParent.BOX == null)
+                        continue;
+
+                    foreach (L2FlagBox flagBox in flagBoxParent.BOX)
+                    {
+                        // The guardian-count box only; leave (5,17)==0 alone.
+                        if (flagBox == null || flagBox.seet_no1 != 3 || flagBox.flag_no1 != 0)
+                            continue;
+
+                        flagBox.seet_no1 = 5;
+                        flagBox.flag_no1 = 96;
+                        flagBox.comp = COMPARISON.Equal;
+                        flagBox.seet_no2 = -1;
+                        flagBox.flag_no2 = 0;
+                        Plugin.Log.LogInfo("[SceneRando] Hiner TalkGate re-gated: (5,17)==0 AND (5,96)==0");
                     }
                 }
             }

@@ -337,8 +337,20 @@ namespace LaMulana2Archipelago.Patches
         // In-game item pickups apply their get-flags through setEffectFlag →
         // addFlag (never setFlagData), so the Rebirth Seal (2,55) write from a
         // physical chest/pot lands here. Runs after vanilla applied the value.
-        static void Postfix(L2FlagSystem __instance, int seet_no1, int flag_no1)
+        static void Postfix(L2FlagSystem __instance, int seet_no1, int flag_no1, short value, CALCU cul)
         {
+            // FlagWatcherScript/AnimatorController action+reset flags, L2TaskShadow endflags
+            // and in-game item get-flags all reach the flag system through setEffectFlag →
+            // addFlag and never through setFlagData, so [FLAGSET] is blind to every one of
+            // them. Mirror it here so scene-driven writes are visible too.
+            short now = 0;
+            if (GetFlagSystemPatch.IsFlagIndexValid(__instance, seet_no1, flag_no1))
+            {
+                try { __instance.getFlag(seet_no1, flag_no1, ref now); }
+                catch { now = 0; }
+            }
+            Plugin.Log.LogDebug($"[ADDFLAG] sheet={seet_no1} flag={flag_no1} {cul} {value} -> {now}");
+
             RebirthSigilFlagSync.OnNumericFlagWrite(__instance, seet_no1, flag_no1);
 
             // FlagWatcherScript action flags reach the flag system through
