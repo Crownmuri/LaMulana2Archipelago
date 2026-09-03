@@ -1,4 +1,4 @@
-// Inlined from LaMulana2RandomizerShared.dll
+﻿// Inlined from LaMulana2RandomizerShared.dll
 using System;
 
 namespace LaMulana2RandomizerShared
@@ -96,6 +96,21 @@ namespace LaMulana2RandomizerShared
         // trackable — see ItemDB flags 162-169/177/178.
         SacredOrb10 = 813, SacredOrb11 = 814, SacredOrb12 = 815, SacredOrb13 = 816, SacredOrb14 = 817,
         SacredOrb15 = 818, SacredOrb16 = 819, SacredOrb17 = 820, SacredOrb18 = 821, SacredOrb19 = 822,
+
+        // ── Collapsed AP families ─────────────────────────────────────
+        // Not game items. The apworld ships the ten area orbs and the ten bonus
+        // orbs under one AP id each (the real game id rides on lm2_game_id, which
+        // never leaves generation), so these are the codes a remote player's find
+        // actually sends us. CollapsedItemResolver swaps them for a concrete
+        // SacredOrb0-9 / SacredOrb10-19 before the grant runs; the ItemDB rows
+        // exist only as the fallback for a family with no free instance left, and
+        // carry ItemFlag -1 because they own no flag of their own.
+        //
+        // Crystal Skull and Ankh Jewel collapse too, but onto the real generic
+        // game items (ItemID.CrystalSkull / ItemID.AnkhJewel), so they need no
+        // entry here.
+        SacredOrb = 823,
+        SacredOrbBonus = 824,
 
         // ── Ammo bundles (AP filler) ──────────────────────────────────
         ShurikenBundle = 911,

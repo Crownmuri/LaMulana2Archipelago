@@ -383,6 +383,22 @@ namespace LaMulana2Archipelago.Patches
             USEITEM useitem = __instance.exchengeUseItemNameToEnum(item_name);
             if (useitem != USEITEM.NON)
             {
+                // Crystal Skull ceiling, enforced at the one place the count grows.
+                // StatusBarIF.checkCrystalIcon indexes an array by the held count, so
+                // a thirteenth throws IndexOutOfRangeException on every item-menu
+                // draw and the run is over. Twelve is all the game ships; refuse to
+                // count past it whatever the source (chest, shop, AP grant). The
+                // `direct` branch below is a save/restore assignment, not an
+                // increment, so it stays untouched.
+                if (!direct && useitem == USEITEM.USE_CRYSTAL_S_B
+                    && playerst.getUseItemNum(useitem) >= Managers.ItemGrantManager.MaxCrystalSkulls)
+                {
+                    Plugin.Log.LogWarning("[ITEM] setItem(\"" + item_name
+                        + "\") ignored: already holding the maximum "
+                        + Managers.ItemGrantManager.MaxCrystalSkulls + " Crystal Skulls.");
+                    return false;
+                }
+
                 __instance.haveUsesItem(useitem, true);
                 if (direct)
                 {

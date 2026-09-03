@@ -97,6 +97,23 @@ namespace LaMulana2Archipelago.Managers
         ///     slot stays purchasable, so the check is all this location owes.
         ///   • Own glossary ROM → delivered directly, below.
         /// </summary>
+        /// <summary>
+        /// Reports a location's check without priming any dialog or granting
+        /// anything locally — <see cref="NotifyApLocationId"/> by LocationID.
+        ///
+        /// Used when a collapsed AP item (Sacred Orb / Crystal Skull / Ankh Jewel)
+        /// arrives beyond what the seed placed in other worlds: the grant consumes
+        /// one of OUR placements instead, stamping its unique flag so the chest or
+        /// pickup stops spawning. That flag is this location's trigger, but the
+        /// write happens inside ItemGrantRecursiveGuard and so never reports on its
+        /// own — hence this direct call, which keeps the location from being
+        /// orphaned once its item is gone from the world.
+        /// </summary>
+        public static void NotifyLocationSilently(LocationID location)
+        {
+            NotifyApLocationId(ToApLocationId(location));
+        }
+
         public static void NotifyApLocationId(long apLocationId)
         {
             if (!gameplayReady)

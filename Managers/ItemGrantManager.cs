@@ -32,6 +32,10 @@ namespace LaMulana2Archipelago.Managers
         private const int CrystalSkullNumberedFlagMin = 140;
         private const int CrystalSkullNumberedFlagMax = 151;
 
+        // The game ships twelve Crystal Skulls and its UI assumes no more.
+        // Also enforced in SetItemPatch, which is where the held count grows.
+        internal const int MaxCrystalSkulls = 12;
+
         // Story items that contribute to the vanilla difficulty/progress tally
         // (sheet 3, flag 30). Must mirror SceneRandomizer.CreateGetFlags exactly.
         // Ankh Jewels are handled separately via range check.
@@ -237,6 +241,36 @@ namespace LaMulana2Archipelago.Managers
                     return true;
                 }
 
+                // Collapsed AP families (Sacred Orb, Sacred Orb (Bonus), Crystal
+                // Skull, Ankh Jewel) arrive under one shared AP id per family —
+                // the real game id stayed behind on the apworld side. Swap in a
+                // concrete member of the family so every numbered branch below
+                // (unique flag, orb/skull counters, difficulty tally,
+                // auto-place-skull) runs exactly as it does for an own-world
+                // pickup. See CollapsedItemResolver for how the stand-in is
+                // chosen and why it may never take a slot the seed reserved.
+                CollapsedItemResolver.Outcome collapsed = CollapsedItemResolver.Resolve(
+                    sys, gameId, out ItemID collapsedInstance, out LocationID collapsedWorldLocation);
+
+                if (collapsed == CollapsedItemResolver.Outcome.Resolved
+                    || collapsed == CollapsedItemResolver.Outcome.ClaimedFromWorld)
+                {
+                    Plugin.Log.LogInfo($"[ITEM] Collapsed AP item {apItemId} (gameId {gameId}) -> {collapsedInstance}");
+                    gameId = (int)collapsedInstance;
+                }
+                else if (collapsed == CollapsedItemResolver.Outcome.Full
+                         || collapsed == CollapsedItemResolver.Outcome.NotInSeed)
+                {
+                    // No item to hand over, and no dialog will open — flag it as a
+                    // popup-only grant so Plugin.Update clears the label it primed
+                    // instead of leaking it onto the next location check. The
+                    // resolver has already logged which case this is.
+                    Plugin.Log.LogWarning($"[ITEM] Discarded collapsed item (AP {apItemId}, gameId {gameId}).");
+                    LastGrantUsedPopupOnly = true;
+                    FinishGrant(queueIndex, now);
+                    return true;
+                }
+
                 ItemID itemId = (ItemID)gameId;
                 if (!Enum.IsDefined(typeof(ItemID), itemId))
                 {
@@ -311,12 +345,33 @@ namespace LaMulana2Archipelago.Managers
 
                 if (isNumberedCrystalSkull)
                 {
+                    // Hard ceiling. StatusBarIF.checkCrystalIcon indexes an array by
+                    // the held skull count, so a thirteenth throws
+                    // IndexOutOfRangeException every time the item menu draws — the
+                    // game is unrecoverable from there. The collapsed resolver
+                    // already refuses a 13th, but a cheat send of a numbered name
+                    // ("Crystal Skull (RoY)") is still in the datapackage and lands
+                    // here directly, so gate on the count itself as well.
+                    int heldSkulls = sys.getUseItemNum(USEITEM.USE_CRYSTAL_S_B);
+                    if (heldSkulls >= MaxCrystalSkulls)
+                    {
+                        Plugin.Log.LogWarning($"[ITEM] Crystal Skull cap reached ({heldSkulls}/{MaxCrystalSkulls}); "
+                            + $"discarding {itemId} (AP {apItemId}).");
+                        LastGrantUsedPopupOnly = true;
+                        FinishGrant(queueIndex, now);
+                        return true;
+                    }
+
                     Plugin.Log.LogInfo($"[ITEM] Crystal Skull: ItemID={itemId} sheet={info.ItemSheet} flag={info.ItemFlag}");
                 }
 
+                // The last two only survive resolution when the whole family is
+                // reserved by our own seed; they carry no flag of their own, so the
+                // stamp below is skipped and only the count applies.
                 bool isSacredOrb =
                     (itemId >= ItemID.SacredOrb0 && itemId <= ItemID.SacredOrb9) ||
-                    (itemId >= ItemID.SacredOrb10 && itemId <= ItemID.SacredOrb19);
+                    (itemId >= ItemID.SacredOrb10 && itemId <= ItemID.SacredOrb19) ||
+                    itemId == ItemID.SacredOrb || itemId == ItemID.SacredOrbBonus;
 
                 bool isMSX3p = itemId == ItemID.MobileSuperx3P;
 
@@ -422,8 +477,10 @@ namespace LaMulana2Archipelago.Managers
                         sys.getFlag(0, 2, ref orbCount);
                         sys.setFlagData(0, 2, (short)(orbCount + 1));
 
-                        // CALCU.EQR: stamp this specific orb's flag
-                        sys.setFlagData(info.ItemSheet, info.ItemFlag, 1);
+                        // CALCU.EQR: stamp this specific orb's flag. Skipped for an
+                        // unresolved collapsed orb (ItemFlag -1), which owns none.
+                        if (info.ItemFlag >= 0)
+                            sys.setFlagData(info.ItemSheet, info.ItemFlag, 1);
                     }
 
                     if (isMap)
@@ -460,6 +517,18 @@ namespace LaMulana2Archipelago.Managers
                 }
 
                 Plugin.Log.LogInfo($"[ITEM] Granted via sys.setItem: {itemLabel} (AP {apItemId})");
+
+                // A surplus collapsed item was paid for out of our own world: the
+                // stamp above already took the chest/pickup out of the world, so
+                // close the location out too. The flag write happened inside
+                // ItemGrantRecursiveGuard and reported nothing on its own, and this
+                // path primes no dialog, so the grant's own label is untouched.
+                if (collapsed == CollapsedItemResolver.Outcome.ClaimedFromWorld)
+                {
+                    Plugin.Log.LogInfo($"[ITEM] Consumed own placement {collapsedInstance}; "
+                        + $"reporting {collapsedWorldLocation}.");
+                    CheckManager.NotifyLocationSilently(collapsedWorldLocation);
+                }
 
                 // Record AP id only after success
                 //ShadowSaveManager.RecordApItemId(apItemId);

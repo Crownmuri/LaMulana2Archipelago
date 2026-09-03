@@ -1,4 +1,4 @@
-// Inlined from LM2RandomiserMod — removes patched Assembly-CSharp.dll dependency.
+﻿// Inlined from LM2RandomiserMod — removes patched Assembly-CSharp.dll dependency.
 ﻿using System.Collections.Generic;
 using LaMulana2RandomizerShared;
 
@@ -152,6 +152,15 @@ namespace LM2RandomiserMod
             {ItemID.SacredOrb17,                new ItemInfo("Sacred Orb",       "Sacred Orb17",      "item",        2,     169,     12,    1)},
             {ItemID.SacredOrb18,                new ItemInfo("Sacred Orb",       "Sacred Orb18",      "item",        2,     177,     12,    1)},
             {ItemID.SacredOrb19,                new ItemInfo("Sacred Orb",       "Sacred Orb19",      "item",        2,     178,     12,    1)},
+
+            // Collapsed AP families. Never placed by a seed and never granted while
+            // CollapsedItemResolver can still find a free SacredOrb0-9 / SacredOrb10-19
+            // to stand in for; these rows exist so an exhausted family still grants the
+            // orb (BoxName "Sacred Orb" is what SetItemPatch maps to +1 player level)
+            // instead of being discarded. ItemFlag -1: they own no flag, and every
+            // consumer already skips a negative flag.
+            {ItemID.SacredOrb,                  new ItemInfo("Sacred Orb",       "Sacred Orb",        "item",        2,      -1,     12,    1)},
+            {ItemID.SacredOrbBonus,             new ItemInfo("Sacred Orb",       "Sacred Orb",        "item",        2,      -1,     12,    1)},
 
             {ItemID.Map1,                       new ItemInfo("Map",              "Map1",              "item",        2,     111,      5,    1)},
             {ItemID.Map2,                       new ItemInfo("Map",              "Map2",              "item",        2,     112,      5,    1)},
