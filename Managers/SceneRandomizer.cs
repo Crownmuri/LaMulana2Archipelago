@@ -307,6 +307,7 @@ namespace LaMulana2Archipelago.Managers
 
                 List<GameObject> objectsToDeactivate = new List<GameObject>();
 
+                ClearOrpheusShopSwitchFlag();
                 CreateStartingFieldObjects(scene.name);
                 AddAnchorPoints(scene.name);
                 objectsToDeactivate.AddRange(ChangeEntrances(scene.name));
@@ -323,6 +324,31 @@ namespace LaMulana2Archipelago.Managers
             {
                 Plugin.Log.LogError($"[SceneRando] Error in {scene.name}: {ex}");
             }
+        }
+
+        // Vanilla flag that swaps BTK's shop gate from "f04-1" to "f04-1e";
+        private const int OrpheusEventSheet = 13;
+        private const int OrpheusEventFlag = 26;
+
+        /// <summary>
+        /// Drops (13,26) if the save already carries it -- a seed continued from
+        /// before the MojiScriptFixes redirect, or a save that met Orpheus with
+        /// the Harp in hand under an older build. Orpheus tracks his own
+        /// progress on (13,199) now and nothing else reads (13,26), so clearing
+        /// it only puts BTK's shop back on the vanilla sheet.
+        /// </summary>
+        private void ClearOrpheusShopSwitchFlag()
+        {
+            L2FlagSystem flagSys = sys.getFlagSys();
+            if (flagSys == null) return;
+
+            short cur = 0;
+            flagSys.getFlag(OrpheusEventSheet, OrpheusEventFlag, ref cur);
+            if (cur == 0) return;
+
+            flagSys.setFlagData(OrpheusEventSheet, OrpheusEventFlag, 0);
+            Plugin.Log.LogInfo($"[SceneRando] Cleared Orpheus BTK shop-switch flag " +
+                $"({OrpheusEventSheet},{OrpheusEventFlag})={cur} -> 0; BTK stays on \"f04-1\".");
         }
 
         private IEnumerator DeactivateObjects(List<GameObject> objs)
@@ -2628,6 +2654,14 @@ namespace LaMulana2Archipelago.Managers
 
             // Fix Giltoriyo early dialogue exit
             talkDataBase.cellData[3][6][1][0] = "[@setf,5,62,=,2]\n[@setf,1,7,=,0]\n[@anim,talk,1]\n[@p,1st-4]";
+
+            // Disable Orpheus adjusting BTK shop with the Harp.
+            // Use unused d199 to continue dialogue.
+            talkDataBase.cellData[49][3][1][0] = "[@setf,22,145,=,1]\n[@iff,13,199,&gt;,0,f09-3,4th]\n[@iff,2,46,&gt;,0,f09-3,3rd]\n" +
+                "[@iff,3,28,&gt;,0,f09-3,Hell]\n[@anim,talk,1]";
+            talkDataBase.cellData[49][6][1][0] = "[@setf,13,199,=,1]\n[@anim,talk,1]\n[@p,lastC]";
+            talkDataBase.cellData[49][7][1][0] = "[@iff,13,199,=,2,f09-3,5th]\n[@setf,13,199,=,2]\n[@anim,talk,1]\n[@p,lastC]";
+            talkDataBase.cellData[49][8][1][0] = "[@setf,13,199,=,1]\n[@anim,talk,1]\n[@p,lastC]";
 
             // Charon will always accept all your money (opt-in via greedy_charon)
             if (greedyCharon)
