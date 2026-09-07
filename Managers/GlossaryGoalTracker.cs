@@ -14,8 +14,7 @@ namespace LaMulana2Archipelago.Managers
     /// received (ItemGrantManager.DeliverGlossaryRom) — finding the in-world chip
     /// just fires the AP check. Vanilla, non-shuffled entries also set sheet-20
     /// flags when unlocked in-world, but they aren't registered, so they don't
-    /// count. This mirrors the apworld's glossary_hunt_count clamp, which caps the
-    /// target to the number of ROMs actually shuffled.
+    /// count.
     ///
     /// Live path: DeliverGlossaryRom's setFlagData(20, flag, 1) flows through
     /// SetFlagDataFlagSystemPatch.Postfix → NotifyFlagSet (fires even while an item

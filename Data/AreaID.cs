@@ -25,12 +25,17 @@ namespace LaMulana2RandomizerShared
         HoMTop, HoM, HoMAwoken,
         EPDEntrance, EPDMain, EPDTop, EPDHel,
         EPG, SpiralHell,
-        // --- DLC areas (must stay aligned with ids.py AreaID values 93+; same order) ---
+        // --- DLC areas (aligned with ids.py AreaID enum values 93+) ---
         Eden,                                                                   // 93
         SpringintheSky, SpringintheSkyTop,                                      // 94, 95
         TowerOfOannesLeftA, TowerOfOannesLeftATopGate,                          // 96, 97
         TowerOfOannesLeftB, TowerOfOannesLeftBTopGate, TowerOfOannesLeftC,      // 98, 99, 100
         TowerOfOannesRightA, TowerOfOannesRightASlide, TowerOfOannesRightB,     // 101, 102, 103
-        BaileyBottom, BaileyLevel1, BaileyLevel2, BaileyLevel3, BaileyRight  // 104-108
+        BaileyBottom, BaileyLevel1, BaileyLevel2, BaileyLevel3, BaileyRight, // 104-108
+        TowerOfOannesRightBCrystal = 109,
+        TowerOfOannesLeftCTop      = 110,
+        GateofGuidanceRightLadder  = 111,
+        // --- Pot / Glossary sub-region ---
+        HLStatue                   = 112
     }
 }
