@@ -35,6 +35,10 @@ namespace LaMulana2Archipelago
         private static ConfigEntry<string> _cfgHost;
         private static ConfigEntry<string> _cfgSlotName;
 
+        // Quality-of-life: LB+RB (Previous Weapon + Next Weapon) toggles the
+        // Claydoll Suit in place. See Patches/ClaydollQuickTogglePatch.cs.
+        private static ConfigEntry<bool> _cfgClaydollQuickToggle;
+
         private Harmony _harmony;
         private L2System _cachedSys;
         private DevUI _devUI;
@@ -167,6 +171,13 @@ namespace LaMulana2Archipelago
                 "Archipelago server host and port. Remembered between sessions.");
             _cfgSlotName = Config.Bind("Connection", "SlotName", "Lumisa",
                 "Slot (player) name used when connecting. Remembered between sessions.");
+
+            _cfgClaydollQuickToggle = Config.Bind("Gameplay", "ClaydollQuickToggle", true,
+                "Press Previous Weapon + Next Weapon together to equip/remove the Claydoll "
+                + "Suit without opening the equipment menu. The chord does not cycle weapons, "
+                + "and it refuses in any state the equipment menu would (sealed, mid-attack, "
+                + "swimming, dashing, on a ladder).");
+            Patches.ClaydollQuickTogglePatch.Enabled = _cfgClaydollQuickToggle.Value;
 
             ArchipelagoClient = new ArchipelagoClient();
             ArchipelagoClient.ServerData.Uri = _cfgHost.Value;
