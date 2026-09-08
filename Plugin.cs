@@ -39,6 +39,10 @@ namespace LaMulana2Archipelago
         // Claydoll Suit in place. See Patches/ClaydollQuickTogglePatch.cs.
         private static ConfigEntry<bool> _cfgClaydollQuickToggle;
 
+        // Quality-of-life: triple-tap a direction to kick off a Gale Fibula dash.
+        // See Patches/GaleFibulaDashTapPatch.cs.
+        private static ConfigEntry<bool> _cfgGaleFibulaDashTap;
+
         private Harmony _harmony;
         private L2System _cachedSys;
         private DevUI _devUI;
@@ -178,6 +182,13 @@ namespace LaMulana2Archipelago
                 + "and it refuses in any state the equipment menu would (sealed, mid-attack, "
                 + "swimming, dashing, on a ladder).");
             Patches.ClaydollQuickTogglePatch.Enabled = _cfgClaydollQuickToggle.Value;
+
+            _cfgGaleFibulaDashTap = Config.Bind("Gameplay", "GaleFibulaDashTap", true,
+                "Tap Left or Right three times in quick succession to start a Gale Fibula "
+                + "dash without equipping it from the menu. The Fibula is worn only long "
+                + "enough for the dash to engage and is then taken back off, exactly as "
+                + "doing it by hand would.");
+            Patches.GaleFibulaDashTapPatch.Enabled = _cfgGaleFibulaDashTap.Value;
 
             ArchipelagoClient = new ArchipelagoClient();
             ArchipelagoClient.ServerData.Uri = _cfgHost.Value;
