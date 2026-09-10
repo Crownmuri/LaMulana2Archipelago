@@ -181,14 +181,14 @@ namespace LaMulana2Archipelago
                 + "Suit without opening the equipment menu. The chord does not cycle weapons, "
                 + "and it refuses in any state the equipment menu would (sealed, mid-attack, "
                 + "swimming, dashing, on a ladder).");
-            Patches.ClaydollQuickTogglePatch.Enabled = _cfgClaydollQuickToggle.Value;
+            Patches.QuickToggleClaydollSuitPatch.Enabled = _cfgClaydollQuickToggle.Value;
 
             _cfgGaleFibulaDashTap = Config.Bind("Gameplay", "GaleFibulaDashTap", true,
                 "Tap Left or Right three times in quick succession to start a Gale Fibula "
                 + "dash without equipping it from the menu. The Fibula is worn only long "
                 + "enough for the dash to engage and is then taken back off, exactly as "
                 + "doing it by hand would.");
-            Patches.GaleFibulaDashTapPatch.Enabled = _cfgGaleFibulaDashTap.Value;
+            Patches.QuickToggleGaleFibulaPatch.Enabled = _cfgGaleFibulaDashTap.Value;
 
             ArchipelagoClient = new ArchipelagoClient();
             ArchipelagoClient.ServerData.Uri = _cfgHost.Value;
@@ -564,6 +564,11 @@ namespace LaMulana2Archipelago
 
             GUI.Label(new Rect(150, 510, 300, 20), ModDisplayInfo, guiStyle);
 
+            // Client-side QoL toggles. Drawn outside the connection-state branches
+            // below because they are pure gameplay tweaks — they apply whether the
+            // run is AP-connected, offline or not started yet.
+            DrawQolToggles();
+
             if (ArchipelagoClient.Authenticated)
             {
                 GUI.Label(new Rect(150, 522, 400, 20), "Status: Connected", guiStyle); // APDisplayInfo + " Status: Connected"
@@ -696,6 +701,52 @@ namespace LaMulana2Archipelago
             }
 
             GUI.matrix = prevMatrix;
+        }
+
+        /// <summary>
+        /// The two input-shortcut toggles, in the left-hand button column above the
+        /// Difficulty button.
+        ///
+        /// They sit at y=410/430 rather than filling the row directly above
+        /// Difficulty (450) because that row belongs to the "Host:" label and field
+        /// in the disconnected state. Keeping them clear of it lets them hold one
+        /// fixed position in every connection state instead of moving around, and
+        /// the blank row that leaves when connected reads as the group break it is:
+        /// these are client gameplay tweaks, not AP session settings.
+        ///
+        /// Flips are written straight back to the BepInEx config so they survive a
+        /// relaunch, and to the patch's own switch so they take effect immediately —
+        /// both patches re-read it per input, so there is nothing to restart. The
+        /// title screen is also the only place this UI draws, so neither toggle can
+        /// be flipped mid-dash or mid-costume-change.
+        /// </summary>
+        private static void DrawQolToggles()
+        {
+            Color oldColor = GUI.color;
+
+            Rect claydollRect = new Rect(16, 410, 125, 20);
+            bool claydollOn = Patches.QuickToggleClaydollSuitPatch.Enabled;
+            GUI.color = claydollOn ? Color.green : Color.red;
+            if (GUI.Button(claydollRect, claydollOn ? "Quick Claydoll: ON" : "Quick Claydoll: OFF"))
+            {
+                claydollOn = !claydollOn;
+                Patches.QuickToggleClaydollSuitPatch.Enabled = claydollOn;
+                if (_cfgClaydollQuickToggle != null) _cfgClaydollQuickToggle.Value = claydollOn;
+                Log.LogInfo($"[QOL] Quick Claydoll -> {claydollOn}");
+            }
+
+            Rect galeRect = new Rect(16, 430, 125, 20);
+            bool galeOn = Patches.QuickToggleGaleFibulaPatch.Enabled;
+            GUI.color = galeOn ? Color.green : Color.red;
+            if (GUI.Button(galeRect, galeOn ? "Quick Gale: ON" : "Quick Gale: OFF"))
+            {
+                galeOn = !galeOn;
+                Patches.QuickToggleGaleFibulaPatch.Enabled = galeOn;
+                if (_cfgGaleFibulaDashTap != null) _cfgGaleFibulaDashTap.Value = galeOn;
+                Log.LogInfo($"[QOL] Quick Gale -> {galeOn}");
+            }
+
+            GUI.color = oldColor;
         }
 
         /// <summary>

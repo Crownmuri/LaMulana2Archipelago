@@ -24,10 +24,13 @@ namespace LaMulana2Archipelago.Patches
     /// Hooked on <c>Status.Farst()</c>, the same per-frame task that reads the
     /// vanilla weapon-change keys, and gated on the same conditions its input block
     /// sits behind — so menu navigation, the title screen and scripted
-    /// (<c>DUMMYINPUT</c>) sequences can't be mistaken for a dash gesture.
+    /// (<c>DUMMYINPUT</c>) sequences can't be mistaken for a dash gesture — plus
+    /// <c>ONGURDIAN</c> and <see cref="InBossArena"/>, which between them switch the
+    /// gesture off for every boss room: the nine guardians, the final boss and the
+    /// DLC boss.
     /// </summary>
     [HarmonyPatch(typeof(Status), nameof(Status.Farst))]
-    internal static class GaleFibulaDashTapPatch
+    internal static class QuickToggleGaleFibulaPatch
     {
         /// <summary>Master switch — <c>Plugin</c> binds this to a BepInEx config entry.</summary>
         internal static bool Enabled = true;
@@ -40,12 +43,10 @@ namespace LaMulana2Archipelago.Patches
         /// <summary>
         /// Frame range between consecutive inputs. Adjust if necessary.
         /// </summary>
-        private const int TapGapFrames = 16;
+        private const int TapGapFrames = 12;
 
         /// <summary>
-        /// How long the Fibula stays on waiting for the dash to actually engage
-        /// (~0.5s).  Normally it comes off within a frame or two — this is only the
-        /// backstop for a gesture that never turns into a dash.
+        /// Safeguard for how long the Fibula stays equipped to trigger the dash.
         /// </summary>
         private const int EquipWindowFrames = 30;
 
@@ -61,6 +62,10 @@ namespace LaMulana2Archipelago.Patches
         // Temporary-equip state. _armed is only ever true for a band *we* put on.
         private static bool _armed;
         private static int _armedFrame;
+
+        // Memo for InBossArena(), keyed on the scene number it was computed for.
+        private static int _bossArenaSceaneNo = int.MinValue;
+        private static bool _bossArenaCached;
 
         private static AccessTools.FieldRef<L2TaskSystemBase, L2System> ResolveSys()
         {
@@ -86,15 +91,24 @@ namespace LaMulana2Archipelago.Patches
                 if (sys == null)
                     return;
 
-                // Same gate the vanilla weapon-change keys sit behind in this method:
-                // not the title screen, and the status bar isn't raised for a menu,
-                // a dramatic scene or scripted input.
-                bool gameplay = sys.checkSysFlag(SYSTEMFLAG.TITLENOW) == 0 && !sys.checkStatsBarUP();
+                // Same gate the vanilla weapon-change keys sit behind in this method
+                // — not the title screen, and the status bar isn't raised for a menu,
+                // a dramatic scene or scripted input — plus the two boss checks below.
+                //
+                // ONGURDIAN is flagged when the player is fighting a guardian: GurdianStarter
+                // sets it on the white-flash transition into an arena and the Finishers
+                // clear it on the kill, and vanilla uses it to shut off the Holy Grail
+                // warp and the Xelputter for the duration.
+                bool dashAllowed = sys.checkSysFlag(SYSTEMFLAG.TITLENOW) == 0
+                                && sys.checkSysFlag(SYSTEMFLAG.ONGURDIAN) == 0
+                                && !InBossArena(sys)
+                                && !sys.checkStatsBarUP();
 
+                // Prevent buffered inputs from triggering the dash when starting a fight.
                 if (_armed)
-                    UpdateArmedWindow(sys, gameplay);
+                    UpdateArmedWindow(sys, dashAllowed);
 
-                if (!gameplay)
+                if (!dashAllowed)
                 {
                     ResetTaps();
                     return;
@@ -150,6 +164,41 @@ namespace LaMulana2Archipelago.Patches
             return left ? L2KEYS.left : L2KEYS.right;
         }
 
+        /// <summary>
+        /// True while the player is standing in a boss arena.
+        ///
+        /// <c>ONGURDIAN</c> alone covers most of it, but not all: it is cleared by the
+        /// Finisher on the kill, while the player stays in the room for the reward and
+        /// the walk out, and it is never set at all for the DLC boss, whose arena has
+        /// no <c>GurdianStarter</c> to set it (the nine guardian arenas and the final
+        /// boss all do). 
+        ///
+        /// <c>SceenNoToFieldID</c> is the game's own scene-number→field-id map, called
+        /// exactly as <c>PauseMenu.setFieldName()</c> calls it. Only arenas answer
+        /// "fieldBoss" (the nine guardians, and the DLC boss) or "fieldBossL" (the
+        /// final boss) — no ordinary field shares those ids — so the pair identifies
+        /// every boss room without hardcoding scene numbers.
+        /// </summary>
+        private static bool InBossArena(L2System sys)
+        {
+            L2SystemCore core = sys.getL2SystemCore();
+            if (core == null)
+                return false;
+
+            int sceaneNo = core.SceaneNo;
+
+            // The lookup is a switch returning literals, but this runs every frame and
+            // the answer only changes when the field does.
+            if (sceaneNo != _bossArenaSceaneNo)
+            {
+                string field = sys.SceenNoToFieldID(sceaneNo);
+                _bossArenaSceaneNo = sceaneNo;
+                _bossArenaCached = field == "fieldBoss" || field == "fieldBossL";
+            }
+
+            return _bossArenaCached;
+        }
+
         private static void ResetTaps()
         {
             _tapKey = L2KEYS.non;
@@ -191,17 +240,18 @@ namespace LaMulana2Archipelago.Patches
         /// Takes the Fibula back off once the dash it was equipped for has started,
         /// or once it is clear that no dash is coming.
         /// </summary>
-        private static void UpdateArmedWindow(L2System sys, bool gameplay)
+        private static void UpdateArmedWindow(L2System sys, bool dashAllowed)
         {
             NewPlayer player = sys.getPlayer();
 
             bool dashing = player != null && player.isDash();
             bool expired = Time.frameCount - _armedFrame >= EquipWindowFrames;
 
-            // Leaving gameplay ends the window too: a menu opening mid-window would
+            // Losing the gate ends the window too: a menu opening mid-window would
             // otherwise let the player equip the Fibula themselves and have us strip
-            // it again on the way out.
-            if (!dashing && !expired && gameplay && player != null)
+            // it again on the way out, and a guardian fight starting must take it off
+            // rather than wait out the remaining frames.
+            if (!dashing && !expired && dashAllowed && player != null)
                 return;
 
             sys.unEquipItem(GBandId);

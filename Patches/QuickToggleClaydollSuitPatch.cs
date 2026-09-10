@@ -38,7 +38,7 @@ namespace LaMulana2Archipelago.Patches
     /// mid-attack, swimming, dashing, ladders and cutscenes all refuse it.
     /// </summary>
     [HarmonyPatch(typeof(L2System), nameof(L2System.slideMainWeapon))]
-    internal static class ClaydollQuickTogglePatch
+    internal static class QuickToggleClaydollSuitPatch
     {
         /// <summary>Master switch — <c>Plugin</c> binds this to a BepInEx config entry.</summary>
         internal static bool Enabled = true;
@@ -228,7 +228,7 @@ namespace LaMulana2Archipelago.Patches
     }
 
     /// <summary>
-    /// Keeps <see cref="ClaydollQuickTogglePatch.ClothesBeforeSuit"/> pointing at the
+    /// Keeps <see cref="QuickToggleClaydollSuitPatch.ClothesBeforeSuit"/> pointing at the
     /// costume the player was wearing when the Claydoll Suit went on.
     ///
     /// Recording this inside the chord itself would only cover suits put on by the
@@ -268,7 +268,7 @@ namespace LaMulana2Archipelago.Patches
         {
             __state = (NowCosId != null && __instance != null)
                 ? NowCosId(__instance)
-                : ClaydollQuickTogglePatch.ClayDollClothesNo; // never records
+                : QuickToggleClaydollSuitPatch.ClayDollClothesNo; // never records
         }
 
         static void Postfix(NewPlayer __instance, int __state)
@@ -276,10 +276,10 @@ namespace LaMulana2Archipelago.Patches
             if (NowCosId == null || __instance == null)
                 return;
 
-            if (NowCosId(__instance) == ClaydollQuickTogglePatch.ClayDollClothesNo &&
-                __state != ClaydollQuickTogglePatch.ClayDollClothesNo)
+            if (NowCosId(__instance) == QuickToggleClaydollSuitPatch.ClayDollClothesNo &&
+                __state != QuickToggleClaydollSuitPatch.ClayDollClothesNo)
             {
-                ClaydollQuickTogglePatch.ClothesBeforeSuit = __state;
+                QuickToggleClaydollSuitPatch.ClothesBeforeSuit = __state;
             }
         }
     }
