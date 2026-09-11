@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using HarmonyLib;
 using L2Base;
+using L2Hit;
 using L2STATUS;
 using L2Task;
 using UnityEngine;
@@ -8,8 +9,31 @@ using UnityEngine;
 namespace LaMulana2Archipelago.Patches
 {
     /// <summary>
-    /// Quality-of-life: tapping Left or Right three times in quick succession
-    /// starts a Gale Fibula dash, without the equipment-menu round trip.
+    /// How the Gale Fibula shortcut behaves.  Cycled Off -> Toggle -> Trigger from
+    /// the title screen and persisted to the BepInEx config.
+    /// </summary>
+    internal enum QuickGaleMode
+    {
+        /// <summary>No shortcut at all — the Fibula is equipped from the menu only.</summary>
+        Off = 0,
+
+        /// <summary>
+        /// Previous Sub-Weapon + Next Sub-Weapon together equip or remove the Fibula
+        /// in place, and it stays that way.  See <see cref="QuickToggleGaleFibulaChordPatch"/>.
+        /// </summary>
+        Toggle = 1,
+
+        /// <summary>
+        /// Tapping Left or Right three times kicks off one dash and takes the Fibula
+        /// straight back off.  See <see cref="QuickToggleGaleFibulaPatch"/>.
+        /// </summary>
+        Trigger = 2,
+    }
+
+    /// <summary>
+    /// Quality-of-life, <see cref="QuickGaleMode.Trigger"/>: tapping Left or Right
+    /// three times in quick succession starts a Gale Fibula dash, without the
+    /// equipment-menu round trip.
     ///
     /// The Fibula can't be steered or stopped while it is worn, so the way it is
     /// actually used is: equip it, take one step to kick the dash off, unequip it.
@@ -32,8 +56,13 @@ namespace LaMulana2Archipelago.Patches
     [HarmonyPatch(typeof(Status), nameof(Status.Farst))]
     internal static class QuickToggleGaleFibulaPatch
     {
-        /// <summary>Master switch — <c>Plugin</c> binds this to a BepInEx config entry.</summary>
-        internal static bool Enabled = true;
+        /// <summary>
+        /// Shared master switch for both shortcut shapes — <c>Plugin</c> binds this to
+        /// a BepInEx config entry and the title screen cycles it.  This patch acts on
+        /// <see cref="QuickGaleMode.Trigger"/>; <see cref="QuickToggleGaleFibulaChordPatch"/>
+        /// acts on <see cref="QuickGaleMode.Toggle"/>, so the two can never both be live.
+        /// </summary>
+        internal static QuickGaleMode Mode = QuickGaleMode.Toggle;
 
         /// <summary>Item id of the Gale Fibula, as the equip flags key it.</summary>
         private const string GBandId = "G Band";
@@ -82,7 +111,9 @@ namespace LaMulana2Archipelago.Patches
 
         static void Prefix(Status __instance)
         {
-            if (!Enabled || SysRef == null || __instance == null)
+            // _armed is still serviced in any mode: the window has to be able to close
+            // and take the band back off even if the mode were flipped mid-flight.
+            if ((Mode != QuickGaleMode.Trigger && !_armed) || SysRef == null || __instance == null)
                 return;
 
             try
@@ -115,7 +146,7 @@ namespace LaMulana2Archipelago.Patches
                 }
 
                 NewPlayer player = sys.getPlayer();
-                if (player == null)
+                if (player == null || Mode != QuickGaleMode.Trigger)
                 {
                     ResetTaps();
                     return;
@@ -261,4 +292,201 @@ namespace LaMulana2Archipelago.Patches
             _armed = false;
         }
     }
+
+    /// <summary>
+    /// Quality-of-life, <see cref="QuickGaleMode.Toggle"/>: pressing Previous
+    /// Sub-Weapon + Next Sub-Weapon together (<c>L2KEYS.lchange2</c> +
+    /// <c>L2KEYS.rchange2</c>) equips or removes the Gale Fibula in place, and leaves
+    /// it that way, without opening the equipment menu.
+    ///
+    /// Same shape as <see cref="QuickToggleClaydollSuitPatch"/>, one row of keys
+    /// down: that chord owns the main-weapon change keys, this one owns the
+    /// sub-weapon change keys, so both shortcuts can be live in the same run without
+    /// colliding.
+    ///
+    /// Hook point: <c>L2System.slideSubWeapon()</c>.  <c>L2STATUS.Status.Farst()</c>
+    /// is its only caller -
+    ///
+    ///   if (getL2Keys(lchange2, DOWN))      slideSubWeapon(0);
+    ///   else if (getL2Keys(rchange2, DOWN)) slideSubWeapon(1);
+    ///
+    /// - so a prefix there inherits every gate vanilla already applies to the
+    /// sub-weapon cycle keys (title screen, menu open, key block, player exists) and
+    /// knows which of the two keys fired.  If the *other* key is held at that moment
+    /// the press is a chord rather than a cycle: we toggle the Fibula and return false
+    /// so the cycle never happens.
+    ///
+    /// The two keys are almost never pressed on the same frame, so the first half of
+    /// the chord normally lands as an ordinary <c>slideSubWeapon</c> that has already
+    /// changed the sub-weapon by the time the second half arrives.  Every non-chord
+    /// call therefore records the sub-weapon it is about to move away from, and a
+    /// chord that follows within <see cref="ComboGraceFrames"/> puts it back.  Outside
+    /// that window the earlier press is taken to have been a deliberate change and is
+    /// left alone - only the Fibula toggles.
+    ///
+    /// Eligibility is <c>ItemMenu.IsEquipChengeAbleNow()</c> for a non-fashion item,
+    /// which reduces to <c>isItemUsable</c>: false under the Eternal Prison equipment
+    /// seal (dashSeal) and inside the Claydoll Suit (dogooOn), which cannot dash - so
+    /// the chord can never reach a state the menu could not.  Unlike
+    /// <see cref="QuickToggleGaleFibulaPatch"/> there is no boss-arena gate: this is a
+    /// deliberate, persistent equip that the menu would allow in the same room, not a
+    /// gesture an ordinary movement input could trigger by accident.
+    /// </summary>
+    [HarmonyPatch(typeof(L2System), nameof(L2System.slideSubWeapon))]
+    internal static class QuickToggleGaleFibulaChordPatch
+    {
+        /// <summary>Item id of the Gale Fibula, as the equip flags key it.</summary>
+        private const string GBandId = "G Band";
+
+        /// <summary>
+        /// How long after a lone sub-weapon-cycle press the opposite key still counts
+        /// as the other half of a chord (and so undoes that cycle).  Same window as
+        /// the Claydoll chord, for the same reasons.
+        /// </summary>
+        private const int ComboGraceFrames = 20;
+
+        /// <summary>
+        /// Feedback on the flip, so the gesture is never silent.  Both directions lead
+        /// with <c>SeDashStart</c> - the Fibula's own start-of-dash whoosh, which
+        /// <c>NewPlayer</c> plays off <c>dashSeStart</c> - to name the thing being
+        /// switched, and then say which way it went with the software
+        /// activate / deactivate chirps (<c>SoftMenu</c> plays 120 on install and 121
+        /// on uninstall).  A refusal gets the equipment menu's error buzz instead.
+        /// </summary>
+        private const int SeDashStart = 280;
+        private const int SeSoftOn = 120;
+        private const int SeSoftOff = 121;
+        private const int SeRefuse = 91;
+
+        /// <summary>
+        /// Adjust the volume of the gesture (dash start sound and software sound).
+        /// </summary>
+        private const float DashStartVolume = 0.0f;
+        private const float SoftToggleVolume = 0.8f;
+
+        // setTurnSmoke() is `protected void` on NewPlayer with no accessor. It is the
+        // puff vanilla kicks up alongside SE 280 at the start of a dash, so pairing the
+        // two gives the toggle a visual tell as well as an audible one. Resolved once;
+        // if it cannot be found the SE alone still carries the feedback.
+        private static readonly Action<NewPlayer> TurnSmoke = ResolveTurnSmoke();
+
+        // Sub-weapon the last non-chord press moved away from, and the frame it did so.
+        // _pendingFrame < 0 means "nothing to undo".
+        private static SUBWEAPON _subBeforePress = SUBWEAPON.NON;
+        private static int _pendingFrame = -1;
+
+        private static Action<NewPlayer> ResolveTurnSmoke()
+        {
+            try
+            {
+                return AccessTools.MethodDelegate<Action<NewPlayer>>(
+                    AccessTools.Method(typeof(NewPlayer), "setTurnSmoke"));
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[DASHTOGGLE] NewPlayer.setTurnSmoke unavailable, "
+                                    + "toggle feedback is audio only: " + ex.Message);
+                return null;
+            }
+        }
+
+        static bool Prefix(L2System __instance, int slide)
+        {
+            if (QuickToggleGaleFibulaPatch.Mode != QuickGaleMode.Toggle || __instance == null)
+                return true;
+
+            try
+            {
+                // Status.Farst() calls slide 0 for lchange2 and 1 for rchange2, so the
+                // key that produced this call is known without re-reading both.
+                L2KEYS otherKey = (slide == 0) ? L2KEYS.rchange2 : L2KEYS.lchange2;
+
+                if (!__instance.getL2Keys(otherKey, KEYSTATE.NORMAL))
+                {
+                    // Ordinary sub-weapon cycle. Remember what it is about to leave, in
+                    // case the opposite key arrives a frame or two from now.
+                    _subBeforePress = __instance.getSubWeapon();
+                    _pendingFrame = Time.frameCount;
+                    return true;
+                }
+
+                // Chord. Undo the cycle the first half of it caused, if that was recent.
+                if (_pendingFrame >= 0 && Time.frameCount - _pendingFrame <= ComboGraceFrames)
+                    __instance.setSubWeapon(_subBeforePress);
+                _pendingFrame = -1;
+
+                ToggleFibula(__instance);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning("[DASHTOGGLE] Quick toggle failed: " + ex.Message);
+                return true;
+            }
+        }
+
+        private static void ToggleFibula(L2System sys)
+        {
+            NewPlayer player = sys.getPlayer();
+            if (player == null)
+                return;
+
+            bool wearing = sys.isEquipItem(GBandId);
+
+            // Nothing to put on if it has not been found yet. Taking it off is allowed
+            // regardless, so the player can never be stranded permanently dashing.
+            if (!wearing && sys.isHaveItem(GBandId) == 0)
+                return;
+
+            // ItemMenu.IsEquipChengeAbleNow() for a non-fashion item is exactly this:
+            // isItemUsable(G Band) == !dashSeal && !dogooOn.
+            ItemData band = L2SystemCore.getItemData(GBandId);
+            if (band == null || !player.isItemUsable(band))
+            {
+                PlaySE(sys, SeRefuse);
+                return;
+            }
+
+            if (wearing)
+                sys.unEquipItem(GBandId);
+            else
+                sys.equipItem(GBandId, true);
+
+            // dashOn is cached on the player and only refreshed here - the menu makes
+            // the same call after an equip.
+            player.checkEquipItem();
+
+            PlaySE(sys, SeDashStart, DashStartVolume);
+            PlaySE(sys, wearing ? SeSoftOff : SeSoftOn, SoftToggleVolume);
+
+            // The dust puff only makes sense on the way in, where it is the same cue
+            // vanilla pairs with SE 280 at the start of a real dash.
+            if (!wearing && TurnSmoke != null)
+            {
+                try { TurnSmoke(player); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="volume"/> is the per-play scale <c>SoundEffectPlayer</c>
+        /// applies on top of the player's own SE volume setting, so ducking here stays
+        /// relative to whatever they have the slider at.  Pitch is left at 1: the
+        /// manager de-duplicates by (seNo, pitch), and changing it would let a second
+        /// press stack a copy of a sound still playing.
+        /// </summary>
+        private static void PlaySE(L2System sys, int seNo, float volume = 1f)
+        {
+            try
+            {
+                L2SystemCore core = sys.getL2SystemCore();
+                if (core == null || core.seManager == null)
+                    return;
+
+                int handle = core.seManager.playSE(null, seNo, volume, 1f);
+                core.seManager.releaseGameObjectFromPlayer(handle);
+            }
+            catch { }
+        }
+    }
+
 }

@@ -17,7 +17,7 @@ namespace LaMulana2Archipelago
     {
         public const string PluginGUID = "com.Crownmuri.Archipelago.LaMulana2";
         public const string PluginName = "LaMulana2Archipelago";
-        public const string PluginVersion = "1.0.3";
+        public const string PluginVersion = "1.0.4";
 
         public const string ModDisplayInfo = $"{PluginName} v{PluginVersion}";
         private const string APDisplayInfo = $"Archipelago v{ArchipelagoClient.APVersion}";
@@ -39,9 +39,9 @@ namespace LaMulana2Archipelago
         // Claydoll Suit in place. See Patches/ClaydollQuickTogglePatch.cs.
         private static ConfigEntry<bool> _cfgClaydollQuickToggle;
 
-        // Quality-of-life: triple-tap a direction to kick off a Gale Fibula dash.
-        // See Patches/GaleFibulaDashTapPatch.cs.
-        private static ConfigEntry<bool> _cfgGaleFibulaDashTap;
+        // Quality-of-life: Gale Fibula shortcut. Off / Toggle (sub-weapon chord) /
+        // Trigger (triple-tap a direction). See Patches/QuickToggleGaleFibulaPatch.cs.
+        private static ConfigEntry<Patches.QuickGaleMode> _cfgGaleFibulaMode;
 
         private Harmony _harmony;
         private L2System _cachedSys;
@@ -183,12 +183,16 @@ namespace LaMulana2Archipelago
                 + "swimming, dashing, on a ladder).");
             Patches.QuickToggleClaydollSuitPatch.Enabled = _cfgClaydollQuickToggle.Value;
 
-            _cfgGaleFibulaDashTap = Config.Bind("Gameplay", "GaleFibulaDashTap", true,
-                "Tap Left or Right three times in quick succession to start a Gale Fibula "
-                + "dash without equipping it from the menu. The Fibula is worn only long "
-                + "enough for the dash to engage and is then taken back off, exactly as "
+            _cfgGaleFibulaMode = Config.Bind("Gameplay", "GaleFibulaShortcut",
+                Patches.QuickGaleMode.Toggle,
+                "Gale Fibula shortcut. Off: none, equip it from the menu. Toggle: press "
+                + "Previous Sub-Weapon + Next Sub-Weapon together to equip/remove the "
+                + "Fibula in place and leave it that way (the chord does not cycle "
+                + "sub-weapons). Trigger: tap Left or Right three times in quick "
+                + "succession to start a single dash, with the Fibula worn only long "
+                + "enough for the dash to engage and then taken back off, exactly as "
                 + "doing it by hand would.");
-            Patches.QuickToggleGaleFibulaPatch.Enabled = _cfgGaleFibulaDashTap.Value;
+            Patches.QuickToggleGaleFibulaPatch.Mode = _cfgGaleFibulaMode.Value;
 
             ArchipelagoClient = new ArchipelagoClient();
             ArchipelagoClient.ServerData.Uri = _cfgHost.Value;
@@ -707,13 +711,6 @@ namespace LaMulana2Archipelago
         /// The two input-shortcut toggles, in the left-hand button column above the
         /// Difficulty button.
         ///
-        /// They sit at y=410/430 rather than filling the row directly above
-        /// Difficulty (450) because that row belongs to the "Host:" label and field
-        /// in the disconnected state. Keeping them clear of it lets them hold one
-        /// fixed position in every connection state instead of moving around, and
-        /// the blank row that leaves when connected reads as the group break it is:
-        /// these are client gameplay tweaks, not AP session settings.
-        ///
         /// Flips are written straight back to the BepInEx config so they survive a
         /// relaunch, and to the patch's own switch so they take effect immediately —
         /// both patches re-read it per input, so there is nothing to restart. The
@@ -735,15 +732,29 @@ namespace LaMulana2Archipelago
                 Log.LogInfo($"[QOL] Quick Claydoll -> {claydollOn}");
             }
 
+            // Three-state, so it cycles rather than flips: Off -> Toggle -> Trigger
+            // -> Off. The two ON states drive different patches and different inputs,
+            // so the label has to name which one is live, not just that one is.
             Rect galeRect = new Rect(16, 430, 125, 20);
-            bool galeOn = Patches.QuickToggleGaleFibulaPatch.Enabled;
-            GUI.color = galeOn ? Color.green : Color.red;
-            if (GUI.Button(galeRect, galeOn ? "Quick Gale: ON" : "Quick Gale: OFF"))
+            var galeMode = Patches.QuickToggleGaleFibulaPatch.Mode;
+            GUI.color = galeMode == Patches.QuickGaleMode.Off ? Color.red : Color.green;
+            string galeLabel = galeMode switch
             {
-                galeOn = !galeOn;
-                Patches.QuickToggleGaleFibulaPatch.Enabled = galeOn;
-                if (_cfgGaleFibulaDashTap != null) _cfgGaleFibulaDashTap.Value = galeOn;
-                Log.LogInfo($"[QOL] Quick Gale -> {galeOn}");
+                Patches.QuickGaleMode.Toggle  => "Quick Gale: Toggle",
+                Patches.QuickGaleMode.Trigger => "Quick Gale: Trigger",
+                _                             => "Quick Gale: OFF",
+            };
+            if (GUI.Button(galeRect, galeLabel))
+            {
+                galeMode = galeMode switch
+                {
+                    Patches.QuickGaleMode.Off    => Patches.QuickGaleMode.Toggle,
+                    Patches.QuickGaleMode.Toggle => Patches.QuickGaleMode.Trigger,
+                    _                            => Patches.QuickGaleMode.Off,
+                };
+                Patches.QuickToggleGaleFibulaPatch.Mode = galeMode;
+                if (_cfgGaleFibulaMode != null) _cfgGaleFibulaMode.Value = galeMode;
+                Log.LogInfo($"[QOL] Quick Gale -> {galeMode}");
             }
 
             GUI.color = oldColor;
