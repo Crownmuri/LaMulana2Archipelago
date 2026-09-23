@@ -1,4 +1,7 @@
 using HarmonyLib;
+using L2Base;
+using LaMulana2Archipelago.Managers;
+using LaMulana2RandomizerShared;
 using UnityEngine;
 
 namespace LaMulana2Archipelago.Patches
@@ -53,7 +56,8 @@ namespace LaMulana2Archipelago.Patches
     [HarmonyPatch(typeof(AbstractItemBase), nameof(AbstractItemBase.groundBack))]
     internal static class AbstractItemBaseGroundBackPatch
     {
-        static bool Prefix(ref bool __result, out bool __state, bool ___finished)
+        static bool Prefix(AbstractItemBase __instance, ref bool __result, out bool __state,
+                           bool ___finished, L2System ___sys, NewPlayer ___pl)
         {
             __state = ___finished;
 
@@ -69,6 +73,23 @@ namespace LaMulana2Archipelago.Patches
             {
                 __result = true; // match normal groundBack return value
                 return false;    // skip original method
+            }
+
+            // Glossanity chips: MonsterChipGlossaryPatch turns the vanilla floating
+            // popup into a full hold-up + item dialog, but vanilla groundBack only
+            // gates on sysflag 4128 / GETITEM. An NPC chip (e.g. Brihaspathi's) can be
+            // grabbed while that NPC's talk script is kicking off a cutscene (Vritra
+            // door) → dialog and cutscene both hold player control → softlock. Leave
+            // the chip on the ground until the player is back in free control.
+            if (__instance is MonsterChipScript chip
+                && GlossaryManager.Enabled
+                && ___sys != null && ___pl != null
+                && MonsterChipGlossaryPatch.TryGetChipLocation(chip, out LocationID locId)
+                && !GlossaryManager.IsLocationCollected(locId)
+                && !ItemGrantStateGuard.IsSafe(___sys, ___pl))
+            {
+                __result = true;
+                return false;
             }
 
             return true;

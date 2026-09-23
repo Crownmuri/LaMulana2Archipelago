@@ -47,12 +47,18 @@ namespace LaMulana2Archipelago.Patches
         static void Postfix(MonsterChipScript __instance)
         {
             if (!GlossaryManager.Enabled || __instance == null) return;
-            int chipId = Traverse.Create(__instance).Field("chipId").GetValue<int>();
+            if (TryGetChipLocation(__instance, out LocationID locId))
+                ApPickupProgressionCapture.FixHoldupIconAt(__instance, locId);
+        }
+
+        /// <summary>Glossary location of a chip, keyed off its book flag (chipId, else itemValue).</summary>
+        internal static bool TryGetChipLocation(MonsterChipScript chip, out LocationID locId)
+        {
+            int chipId = Traverse.Create(chip).Field("chipId").GetValue<int>();
             int bookFlag = chipId > -1
                 ? chipId
-                : Traverse.Create(__instance).Field("itemValue").GetValue<int>();
-            if (GlossaryManager.TryGetLocation(bookFlag, out LocationID locId))
-                ApPickupProgressionCapture.FixHoldupIconAt(__instance, locId);
+                : Traverse.Create(chip).Field("itemValue").GetValue<int>();
+            return GlossaryManager.TryGetLocation(bookFlag, out locId);
         }
 
         static bool Prefix(MonsterChipScript __instance)
