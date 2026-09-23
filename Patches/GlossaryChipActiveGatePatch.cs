@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using HarmonyLib;
 using L2Flag;
+using L2Task;
 using LaMulana2Archipelago.Managers;
 using LaMulana2RandomizerShared;
 
@@ -82,12 +83,8 @@ namespace LaMulana2Archipelago.Patches
                     var chip = item as MonsterChipScript;
                     if (chip == null) { _skip.Add(id); return; }
 
-                    // Same derivation as MonsterChipGlossaryPatch/MonsterChipSpritePatch.
-                    int chipId = Traverse.Create(chip).Field("chipId").GetValue<int>();
-                    int bookFlag = chipId > -1 ? chipId : chip.itemValue;
-
                     LocationID loc;
-                    if (!GlossaryManager.TryGetLocation(bookFlag, out loc)) { _skip.Add(id); return; }
+                    if (!TryResolve(chip, out loc)) { _skip.Add(id); return; }
 
                     entry = new Entry
                     {
@@ -108,7 +105,7 @@ namespace LaMulana2Archipelago.Patches
                     return;
                 }
 
-                item.itemActiveFlag = WithoutBookGate(entry.Original, entry.Loc);
+                item.itemActiveFlag = ReplaceBookGate(entry.Original, entry.Loc, true);
                 MirrorToShadow(item, entry);
             }
             catch { }
@@ -201,10 +198,73 @@ namespace LaMulana2Archipelago.Patches
             return parents;
         }
 
-        // Copy the original gate, swapping every box that reads a registered sheet-20 book flag
-        // for an always-true constant. Keeping the array shape (and each box's LOGIC) means any
+        // Same derivation as MonsterChipGlossaryPatch/MonsterChipSpritePatch.
+        private static bool TryResolve(MonsterChipScript chip, out LocationID loc)
+        {
+            int chipId = Traverse.Create(chip).Field("chipId").GetValue<int>();
+            int bookFlag = chipId > -1 ? chipId : chip.itemValue;
+            return GlossaryManager.TryGetLocation(bookFlag, out loc);
+        }
+
+        /// <summary>
+        /// Re-gate a freshly instantiated shadow whose startflag reads its chip's own book flag.
+        ///
+        /// Sakit's chip (field14 `chipN-Talk 14-15`, book flag 222) is the one talk chip that
+        /// carries its vanilla self-hide on the SHADOW instead of on itemActiveFlag: its
+        /// itemActiveFlag is empty and the shadow (`sharedassets16` pid 873) holds
+        /// `(18,72)>=1 AND (20,222)==0`. Receiving Sakit's ROM therefore kept the shadow false
+        /// forever, the object was never SetActive(true), and Apply never even ran on it.
+        ///
+        /// Rewritten on the live clone (L2TaskSystem.setTask instantiates it from obj.shdowtask
+        /// and hands it the chip via childbackup, before its first live()), so the prefab asset
+        /// is left untouched. The book box becomes "location not yet checked", every sibling
+        /// condition (Sakit being gone) still decides when the chip appears.
+        /// </summary>
+        internal static void ApplyShadow(L2TaskShadow shadow, L2TaskSystemBase child)
+        {
+            try
+            {
+                if (!GlossaryManager.Enabled || shadow == null) return;
+
+                var chip = child as MonsterChipScript;
+                LocationID loc;
+                if (chip == null || !TryResolve(chip, out loc)) return;
+                if (!ReadsBookGate(shadow.startflag, loc)) return;
+
+                shadow.startflag = ReplaceBookGate(shadow.startflag, loc, !GlossaryManager.IsLocationCollected(loc));
+            }
+            catch { }
+        }
+
+        private static bool IsBookGate(L2FlagBox box, LocationID loc)
+        {
+            LocationID boxLoc;
+            return box != null
+                && box.seet_no1 == BookSheet
+                && GlossaryManager.TryGetLocation(box.flag_no1, out boxLoc)
+                && boxLoc == loc;
+        }
+
+        private static bool ReadsBookGate(L2FlagBoxParent[] gate, LocationID loc)
+        {
+            if (gate == null) return false;
+
+            for (int i = 0; i < gate.Length; i++)
+            {
+                var parent = gate[i];
+                if (parent == null || parent.BOX == null) continue;
+
+                for (int j = 0; j < parent.BOX.Length; j++)
+                    if (IsBookGate(parent.BOX[j], loc))
+                        return true;
+            }
+            return false;
+        }
+
+        // Copy the original gate, swapping every box that reads this chip's registered sheet-20
+        // book flag for a constant. Keeping the array shape (and each box's LOGIC) means any
         // sibling condition still decides when the chip may appear.
-        private static L2FlagBoxParent[] WithoutBookGate(L2FlagBoxParent[] original, LocationID loc)
+        private static L2FlagBoxParent[] ReplaceBookGate(L2FlagBoxParent[] original, LocationID loc, bool value)
         {
             if (original == null || original.Length == 0) return original;
 
@@ -218,13 +278,7 @@ namespace LaMulana2Archipelago.Patches
                 for (int j = 0; j < src.BOX.Length; j++)
                 {
                     var box = src.BOX[j];
-                    LocationID boxLoc;
-                    bool isBookGate = box != null
-                        && box.seet_no1 == BookSheet
-                        && GlossaryManager.TryGetLocation(box.flag_no1, out boxLoc)
-                        && boxLoc == loc;
-
-                    boxes[j] = isBookGate ? Constant(true, box.logic) : box;
+                    boxes[j] = IsBookGate(box, loc) ? Constant(value, box.logic) : box;
                 }
                 parents[i] = new L2FlagBoxParent { BOX = boxes, logoc = src.logoc };
             }
@@ -242,5 +296,11 @@ namespace LaMulana2Archipelago.Patches
     internal static class GlossaryChipResetGatePatch
     {
         static void Prefix(AbstractItemBase __instance) => GlossaryChipActiveGate.Apply(__instance);
+    }
+
+    [HarmonyPatch(typeof(L2TaskShadow), "childbackup")]
+    internal static class GlossaryChipShadowGatePatch
+    {
+        static void Postfix(L2TaskShadow __instance, L2TaskSystemBase obj) => GlossaryChipActiveGate.ApplyShadow(__instance, obj);
     }
 }
