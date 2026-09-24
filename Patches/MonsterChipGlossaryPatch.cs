@@ -51,14 +51,19 @@ namespace LaMulana2Archipelago.Patches
                 ApPickupProgressionCapture.FixHoldupIconAt(__instance, locId);
         }
 
-        /// <summary>Glossary location of a chip, keyed off its book flag (chipId, else itemValue).</summary>
+        /// <summary>Glossary location of a chip, keyed off its book flag.</summary>
         internal static bool TryGetChipLocation(MonsterChipScript chip, out LocationID locId)
         {
+            return GlossaryManager.TryGetLocation(GetChipBookFlag(chip), out locId);
+        }
+
+        /// <summary>Sheet-20 book flag of a chip (chipId, else itemValue).</summary>
+        internal static int GetChipBookFlag(MonsterChipScript chip)
+        {
             int chipId = Traverse.Create(chip).Field("chipId").GetValue<int>();
-            int bookFlag = chipId > -1
+            return chipId > -1
                 ? chipId
                 : Traverse.Create(chip).Field("itemValue").GetValue<int>();
-            return GlossaryManager.TryGetLocation(bookFlag, out locId);
         }
 
         static bool Prefix(MonsterChipScript __instance)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using L2Base;
 using LaMulana2Archipelago.Managers;
@@ -56,6 +57,12 @@ namespace LaMulana2Archipelago.Patches
     [HarmonyPatch(typeof(AbstractItemBase), nameof(AbstractItemBase.groundBack))]
     internal static class AbstractItemBaseGroundBackPatch
     {
+        // Sheet-20 book flags of NPC chips whose talk script starts a cutscene.
+        private static readonly HashSet<int> CutsceneNpcChipFlags = new HashSet<int>
+        {
+            198, // Brihaspathi (talk50) → Vritra door cutscene
+        };
+
         static bool Prefix(AbstractItemBase __instance, ref bool __result, out bool __state,
                            bool ___finished, L2System ___sys, NewPlayer ___pl)
         {
@@ -81,9 +88,12 @@ namespace LaMulana2Archipelago.Patches
             // grabbed while that NPC's talk script is kicking off a cutscene (Vritra
             // door) → dialog and cutscene both hold player control → softlock. Leave
             // the chip on the ground until the player is back in free control.
+            // Only for CutsceneNpcChipFlags: IsSafe includes the post-talk grace
+            // window, which would needlessly delay every other NPC's chip.
             if (__instance is MonsterChipScript chip
                 && GlossaryManager.Enabled
                 && ___sys != null && ___pl != null
+                && CutsceneNpcChipFlags.Contains(MonsterChipGlossaryPatch.GetChipBookFlag(chip))
                 && MonsterChipGlossaryPatch.TryGetChipLocation(chip, out LocationID locId)
                 && !GlossaryManager.IsLocationCollected(locId)
                 && !ItemGrantStateGuard.IsSafe(___sys, ___pl))
