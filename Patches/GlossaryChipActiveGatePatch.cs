@@ -161,13 +161,21 @@ namespace LaMulana2Archipelago.Patches
         /// an empty (or book-gate-only) gate never self-hides, so they have nothing to recover
         /// from, and rewriting their startflag would spawn them before the player has met the NPC.
         ///
+        /// The target is the LIVE shadow (getShadowObject), not item.shdowtask: shdowtask is the
+        /// prefab that L2TaskSystem.setTask Instantiates from, so writing it never reaches the
+        /// clone that actually runs live(). setTask attaches the clone before the chip's first
+        /// InitFarst, so it already exists by the time groundInit calls us.
+        ///
         /// The shadow gets its own deep copy — the chip's array is rewritten on every Apply.
         /// </summary>
         private static void MirrorToShadow(AbstractItemBase item, Entry entry)
         {
-            if (!entry.MirrorShadow || item.shdowtask == null) return;
+            if (!entry.MirrorShadow) return;
 
-            item.shdowtask.startflag = Clone(item.itemActiveFlag);
+            L2TaskShadow shadow = item.getShadowObject();
+            if (shadow == null) return;
+
+            shadow.startflag = Clone(item.itemActiveFlag);
         }
 
         private static L2FlagBoxParent[] Clone(L2FlagBoxParent[] source)
