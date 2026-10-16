@@ -47,7 +47,6 @@ namespace LaMulana2Archipelago.Managers
         private bool autoPlaceSkull;
         private bool greedyCharon;
         private int echidna;
-        private int requiredGuardians;
         private int itemChestColour;
         private int weightChestColour;
         private int apChestColour;
@@ -240,7 +239,6 @@ namespace LaMulana2Archipelago.Managers
             startingWeapon = (ItemID)serverData.GetSlotInt("starting_weapon", 0);
             startingArea = (AreaID)serverData.GetSlotInt("starting_area", 0);
             randomDissonance = serverData.GetSlotBool("random_dissonance", true);
-            requiredGuardians = serverData.GetSlotInt("required_guardians", 5);
             echidna = serverData.GetSlotInt("echidna", 4);
             autoPlaceSkull = serverData.GetSlotBool("auto_place_skull", true);
             greedyCharon = serverData.GetSlotBool("greedy_charon", true);
@@ -1629,15 +1627,10 @@ namespace LaMulana2Archipelago.Managers
                 new L2FlagBox() { seet_no1 = 2, flag_no1 = 3, seet_no2 = -1, flag_no2 = 7, logic = LOGIC.AND, comp = COMPARISON.Equal }
             };
 
-            if (randomDissonance)
-            {
-                flagBoxes.Add(new L2FlagBox()
-                {
-                    seet_no1 = 3, flag_no1 = 0, seet_no2 = -1, flag_no2 = requiredGuardians,
-                    logic = LOGIC.AND, comp = COMPARISON.GreaterEq
-                });
-            }
-            else
+            // Random dissonance seals on the dissonance alone: RequiredGuardians is
+            // enforced by the Spiral Boat soul gate, which the apworld sets to exactly
+            // that cost. Vanilla dissonance keeps the base game's Anu requirement.
+            if (!randomDissonance)
             {
                 flagBoxes.Add(new L2FlagBox()
                 {
@@ -1721,6 +1714,103 @@ namespace LaMulana2Archipelago.Managers
                 if (animator.name == "6starDemo")
                     animator.gameObject.SetActive(false);
             }
+        }
+
+        // ================================================================
+        // Soul gate values without a vanilla prefab (0, 4, 6, 7, 8)
+        // ================================================================
+
+        // Pip discs in f00map_e: one 24x24 disc per value 1-9, stacked 28px apart.
+        private const float SoulDiscPitchV = 28f / 512f;
+        private static readonly Dictionary<int, Mesh> soulDiscMeshes = new();
+
+        // soulBox-local soul positions sitting on each borrowed disc's pips (1 unit =
+        // 1 atlas px, origin = disc centre). The borrowed prefab's souls are laid out for
+        // its own disc, so without this the kept souls trace the 5/9 pattern. 8 is the
+        // unused 8-soul layout shipped in field04; 4/6/7 were read off the atlas pips.
+        private static readonly Dictionary<int, Vector2[]> soulPipLayouts = new()
+        {
+            [4] = new[] { new Vector2(-2.5f, 8.5f), new Vector2(7.5f, 3.5f), new Vector2(-6.5f, -1.5f), new Vector2(2.5f, -6.5f) },
+            [6] = new[] { new Vector2(1.5f, 9.5f), new Vector2(7.5f, 6.5f), new Vector2(1.5f, 2.5f), new Vector2(7.5f, -0.5f), new Vector2(-5.5f, -5.5f), new Vector2(1.5f, -5.5f) },
+            [7] = new[] { new Vector2(-3.5f, 8.5f), new Vector2(6.5f, 6.5f), new Vector2(-8.5f, 1.5f), new Vector2(-1.5f, 1.5f), new Vector2(9.5f, 0.5f), new Vector2(5.5f, -5.5f), new Vector2(-1.5f, -6.5f) },
+            [8] = new[] { new Vector2(0.5f, 9.5f), new Vector2(3.5f, 3.5f), new Vector2(-3.5f, 6.5f), new Vector2(8.5f, 0.5f), new Vector2(-8.5f, 2.5f), new Vector2(-1.5f, -0.5f), new Vector2(4.5f, -3.5f), new Vector2(0.5f, -7.5f) },
+        };
+
+        // Vanilla only ships 1/2/3/5/9 gates. Anything else borrows the nearest
+        // prefab with at least as many souls, so there are souls to switch off.
+        private static int GetSoulGateBaseValue(int soulValue)
+        {
+            if (soulValue <= 1) return 1;
+            if (soulValue <= 3) return soulValue;
+            if (soulValue <= 5) return 5;
+            return 9;
+        }
+
+        private void ApplySoulGateValue(AnimatorController soulGateDoor, AnimatorController soul, int soulValue, int baseValue)
+        {
+            if (soulGateDoor != null)
+            {
+                // soul_gC/soul_g1 is the pip disc above the door; its mesh is a quad
+                // UV-mapped onto the baseValue disc.
+                Transform disc = soulGateDoor.transform.Find("soul_gC");
+                if (soulValue <= 0)
+                {
+                    if (disc != null)
+                        disc.gameObject.SetActive(false);
+                }
+                else
+                {
+                    MeshFilter discFilter = disc != null ? disc.Find("soul_g1")?.GetComponent<MeshFilter>() : null;
+                    Mesh mesh = discFilter != null ? GetSoulDiscMesh(discFilter.sharedMesh, soulValue, baseValue) : null;
+                    if (mesh != null)
+                        discFilter.sharedMesh = mesh;
+                    else
+                        Plugin.Log.LogWarning($"[SceneRando] Soul gate [{soulValue}]: could not retarget disc, showing [{baseValue}]");
+                }
+            }
+
+            if (soul != null)
+            {
+                Transform soulBox = soul.transform.Find("soulBox");
+                if (soulBox != null)
+                {
+                    soulPipLayouts.TryGetValue(soulValue, out Vector2[] layout);
+                    for (int i = 0; i < soulBox.childCount; i++)
+                    {
+                        Transform s = soulBox.GetChild(i);
+                        if (i >= soulValue)
+                        {
+                            s.gameObject.SetActive(false);
+                        }
+                        else if (layout != null && i < layout.Length)
+                        {
+                            // The soul_cont clips only animate soulBox itself, so per-soul
+                            // positions stick. Keep z: it orders the souls over the disc.
+                            s.localPosition = new Vector3(layout[i].x, layout[i].y, s.localPosition.z);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static Mesh GetSoulDiscMesh(Mesh baseMesh, int soulValue, int baseValue)
+        {
+            if (soulDiscMeshes.TryGetValue(soulValue, out Mesh cached) && cached != null)
+                return cached;
+            if (baseMesh == null || !baseMesh.isReadable)
+                return null;
+
+            // Disc n sits (n - 1) pitches below disc 1 in the atlas, i.e. lower V.
+            Mesh mesh = Instantiate(baseMesh);
+            mesh.name = "soul_g" + soulValue;
+            Vector2[] uv = mesh.uv;
+            float shift = (soulValue - baseValue) * SoulDiscPitchV;
+            for (int i = 0; i < uv.Length; i++)
+                uv[i].y -= shift;
+            mesh.uv = uv;
+
+            soulDiscMeshes[soulValue] = mesh;
+            return mesh;
         }
 
         // ================================================================
@@ -1843,8 +1933,9 @@ namespace LaMulana2Archipelago.Managers
                             AnimatorController soulGateDoor = null;
                             AnimatorController soul = null;
 
+                            int baseValue = GetSoulGateBaseValue(soulValue);
                             string gateKey = null, soulKey = null;
-                            switch (soulValue)
+                            switch (baseValue)
                             {
                                 case 1: gateKey = "oneSoulGate"; soulKey = "oneSoul"; break;
                                 case 2: gateKey = "twoSoulGate"; soulKey = "twoSoul"; break;
@@ -1852,6 +1943,9 @@ namespace LaMulana2Archipelago.Managers
                                 case 5: gateKey = "fiveSoulGate"; soulKey = "fiveSoul"; break;
                                 case 9: gateKey = "nineSoulGate"; soulKey = "nineSoul"; break;
                             }
+                            // A [0] gate has no souls to show.
+                            if (soulValue <= 0)
+                                soulKey = null;
 
                             if (gateKey != null && PrefabHarvester.CachedPrefabs.TryGetValue(gateKey, out GameObject gatePrefab))
                                 soulGateDoor = Instantiate(gatePrefab, gate.transform.position, Quaternion.identity).GetComponent<AnimatorController>();
@@ -1877,6 +1971,10 @@ namespace LaMulana2Archipelago.Managers
                             boxParents[0].BOX = flagBoxes.ToArray();
                             if (gate.shdowtask != null)
                                 gate.shdowtask.startflag = boxParents;
+
+                            // Values without a vanilla prefab ride the nearest one above.
+                            if (soulValue != baseValue)
+                                ApplySoulGateValue(soulGateDoor, soul, soulValue, baseValue);
 
                             if (soulGateDoor != null)
                             {
