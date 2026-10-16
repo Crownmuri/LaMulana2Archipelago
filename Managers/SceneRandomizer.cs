@@ -287,12 +287,28 @@ namespace LaMulana2Archipelago.Managers
         public void OnSceneLoaded(Scene scene)
         {
             if (!IsRandomising) return;
-            if (scene.name == "fieldLast" || scene.name == "title") return;
+            if (scene.name == "title") return;
 
             // Cache sys reference
             if (sys == null)
                 sys = FindObjectOfType<L2System>();
             if (sys == null) return;
+
+            // Flag-watcher rewrites run on every field, fieldLast included, and in
+            // their own try so a throw elsewhere can't skip them. Otherwise the
+            // vanilla funeral trigger ((3,30) story progress >= 140) and the
+            // unguarded ragnarok watcher stay live in that scene.
+            try
+            {
+                ChangeFlagWatchers(scene.name);
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError($"[SceneRando] ChangeFlagWatchers failed in {scene.name}: {ex}");
+            }
+
+            // fieldLast (Spiral Hell) gets nothing else, same as the original randomizer.
+            if (scene.name == "fieldLast") return;
 
             try
             {
@@ -313,7 +329,6 @@ namespace LaMulana2Archipelago.Managers
                 ChangeEventItems();
                 Plugin.Log.LogDebug($"[SceneRando] About to call DissonanceChests for {scene.name}");
                 DissonanceChests(scene.name);
-                ChangeFlagWatchers(scene.name);
                 FieldSpecificChanges(scene.name);
                 ObjectChanges();
                 StartCoroutine(DeactivateObjects(objectsToDeactivate));
