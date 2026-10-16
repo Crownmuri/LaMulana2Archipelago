@@ -63,10 +63,10 @@ namespace LaMulana2Archipelago.Utils
         private int flagListSheet = -1;
         private readonly List<KeyValuePair<int, string>> flagListEntries = new List<KeyValuePair<int, string>>();
 
-        // Resource fields (gold / weights / ammo) — edited on the right of the F10 panel
+        // Resource fields (HP / gold / weights / ammo) — edited on the right of the F10 panel
         private static readonly string[] ResourceLabels =
         {
-            "Gold", "Weights", "Shuriken", "Rolling Shuriken", "Earth Spear", "Flare",
+            "HP", "Gold", "Weights", "Shuriken", "Rolling Shuriken", "Earth Spear", "Flare",
             "Caltrops", "Chakram", "Bomb", "Pistol Clips", "Pistol Bullets",
         };
         private static readonly SUBWEAPON[] AmmoSlots =
@@ -82,9 +82,10 @@ namespace LaMulana2Archipelago.Utils
             SUBWEAPON.SUB_HATUDAN, SUBWEAPON.SUB_MAKIBI, SUBWEAPON.SUB_CHAKURA,
             SUBWEAPON.SUB_BOM, SUBWEAPON.SUB_GUN, SUBWEAPON.SUB_GUN,
         };
-        private const int GoldRow = 0;
-        private const int WeightRow = 1;
-        private const int FirstAmmoRow = 2;
+        private const int HpRow = 0;
+        private const int GoldRow = 1;
+        private const int WeightRow = 2;
+        private const int FirstAmmoRow = 3;
         private readonly string[] resourceStrings = new string[ResourceLabels.Length];
 
         // Flag watch log (populated by our Harmony patches)
@@ -418,7 +419,7 @@ namespace LaMulana2Archipelago.Utils
         }
 
         // ================================================================
-        // Resources — gold / weights / ammo
+        // Resources — HP / gold / weights / ammo
         // ================================================================
 
         private void DrawResourcePanel(float x, float y)
@@ -447,7 +448,7 @@ namespace LaMulana2Archipelago.Utils
                 {
                     int value;
                     if (int.TryParse(resourceStrings[i], out value))
-                        SetResource(i, value);
+                        SetResource(i, value, raiseMax: true);
                 }
                 if (GUI.Button(new Rect(x + 200, rowY, 40, 25), "Max"))
                     SetResource(i, int.MaxValue);
@@ -483,6 +484,7 @@ namespace LaMulana2Archipelago.Utils
 
         private int GetResourceMax(Status st, int row)
         {
+            if (row == HpRow) return st.getMaxHP() / 100;
             if (row == GoldRow) return st.getMaxCoint();
             if (row == WeightRow) return 999;
             return sys.getSubWeaponMax(AmmoSlots[row - FirstAmmoRow]);
@@ -490,6 +492,8 @@ namespace LaMulana2Archipelago.Utils
 
         private int GetResource(Status st, int row)
         {
+            // Status keeps HP x100; the bar (and this field) show the /100 value.
+            if (row == HpRow) return st.getHP() / 100;
             if (row == GoldRow) return st.getCoin();
             if (row == WeightRow) return st.getWait();
             return st.getSubWeaponNum(AmmoSlots[row - FirstAmmoRow]);
@@ -499,17 +503,30 @@ namespace LaMulana2Archipelago.Utils
         /// Writes straight to Status (the real store — the 00system flags are only
         /// mirrors). Bypasses setItem, which drops value==0 and runs AP grant logic.
         /// </summary>
-        private void SetResource(int row, int value)
+        private void SetResource(int row, int value, bool raiseMax = false)
         {
             try
             {
                 Status st = GetStatus();
                 if (st == null) return;
 
-                value = Mathf.Clamp(value, 0, GetResourceMax(st, row));
+                // Set (not Max) may push HP past the orb-derived cap: lift max_hp to
+                // match. Not saved — setPLayerLevel recomputes it from the orb count
+                // on the next orb pickup or load.
+                if (row == HpRow && raiseMax && value > GetResourceMax(st, row))
+                {
+                    st.max_hp = value * 100;
+                    Traverse.Create(st).Field("statusbar").GetValue<StatusBarIF>().setMaxHP(value);
+                }
+
+                // HP floors at 1: 0 would leave Lumisa alive on an empty bar, since
+                // death is only triggered from the damage path.
+                value = Mathf.Clamp(value, row == HpRow ? 1 : 0, GetResourceMax(st, row));
                 using (ItemGrantRecursiveGuard.Begin())
                 {
-                    if (row == GoldRow) st.setCoin(value);
+                    // setHP is a delta in bar units and also animates the status bar.
+                    if (row == HpRow) st.setHP(value - st.getHP() / 100);
+                    else if (row == GoldRow) st.setCoin(value);
                     else if (row == WeightRow) st.setWait(value);
                     else st.setSubWeaponNum(AmmoSlots[row - FirstAmmoRow], value);
                 }
