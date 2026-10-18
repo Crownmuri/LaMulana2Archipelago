@@ -59,6 +59,12 @@ namespace LaMulana2Archipelago.Patches
             sys.setFlagData(31, idx, 1);
             Traverse.Create(__instance).Field("sta").SetValue(7);
 
+            // 5b. Fire the chest's open-action flags, as vanilla openBox does. Skipping
+            // this lost e.g. the dissonance "absorbed" stamp (13,39)=2 on filler
+            // dissonance chests, so the re-scan never handed over the glossary entry.
+            if (__instance.openActionFlags != null && __instance.openActionFlags.Length > 0)
+                sys.setEffectFlag(__instance.openActionFlags);
+
             // 6. Replicate the vanilla open animation / visual side-effects
             var openState = Traverse.Create(__instance).Field("openState").GetValue<string>();
             var myAnime = Traverse.Create(__instance).Field("myAnime").GetValue<Animator>();
