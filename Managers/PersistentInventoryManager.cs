@@ -208,7 +208,32 @@ namespace LaMulana2Archipelago.Managers
         {
             var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(apLocation);
             if (scouted != null)
-                return scouted.IsOwnItem ? scouted.ItemId : 0;
+            {
+                if (!scouted.IsOwnItem) return 0;
+
+                // Collapsed families (orbs, skulls, jewels) scout under the shared
+                // family id. Granting that would send it through
+                // CollapsedItemResolver as if it came from another world: every
+                // slot is either held or reserved by our seed, so pass 2 would take
+                // a DIFFERENT uncollected placement and report its check. Use the
+                // seed's own instance for this location instead. A numbered
+                // instance is not a collapsed id, so the grant uses it directly.
+                int scoutedGameId = (int)(scouted.ItemId - BaseApItemId);
+                if (SeedFlagMapBuilder.LocationToItem.TryGetValue(location, out ItemID placed)
+                    && CollapsedItemResolver.IsMemberOf(scoutedGameId, placed))
+                    return BaseApItemId + (int)placed;
+
+                // No numbered instance on record: never let replay fall into the
+                // resolver's "consume another placement" path. Skip and say so.
+                if (CollapsedItemResolver.IsCollapsedFamily(scoutedGameId))
+                {
+                    Plugin.Log.LogWarning($"[Persist] {location} holds collapsed AP item {scouted.ItemId} "
+                        + "but the seed map has no numbered instance for it; not replaying.");
+                    return 0;
+                }
+
+                return scouted.ItemId;
+            }
 
             if (SeedFlagMapBuilder.LocationToItem.TryGetValue(location, out ItemID item)
                 && !ApItemIDs.IsApPlaceholder((int)item)

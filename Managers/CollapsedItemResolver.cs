@@ -122,6 +122,19 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
+        /// True when <paramref name="instance"/> is a concrete member of the
+        /// collapsed family <paramref name="gameId"/> (e.g. CrystalSkull5 for 9).
+        /// </summary>
+        public static bool IsMemberOf(int gameId, ItemID instance)
+        {
+            ItemID[] family = FamilyFor(gameId);
+            return family != null && System.Array.IndexOf(family, instance) >= 0;
+        }
+
+        /// <summary>True when this game id is a collapsed family's shared id.</summary>
+        public static bool IsCollapsedFamily(int gameId) => FamilyFor(gameId) != null;
+
+        /// <summary>
         /// Resolves a collapsed AP game id to the instance the grant should use.
         /// See <see cref="Outcome"/> for what the caller does with each result.
         /// </summary>
@@ -235,7 +248,7 @@ namespace LaMulana2Archipelago.Managers
         /// True when this instance's unique flag is already set — either the
         /// player has it, or an earlier collapsed grant took the slot.
         /// </summary>
-        private static bool IsClaimed(L2System sys, ItemID id)
+        internal static bool IsClaimed(L2System sys, ItemID id)
         {
             ItemInfo info = ItemDB.GetItemInfo(id);
             if (info == null || info.ItemFlag < 0)

@@ -103,6 +103,33 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
+        /// Remember that the AP item at this queue index was a surplus collapsed
+        /// copy paid for with an own-world placement (CollapsedItemResolver pass 2).
+        /// That location's check survives every rewind, so a later re-grant of the
+        /// same index must reuse this placement rather than spend another one.
+        /// </summary>
+        public static void RecordSurplusClaim(int index, int location)
+        {
+            if (!IsActive || index < 0) return;
+
+            var m = Master;
+            m.SurplusClaims ??= new Dictionary<int, int>();
+            if (m.SurplusClaims.TryGetValue(index, out int existing) && existing == location) return;
+
+            m.SurplusClaims[index] = location;
+            PersistMaster(m);
+        }
+
+        public static bool TryGetSurplusClaim(int index, out int location)
+        {
+            location = 0;
+            if (!IsActive || index < 0) return false;
+
+            var claims = Master.SurplusClaims;
+            return claims != null && claims.TryGetValue(index, out location);
+        }
+
+        /// <summary>
         /// Call when memSave succeeds (autosave / grail). Updates the in-memory
         /// checkpoint only — never the slot file, because autosave progress is
         /// not persisted to a slot until dataSave runs.
@@ -672,6 +699,10 @@ namespace LaMulana2Archipelago.Managers
             public int Version { get; set; }
             public int HighestIndex { get; set; }
             public List<PersistedItem> ReceivedItems { get; set; }
+
+            /// <summary>AP queue index → LocationID of the own placement a surplus
+            /// collapsed copy consumed. Absent in older master files.</summary>
+            public Dictionary<int, int> SurplusClaims { get; set; }
         }
 
         // Used by LoadSlot / LoadMem to absorb legacy files that still carry

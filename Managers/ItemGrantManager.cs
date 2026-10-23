@@ -12,6 +12,7 @@ namespace LaMulana2Archipelago.Managers
     public static class ItemGrantManager
     {
         private const long BaseApItemId = 420000;
+        private const long BaseApLocationId = 430000;
 
         // Backoff so a failing item doesn't hard-freeze the game loop.
         // Keyed by the AP queue Index (unique per delivery), NOT by apItemId —
@@ -249,8 +250,47 @@ namespace LaMulana2Archipelago.Managers
                 // auto-place-skull) runs exactly as it does for an own-world
                 // pickup. See CollapsedItemResolver for how the stand-in is
                 // chosen and why it may never take a slot the seed reserved.
-                CollapsedItemResolver.Outcome collapsed = CollapsedItemResolver.Resolve(
-                    sys, gameId, out ItemID collapsedInstance, out LocationID collapsedWorldLocation);
+                CollapsedItemResolver.Outcome collapsed;
+                ItemID collapsedInstance;
+                LocationID collapsedWorldLocation;
+
+                // A surplus copy re-granted by the shadow restore after a rewind
+                // already paid with a specific own placement, and that check
+                // survived the rewind. Reuse it: running the resolver again would
+                // spend a SECOND placement (the first one's flag may already be
+                // back via persistent-inventory replay) and report its check.
+                if (CollapsedItemResolver.IsCollapsedFamily(gameId)
+                    && ShadowSaveManager.TryGetSurplusClaim(queueIndex, out int claimedLoc)
+                    && SeedFlagMapBuilder.LocationToItem.TryGetValue((LocationID)claimedLoc, out ItemID claimedItem)
+                    && CollapsedItemResolver.IsMemberOf(gameId, claimedItem))
+                {
+                    var checkedLocs = Archipelago.ArchipelagoClient.ServerData?.CheckedLocations;
+                    bool replayRestoresIt = PersistentInventoryManager.Enabled
+                        && checkedLocs != null
+                        && checkedLocs.Contains(BaseApLocationId + claimedLoc);
+
+                    if (CollapsedItemResolver.IsClaimed(sys, claimedItem) || replayRestoresIt)
+                    {
+                        Plugin.Log.LogInfo($"[ITEM] Surplus AP item {apItemId} (index {queueIndex}) already "
+                            + $"paid with {claimedItem} at {(LocationID)claimedLoc}; "
+                            + (replayRestoresIt ? "persistent inventory restores it." : "already held."));
+                        LastGrantUsedPopupOnly = true;
+                        FinishGrant(queueIndex, now);
+                        return true;
+                    }
+
+                    // Persistent inventory off: nothing else gives this
+                    // placement back, so re-grant exactly it. Its check is
+                    // already reported, so no new location is touched.
+                    collapsed = CollapsedItemResolver.Outcome.Resolved;
+                    collapsedInstance = claimedItem;
+                    collapsedWorldLocation = LocationID.None;
+                }
+                else
+                {
+                    collapsed = CollapsedItemResolver.Resolve(
+                        sys, gameId, out collapsedInstance, out collapsedWorldLocation);
+                }
 
                 if (collapsed == CollapsedItemResolver.Outcome.Resolved
                     || collapsed == CollapsedItemResolver.Outcome.ClaimedFromWorld)
@@ -528,6 +568,7 @@ namespace LaMulana2Archipelago.Managers
                     Plugin.Log.LogInfo($"[ITEM] Consumed own placement {collapsedInstance}; "
                         + $"reporting {collapsedWorldLocation}.");
                     CheckManager.NotifyLocationSilently(collapsedWorldLocation);
+                    ShadowSaveManager.RecordSurplusClaim(queueIndex, (int)collapsedWorldLocation);
                 }
 
                 // Record AP id only after success
