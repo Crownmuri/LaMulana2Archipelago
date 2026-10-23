@@ -42,6 +42,104 @@ namespace LaMulana2Archipelago.Managers
         private static bool IsActive =>
             ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode;
 
+        // Detached: the socket dropped mid-run. Disconnect() clears RoomSeed and
+        // zeroes ServerData.Index, but the player keeps playing the same seed and
+        // the game keeps saving — with every item granted before the drop in it.
+        // If the checkpoints froze at their pre-drop values, the next reconnect +
+        // Continue/Load would rewind Index to them and re-grant those items.
+        // So remember the seed's key and the game-side item count, keep the save
+        // hooks advancing (and rewinding) checkpoints against them, and hand the
+        // count back on reconnect to the same seed.
+        private static string _detachedKey;
+        private static int _detachedIndex;
+        private static bool IsDetached => !IsActive && _detachedKey != null;
+
+        /// <summary>Key the shadow files are read/written under right now.</summary>
+        private static string CurrentKey() => IsDetached ? _detachedKey : SeedKey();
+
+        /// <summary>Items the game state currently holds (AP index).</summary>
+        private static int GameIndex => IsDetached ? _detachedIndex : ArchipelagoClient.ServerData.Index;
+
+        /// <summary>
+        /// Call at the top of ArchipelagoClient.Disconnect(), before RoomSeed and
+        /// Index are cleared. No-op unless an online session was live.
+        /// </summary>
+        public static void OnSessionDropped()
+        {
+            if (!ArchipelagoClient.Authenticated || ArchipelagoClient.ServerData?.RoomSeed == null)
+                return;
+
+            _detachedKey = SeedKey();
+            _detachedIndex = ArchipelagoClient.ServerData.Index;
+            Plugin.Log.LogInfo($"[Shadow] Session dropped; tracking saves for {_detachedKey} at index {_detachedIndex}.");
+        }
+
+        /// <summary>
+        /// Call once an online session is authenticated. Reconnecting to the seed
+        /// we were detached from restores the game-side Index, so a mid-run
+        /// reconnect doesn't treat every already-granted item as new.
+        /// </summary>
+        public static void OnSessionAttached()
+        {
+            if (_detachedKey != null && _detachedKey == SeedKey()
+                && ArchipelagoClient.ServerData.Index < _detachedIndex)
+            {
+                ArchipelagoClient.ServerData.Index = _detachedIndex;
+                Plugin.Log.LogInfo($"[Shadow] Reattached to {_detachedKey}; Index -> {_detachedIndex}.");
+            }
+            ClearDetached();
+        }
+
+        /// <summary>True while a dropped online session's seed is still being played.</summary>
+        public static bool HasDetachedSession => IsDetached;
+
+        /// <summary>
+        /// True when a session dropped earlier and the session now being set up
+        /// (ServerData.RoomSeed already set, not yet Authenticated) is a different
+        /// seed or slot.
+        /// </summary>
+        public static bool DetachedFromDifferentSeed => _detachedKey != null && _detachedKey != SeedKey();
+
+        /// <summary>
+        /// Remember a location check that could not be sent (socket down). Stored in
+        /// the seed's master file so it survives a restart; main thread only.
+        /// </summary>
+        public static void AddUnsentCheck(long apLocationId)
+        {
+            if (!IsActive && !IsDetached) return;
+
+            var m = Master;
+            m.UnsentChecks ??= new List<long>();
+            if (m.UnsentChecks.Contains(apLocationId)) return;
+
+            m.UnsentChecks.Add(apLocationId);
+            PersistMaster(m);
+            Plugin.Log.LogInfo($"[Shadow] Queued unsent location check {apLocationId} ({m.UnsentChecks.Count} pending).");
+        }
+
+        /// <summary>Returns and clears the current seed's unsent checks.</summary>
+        public static List<long> TakeUnsentChecks()
+        {
+            var result = new List<long>();
+            if (!IsActive) return result;
+
+            var m = Master;
+            if (m.UnsentChecks == null || m.UnsentChecks.Count == 0) return result;
+
+            result.AddRange(m.UnsentChecks);
+            m.UnsentChecks.Clear();
+            PersistMaster(m);
+            return result;
+        }
+
+        /// <summary>Forget any detached session (offline activation, full teardown).</summary>
+        public static void ClearDetached()
+        {
+            if (_detachedKey == null) return;
+            _detachedKey = null;
+            InvalidateCaches();
+        }
+
         // Called by ArchipelagoClient on connect/disconnect/offline toggle so
         // any cached state captured against an old (or "noseed") SeedKey is
         // discarded; the next access reloads from the file that matches the
@@ -51,15 +149,6 @@ namespace LaMulana2Archipelago.Managers
             _slot = null;
             _mem = null;
             _master = null;
-        }
-
-        private static int _restoreItemsRemaining = 0;
-        public static bool IsRestoringItem => _restoreItemsRemaining > 0;
-
-        public static void OnRestoreItemGranted()
-        {
-            if (_restoreItemsRemaining > 0)
-                _restoreItemsRemaining--;
         }
 
         // ==========================
@@ -75,9 +164,8 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
-        /// Call after every successful first-time AP item grant.
-        /// Callers must skip this when IsRestoringItem is true so master stays
-        /// a record of first grants only.
+        /// Call after every successful AP item grant. Idempotent by Index, so a
+        /// re-granted (restored) item that is already in master is a no-op.
         /// </summary>
         public static void RecordGranted(ArchipelagoClient.QueuedApItem item)
         {
@@ -136,7 +224,7 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnMemSave()
         {
-            if (!IsActive) return;
+            if (!IsActive && !IsDetached) return;
 
             var mem = Mem;
 
@@ -149,7 +237,7 @@ namespace LaMulana2Archipelago.Managers
                 return;
             }
 
-            int newIdx = ArchipelagoClient.ServerData.Index;
+            int newIdx = GameIndex;
             if (newIdx == mem.CheckpointIndex) return;
 
             // The checkpoint only advances. A drop without PendingRestore set
@@ -174,9 +262,9 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnDataSave()
         {
-            if (!IsActive) return;
+            if (!IsActive && !IsDetached) return;
 
-            int newIdx = ArchipelagoClient.ServerData.Index;
+            int newIdx = GameIndex;
 
             var st = Slot;
             if (st.CheckpointIndex != newIdx)
@@ -220,7 +308,7 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnDeath()
         {
-            if (!IsActive) return;
+            if (!IsActive && !IsDetached) return;
 
             FlagPendingRestore("Death");
         }
@@ -233,6 +321,16 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnMemLoad()
         {
+            if (IsDetached)
+            {
+                // Rewound to the last autosave: the game now holds only what that
+                // checkpoint holds. Anything after it is re-granted by TryRestore
+                // once we're connected again (PendingRestore survives on disk).
+                _detachedIndex = Mem.CheckpointIndex;
+                FlagPendingRestore("memLoad (disconnected)");
+                return;
+            }
+
             if (!IsActive) return;
 
             // memLoad reverts in-memory state to the last memSave checkpoint,
@@ -285,6 +383,16 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnNewGame()
         {
+            if (IsDetached)
+            {
+                var dmem = Mem;
+                dmem.CheckpointIndex = 0;
+                dmem.PendingRestore = CountItemsAfter(0) > 0; // replayed after reconnect
+                PersistMem(dmem);
+                _detachedIndex = 0;
+                return;
+            }
+
             if (!IsActive) return;
 
             var mem = Mem;
@@ -314,6 +422,17 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void OnFileLoad()
         {
+            if (IsDetached)
+            {
+                var dst = Slot;
+                var dmem = Mem;
+                dmem.CheckpointIndex = dst.CheckpointIndex;
+                dmem.PendingRestore = CountItemsAfter(dst.CheckpointIndex) > 0; // replayed after reconnect
+                PersistMem(dmem);
+                _detachedIndex = dst.CheckpointIndex;
+                return;
+            }
+
             if (!IsActive) return;
 
             var st = Slot;
@@ -405,9 +524,7 @@ namespace LaMulana2Archipelago.Managers
         /// <summary>
         /// Prepends every master item with Index > afterIndex to the front of
         /// the AP queue (in index order), preserving any other live items
-        /// already queued (deduped by index). Bumps the restore counter so
-        /// Plugin.Update routes the next N grants through OnRestoreItemGranted
-        /// instead of RecordGranted.
+        /// already queued (deduped by index).
         /// </summary>
         private static void EnqueueMasterItemsAfter(int afterIndex)
         {
@@ -452,7 +569,6 @@ namespace LaMulana2Archipelago.Managers
                 return rebuilt;
             });
 
-            _restoreItemsRemaining += restoreItems.Count;
             Plugin.Log.LogInfo($"[Shadow] Re-queued {restoreItems.Count} items from master (afterIndex={afterIndex}).");
         }
 
@@ -487,19 +603,19 @@ namespace LaMulana2Archipelago.Managers
             // slot data into the staging mem file.
             string lm2 = _currentSlot >= 0 ? $"lm2slot{_currentSlot}" : "noslot";
             Directory.CreateDirectory(Paths.ConfigPath);
-            return Path.Combine(Paths.ConfigPath, $"LM2AP_Shadow_{SeedKey()}_{lm2}.json");
+            return Path.Combine(Paths.ConfigPath, $"LM2AP_Shadow_{CurrentKey()}_{lm2}.json");
         }
 
         private static string MemPath()
         {
             Directory.CreateDirectory(Paths.ConfigPath);
-            return Path.Combine(Paths.ConfigPath, $"LM2AP_Shadow_{SeedKey()}_staging.json");
+            return Path.Combine(Paths.ConfigPath, $"LM2AP_Shadow_{CurrentKey()}_staging.json");
         }
 
         private static string MasterPath()
         {
             Directory.CreateDirectory(Paths.ConfigPath);
-            return Path.Combine(Paths.ConfigPath, $"LM2AP_Shadow_{SeedKey()}_master.json");
+            return Path.Combine(Paths.ConfigPath, $"LM2AP_Shadow_{CurrentKey()}_master.json");
         }
 
         private static string Sanitize(string s)
@@ -703,6 +819,10 @@ namespace LaMulana2Archipelago.Managers
             /// <summary>AP queue index → LocationID of the own placement a surplus
             /// collapsed copy consumed. Absent in older master files.</summary>
             public Dictionary<int, int> SurplusClaims { get; set; }
+
+            /// <summary>AP location ids checked while the socket was down (or whose
+            /// send failed), re-sent on the next connect to this seed.</summary>
+            public List<long> UnsentChecks { get; set; }
         }
 
         // Used by LoadSlot / LoadMem to absorb legacy files that still carry

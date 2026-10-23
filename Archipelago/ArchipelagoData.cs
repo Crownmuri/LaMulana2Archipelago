@@ -71,7 +71,9 @@ namespace LaMulana2Archipelago.Archipelago
         /// </summary>
         public int Index;
 
-        public List<long> CheckedLocations;
+        // HashSet: Contains runs on hot paths (VirtualFlagManager per sheet-31 read,
+        // SceneRandomizer, SetFlagDataPatch) and the connect restore loop.
+        public HashSet<long> CheckedLocations;
 
         /// <summary>
         /// Room seed string (from the AP session). Used for per-seed persistence keying.

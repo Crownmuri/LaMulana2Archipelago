@@ -82,6 +82,20 @@ namespace LaMulana2Archipelago.Managers
         // previous seed's get-flags onto the next seed's thank scripts.
         private static readonly Dictionary<string, string> _shopThanksOriginals = new();
 
+        /// <summary>
+        /// Tear down the current instance. Instance is cleared immediately:
+        /// Object.Destroy only takes effect at the end of the frame, so a
+        /// Create() later in the same frame (teardown → apply a new seed) would
+        /// otherwise reuse the doomed instance and end the frame with none.
+        /// </summary>
+        public static void DestroyInstance()
+        {
+            if (Instance == null) return;
+            GameObject go = Instance.gameObject;
+            Instance = null;
+            Destroy(go);
+        }
+
         public static void Create()
         {
             if (Instance != null) return;

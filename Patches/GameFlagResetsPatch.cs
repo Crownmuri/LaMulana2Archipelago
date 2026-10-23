@@ -102,7 +102,11 @@ namespace LaMulana2Archipelago.Patches
                 }
                 else if (weaponId == ItemID.ClaydollSuit)
                 {
+                    // Same as the original randomizer's gameFlagResets: the suit's
+                    // unique get-flags and score bump come from CreateGetFlags.
                     __instance.setItem(itemInfo.BoxName, 1, false, false, true);
+                    if (SceneRandomizer.Instance != null)
+                        __instance.setEffectFlag(SceneRandomizer.Instance.CreateGetFlags(weaponId, itemInfo));
                 }
                 else
                 {
@@ -123,7 +127,10 @@ namespace LaMulana2Archipelago.Patches
                 if (startInfo != null)
                 {
                     __instance.setItem(startInfo.BoxName, 1, false, false, true);
-                    __instance.setEffectFlag(SceneRandomizer.Instance.CreateGetFlags(startItemId, startInfo));
+                    if (SceneRandomizer.Instance != null)
+                        __instance.setEffectFlag(SceneRandomizer.Instance.CreateGetFlags(startItemId, startInfo));
+                    else
+                        Plugin.Log.LogWarning($"[GameFlagResets] SceneRandomizer not ready; starting item {startItemId} granted without its get-flags.");
                 }
             }
 

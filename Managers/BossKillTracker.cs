@@ -146,6 +146,16 @@ namespace LaMulana2Archipelago.Managers
         /// </summary>
         public static void NotifySceneLoaded(string sceneName)
         {
+            // Quitting to the title is not a game over, so NotifyGameOver never
+            // disarms it — and title → Continue then reloads the origin field,
+            // which matched the kill pattern and reported an unbeaten guardian.
+            if (sceneName == "title" && pendingGuardian.HasValue)
+            {
+                Plugin.Log.LogInfo($"[BossKillTracker] Returned to title while armed for {pendingGuardian} — clearing");
+                memSaveRequested = false;
+                Clear();
+            }
+
             if (pendingGuardian.HasValue
                 && originatingScene != null
                 && sceneName == originatingScene

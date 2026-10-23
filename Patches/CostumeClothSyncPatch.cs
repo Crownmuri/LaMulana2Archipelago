@@ -26,7 +26,10 @@ namespace LaMulana2Archipelago.Patches
             __state = ItemGrantRecursiveGuard.Begin();
         }
 
-        static void Postfix(IDisposable __state)
+        // Finalizer, not Postfix: a Postfix is skipped when the method throws,
+        // which would leave the guard open and silence every flag-based location
+        // check for the rest of the session. A void finalizer rethrows as usual.
+        static void Finalizer(IDisposable __state)
         {
             __state?.Dispose();
         }

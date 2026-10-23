@@ -281,10 +281,15 @@ namespace LaMulana2Archipelago
                 _devUI.Initialise(_cachedSys);
             }
 
-            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
+            // A committed glossary-hunt credits sequence (phase 1/3 below) has
+            // already blocked input and faded to black; it must finish even if the
+            // socket drops, or the player is left on a black screen with no input.
+            bool apActive = ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode;
+            bool creditsCommitted = _creditsPhase == 1 || _creditsPhase == 3;
+            if (!apActive && !creditsCommitted)
                 return;
 
-            if (Patches.GuardianSpecificAnkhPatch.SlotRefresh)
+            if (apActive && Patches.GuardianSpecificAnkhPatch.SlotRefresh)
             {
                 Patches.GuardianSpecificAnkhPatch.SlotRefresh = false;
 
@@ -304,7 +309,8 @@ namespace LaMulana2Archipelago
             // Must have system before we can compute gameplayActive safely
             var sys = _cachedSys;
 
-            Managers.CostumeManager.TryApplyPending(sys);
+            if (apActive)
+                Managers.CostumeManager.TryApplyPending(sys);
 
             // Glossary-hunt credits, phase 1: the screen has been fading to black
             // since we consumed the credits request (below). Once the fade has
@@ -515,10 +521,9 @@ namespace LaMulana2Archipelago
                 ArchipelagoClient.TryDequeueItem(out _);
                 ArchipelagoClient.MarkItemProcessed(q.Index);
 
-                if (ShadowSaveManager.IsRestoringItem)
-                    ShadowSaveManager.OnRestoreItemGranted();
-                else
-                    ShadowSaveManager.RecordGranted(q);
+                // Idempotent by Index: a restored item is already in master and
+                // no-ops, a live one is appended. No restore/live counter to drift.
+                ShadowSaveManager.RecordGranted(q);
             }
             else
             {
@@ -818,6 +823,15 @@ namespace LaMulana2Archipelago
         {
 
             onTitle = scene.name.Equals("title");
+
+            // A talk script cannot outlive its scene. If it hit [@exit] and the
+            // player then died/warped/changed field before [@out], the flag would
+            // otherwise block every AP grant until some later NPC talk ended.
+            if (ItemGrantStateGuard.IsPostExitTalkActive)
+            {
+                ItemGrantStateGuard.IsPostExitTalkActive = false;
+                Log.LogInfo("[GRANT] Cleared stale post-[@exit] talk state on scene load.");
+            }
 
             // Keep tracing (useful forever, cheap)
             Log.LogInfo($"[Scene] Loaded '{scene.name}' (buildIndex={scene.buildIndex}) mode={mode}");

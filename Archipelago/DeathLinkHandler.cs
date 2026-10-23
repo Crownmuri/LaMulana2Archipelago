@@ -12,7 +12,12 @@ namespace LaMulana2Archipelago.Archipelago
         private static bool deathLinkEnabled;
         private string slotName;
         private readonly DeathLinkService service;
+        // Filled on the AP socket thread (DeathLinkReceived), drained on the
+        // Unity main thread (Update), so every access holds this lock.
         private readonly Queue<DeathLink> deathLinks = new Queue<DeathLink>();
+        private readonly object deathLinksLock = new object();
+
+        private int PendingDeathLinks { get { lock (deathLinksLock) return deathLinks.Count; } }
         private L2System sys;
 
         // Use static variables to prevent 6x logs and ping-pong loops globally
@@ -58,7 +63,7 @@ namespace LaMulana2Archipelago.Archipelago
 
         private void DeathLinkReceived(DeathLink deathLink)
         {
-            deathLinks.Enqueue(deathLink);
+            lock (deathLinksLock) deathLinks.Enqueue(deathLink);
             Plugin.Log.LogDebug(string.IsNullOrEmpty(deathLink.Cause) ? "Received Death Link from: " + deathLink.Source : deathLink.Cause);
         }
 
@@ -86,7 +91,7 @@ namespace LaMulana2Archipelago.Archipelago
                 LaMulana2Archipelago.Managers.BossKillTracker.IsGuardianFinishInProgress;
 
             // 1. Process incoming deaths if alive and not already waiting to land
-            if (deathLinks.Count > 0 && !isWaitingForLanding && !isCurrentlyDead && !guardianKillInProgress)
+            if (PendingDeathLinks > 0 && !isWaitingForLanding && !isCurrentlyDead && !guardianKillInProgress)
             {
                 ProcessDeathLinkQueue();
             }
@@ -159,7 +164,12 @@ namespace LaMulana2Archipelago.Archipelago
                 isWaitingForLanding = false;
 
                 // Pop the message off the queue and announce it
-                var deathLink = deathLinks.Dequeue();
+                DeathLink deathLink;
+                lock (deathLinksLock)
+                {
+                    if (deathLinks.Count == 0) return;
+                    deathLink = deathLinks.Dequeue();
+                }
                 Plugin.Log.LogMessage(string.IsNullOrEmpty(deathLink.Cause) ? GetDeathLinkCause(deathLink) : deathLink.Cause);
 
                 // Arm suppression for exactly this kill, then execute the visual

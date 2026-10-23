@@ -125,7 +125,7 @@ namespace LaMulana2Archipelago.Managers
             if (reportedLocations.Contains(apLocationId))
                 return;
 
-            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
+            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode && !ShadowSaveManager.HasDetachedSession)
                 return;
 
             var client = ArchipelagoClientProvider.Client;
@@ -252,9 +252,9 @@ namespace LaMulana2Archipelago.Managers
                 return;
             }
 
-            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
+            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode && !ShadowSaveManager.HasDetachedSession)
             {
-                Plugin.Log.LogDebug("[CHECK] Not connected, skipping report");
+                Plugin.Log.LogDebug("[CHECK] No AP session, skipping report");
                 return;
             }
 
@@ -521,7 +521,9 @@ namespace LaMulana2Archipelago.Managers
 
         public static void Reset()
         {
-            gameplayReady = false;
+            // Socket drop mid-run: the player is still in gameplay and their checks
+            // are queued for the next connect, so keep reporting live.
+            gameplayReady = gameplayReady && ShadowSaveManager.HasDetachedSession;
             reportedLocations.Clear();
             _shopApLocationIds = null;
             PendingAnkhJewelName = null;

@@ -264,17 +264,15 @@ namespace LaMulana2Archipelago.Patches
                 }
             }
 
-            // CRITICAL: Set flags to trigger the AP Location check natively
-            // AP will securely send us the item through the network queue
-            if (__instance.itemGetFlags != null && __instance.itemGetFlags.Length > 0)
-            {
-                sys.setEffectFlag(__instance.itemGetFlags);
-            }
-
+            // Do NOT apply itemGetFlags here. Returning false only skips
+            // DropItemScript.itemGetAction; AbstractItemBase.groundBack (which
+            // calls it) still runs sys.setItem(itemLabel) and
+            // sys.setEffectFlag(itemGetFlags) right afterwards. Applying them here
+            // too ran every CALCU.ADD twice (orb count, skull counter, score).
+            // The Event/Costume patches leave it to groundBack the same way.
             __instance.gameObject.SetActive(false);
 
-            // CRITICAL: We strictly return false here to bypass sys.setItem completely.
-            return false;
+            return false; // skips only the vanilla coin/ammo popup
         }
     }
 

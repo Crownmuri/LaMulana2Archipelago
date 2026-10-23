@@ -112,10 +112,15 @@ namespace LaMulana2Archipelago.Patches
             // Group entries by ShopId, sorted by PageId to determine UI slot order (0,1,2).
             var byShop = new Dictionary<int, List<ShopSlotEntry>>();
 
+            // Every cell is added, resolved or not: the UI slot is the entry's
+            // position in its shop's PageId order, so dropping an unresolved one
+            // here would shift every later slot onto the wrong name/location
+            // (and could auto-collect the wrong refill). Unresolved entries
+            // (DisplayName == null) are skipped only when writing, below.
             foreach (var kvp in ShopCellMap.CellToLocation)
             {
-                string apText;
-                long apLocationIdValue;
+                string apText = null;
+                long apLocationIdValue = -1;
                 ApIconClass iconClass = ApIconClass.Plain;
 
                 if (offline)
@@ -124,28 +129,30 @@ namespace LaMulana2Archipelago.Patches
                     // location name to LocationID, then pull the label out of
                     // the seed.lm2ap location_labels via SceneRandomizer.
                     LocationID locId = ShopCellMap.ResolveLocationId(kvp.Value);
-                    if (locId == LocationID.None) continue;
+                    string apLabel = locId == LocationID.None
+                        ? null : SceneRandomizer.Instance?.GetLabelForLocation(locId);
 
-                    string apLabel = SceneRandomizer.Instance?.GetLabelForLocation(locId);
-                    if (string.IsNullOrEmpty(apLabel)) continue;
-
-                    apText = apLabel;
-                    apLocationIdValue = 430000L + (int)locId;
+                    if (!string.IsNullOrEmpty(apLabel))
+                    {
+                        apText = apLabel;
+                        apLocationIdValue = 430000L + (int)locId;
+                    }
                 }
                 else
                 {
-                    apText = GetApItemText(client, kvp.Value);
-                    if (apText == null) continue;
-
                     long? apLocationId = client.GetLocationIdByName(kvp.Value);
-                    if (apLocationId == null) continue;
+                    string text = GetApItemText(client, kvp.Value);
 
-                    apLocationIdValue = apLocationId.Value;
+                    if (apLocationId != null && text != null)
+                    {
+                        apText = text;
+                        apLocationIdValue = apLocationId.Value;
 
-                    // Icon class comes from the scouted item flags. Offline seeds have
-                    // no flag data, so the plain icon is used there.
-                    var scouted = client.GetItemAtLocation(apLocationIdValue);
-                    iconClass = scouted != null ? scouted.IconClass : ApIconClass.Plain;
+                        // Icon class comes from the scouted item flags. Offline seeds have
+                        // no flag data, so the plain icon is used there.
+                        var scouted = client.GetItemAtLocation(apLocationIdValue);
+                        iconClass = scouted != null ? scouted.IconClass : ApIconClass.Plain;
+                    }
                 }
 
                 int shopId = kvp.Key.ShopId;
@@ -170,6 +177,7 @@ namespace LaMulana2Archipelago.Patches
                 for (int slot = 0; slot < kvp.Value.Count; slot++)
                 {
                     var entry = kvp.Value[slot];
+                    if (entry.DisplayName == null) continue; // unresolved; keeps its slot number
 
                     // Patch cellData for the NPC confirmation dialog.
                     try

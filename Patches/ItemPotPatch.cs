@@ -42,10 +42,24 @@ namespace LaMulana2Archipelago.Patches
         private static bool _initialized;
 
         /// <summary>
-        /// Set before NotifyLocation when the pot reward is own filler,
-        /// so CheckManager skips the item dialog prime.
+        /// Set before NotifyLocation when the pot reward is own filler (or a
+        /// popup-only glossary delivery), so CheckManager skips the item dialog
+        /// prime. Every setter reports synchronously in the same frame, so the
+        /// value expires at the end of that frame: when ReportLocation bailed
+        /// early (disconnected, already reported, shop location, nothing fired)
+        /// a leftover true would otherwise eat the NEXT pickup's dialog label.
         /// </summary>
-        public static bool PotFillerDialog;
+        public static bool PotFillerDialog
+        {
+            get => _potFillerDialog && _potFillerDialogFrame == UnityEngine.Time.frameCount;
+            set
+            {
+                _potFillerDialog = value;
+                _potFillerDialogFrame = UnityEngine.Time.frameCount;
+            }
+        }
+        private static bool _potFillerDialog;
+        private static int _potFillerDialogFrame = -1;
 
         /// <summary>
         /// Called from ArchipelagoClient.HandleConnectResult to parse

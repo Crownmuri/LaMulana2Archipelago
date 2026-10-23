@@ -41,7 +41,22 @@ namespace LaMulana2Archipelago.UAT
             public NetworkStream Stream;
             public readonly object SendLock = new object();
             public volatile bool Closed;
+
+            /// <summary>Set once the 101 handshake response is written. Broadcasts
+            /// skip clients that aren't ready, so no frame can land before or
+            /// inside the HTTP upgrade response.</summary>
+            public volatile bool Ready;
         }
+
+        // A tracker that stops reading must never stall the game. Broadcasts
+        // are queued here and written by one background thread (in order), and
+        // every socket write is bounded by SendTimeoutMs, after which that
+        // client is dropped.
+        private const int SendTimeoutMs = 2000;
+        private const int MaxOutbox = 256;
+        private readonly Queue<byte[]> _outbox = new Queue<byte[]>();
+        private Thread _sendThread;
+        private volatile int _sendGeneration; // a Stop/Start retires the old send thread
 
         private TcpListener _listener;
         private Thread _acceptThread;
@@ -92,6 +107,9 @@ namespace LaMulana2Archipelago.UAT
             _running = true;
             _acceptThread = new Thread(AcceptLoop) { IsBackground = true, Name = "UAT accept" };
             _acceptThread.Start();
+            int gen = ++_sendGeneration;
+            _sendThread = new Thread(() => SendLoop(gen)) { IsBackground = true, Name = "UAT send" };
+            _sendThread.Start();
             Plugin.Log.LogInfo($"[UAT] Listening on ws://127.0.0.1:{Port}");
             return true;
         }
@@ -100,6 +118,12 @@ namespace LaMulana2Archipelago.UAT
         {
             if (!_running) return;
             _running = false;
+
+            lock (_outbox)
+            {
+                _outbox.Clear();
+                Monitor.PulseAll(_outbox); // wake SendLoop so it exits
+            }
 
             try { if (_listener != null) _listener.Stop(); } catch { }
             _listener = null;
@@ -129,6 +153,7 @@ namespace LaMulana2Archipelago.UAT
                     return;
                 }
 
+                tcp.SendTimeout = SendTimeoutMs;
                 var client = new Client { Tcp = tcp, Stream = tcp.GetStream() };
                 lock (_clientsLock) _clients.Add(client);
 
@@ -151,6 +176,7 @@ namespace LaMulana2Archipelago.UAT
                     return;
                 }
 
+                client.Ready = true;
                 Plugin.Log.LogInfo("[UAT] Client connected");
                 var onConnect = OnConnect;
                 if (onConnect != null) onConnect(client);
@@ -243,8 +269,11 @@ namespace LaMulana2Archipelago.UAT
                 "Upgrade: websocket\r\n" +
                 "Connection: Upgrade\r\n" +
                 "Sec-WebSocket-Accept: " + accept + "\r\n\r\n");
-            client.Stream.Write(response, 0, response.Length);
-            client.Stream.Flush();
+            lock (client.SendLock)
+            {
+                client.Stream.Write(response, 0, response.Length);
+                client.Stream.Flush();
+            }
             return true;
         }
 
@@ -334,12 +363,43 @@ namespace LaMulana2Archipelago.UAT
             SendFrame(client, 0x1, Encoding.UTF8.GetBytes(text));
         }
 
+        /// <summary>
+        /// Queue a text frame for every connected client. Never blocks on the
+        /// network: callers include the Unity main thread.
+        /// </summary>
         public void Broadcast(string text)
         {
+            if (!_running) return;
+
             byte[] data = Encoding.UTF8.GetBytes(text);
-            Client[] snapshot;
-            lock (_clientsLock) snapshot = _clients.ToArray();
-            foreach (var c in snapshot) SendFrame(c, 0x1, data);
+            lock (_outbox)
+            {
+                // Bounded: if the send thread is wedged on a dead client,
+                // drop the oldest rather than grow without limit.
+                if (_outbox.Count >= MaxOutbox) _outbox.Dequeue();
+                _outbox.Enqueue(data);
+                Monitor.Pulse(_outbox);
+            }
+        }
+
+        private void SendLoop(int gen)
+        {
+            while (_running && gen == _sendGeneration)
+            {
+                byte[] data;
+                lock (_outbox)
+                {
+                    while (_outbox.Count == 0 && _running && gen == _sendGeneration)
+                        Monitor.Wait(_outbox, 500);
+                    if (!_running || gen != _sendGeneration) return;
+                    data = _outbox.Dequeue();
+                }
+
+                Client[] snapshot;
+                lock (_clientsLock) snapshot = _clients.ToArray();
+                foreach (var c in snapshot)
+                    if (c.Ready) SendFrame(c, 0x1, data);
+            }
         }
 
         public int ClientCount

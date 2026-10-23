@@ -21,6 +21,12 @@ namespace LaMulana2Archipelago.Utils
 
         private bool showUI;
         private bool showFlagWatch;
+
+        // Static mirrors for the static flag recorders, which SetFlagDataPatch
+        // calls on EVERY flag write: skip all work while F9 is off, and use the
+        // L2System we were given instead of scanning the scene for it.
+        private static volatile bool _flagWatchOn;
+        private static L2System _sysStatic;
         private bool showPotLabels;
 
         // Warp fields
@@ -95,6 +101,7 @@ namespace LaMulana2Archipelago.Utils
         public void Initialise(L2System l2System)
         {
             sys = l2System;
+            _sysStatic = l2System;
             Cursor.visible = true;
         }
 
@@ -104,7 +111,7 @@ namespace LaMulana2Archipelago.Utils
         /// </summary>
         public static void RecordFlagChange(int sheet, int flag, short oldValue, short newValue)
         {
-            if (oldValue == newValue) return;
+            if (!_flagWatchOn || oldValue == newValue) return;
 
             string flagName = GetFlagName(sheet, flag);
             if (ShouldFilterFlag(flagName)) return;
@@ -122,6 +129,7 @@ namespace LaMulana2Archipelago.Utils
         /// </summary>
         public static void RecordFlagChangeByName(int sheet, string name, short newValue)
         {
+            if (!_flagWatchOn) return;
             if (ShouldFilterFlag(name)) return;
 
             string sheetName = GetSheetName(sheet);
@@ -144,7 +152,7 @@ namespace LaMulana2Archipelago.Utils
         {
             try
             {
-                var sys = UnityEngine.Object.FindObjectOfType<L2System>();
+                var sys = _sysStatic != null ? _sysStatic : UnityEngine.Object.FindObjectOfType<L2System>();
                 if (sys != null)
                 {
                     string name = sys.getFlagSys().SeetNotoName(sheet);
@@ -159,7 +167,7 @@ namespace LaMulana2Archipelago.Utils
         {
             try
             {
-                var sys = UnityEngine.Object.FindObjectOfType<L2System>();
+                var sys = _sysStatic != null ? _sysStatic : UnityEngine.Object.FindObjectOfType<L2System>();
                 if (sys != null)
                 {
                     L2FlagBase fb;
@@ -181,7 +189,10 @@ namespace LaMulana2Archipelago.Utils
             }
 
             if (Input.GetKeyDown(KeyCode.F9))
+            {
                 showFlagWatch = !showFlagWatch;
+                _flagWatchOn = showFlagWatch;
+            }
 
             if (Input.GetKeyDown(KeyCode.F8))
                 showPotLabels = !showPotLabels;

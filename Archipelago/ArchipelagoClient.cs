@@ -1,4 +1,4 @@
-﻿using Archipelago.MultiClient.Net;
+using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Exceptions;
@@ -325,6 +325,7 @@ namespace LaMulana2Archipelago.Archipelago
                 ServerData.GetSlotInt("game_difficulty", 0));
 
             OfflineMode = true;
+            ShadowSaveManager.ClearDetached();
 
             // Any shadow state cached against the pre-activation "noseed" key
             // must be discarded so the next file load resolves against
@@ -397,6 +398,9 @@ namespace LaMulana2Archipelago.Archipelago
         /// </summary>
         private static void TearDownStandaloneState()
         {
+            // A deliberate teardown leaves the seed: stop tracking its saves.
+            ShadowSaveManager.ClearDetached();
+
             Patches.SetItemPatch.Enabled = false;
             Patches.IsHaveItemPatch.Enabled = false;
             Patches.GetItemNumPatch.Enabled = false;
@@ -421,8 +425,7 @@ namespace LaMulana2Archipelago.Archipelago
             Managers.WorldDataRestore.RestoreAll();
             Patches.ShopDialogPatch.Reset();
 
-            if (SceneRandomizer.Instance != null)
-                UnityEngine.Object.Destroy(SceneRandomizer.Instance.gameObject);
+            SceneRandomizer.DestroyInstance();
 
             // Persistent inventory is a per-seed setting; make sure a seed that
             // had it on doesn't leak the replay behavior into the next one.
@@ -631,6 +634,14 @@ namespace LaMulana2Archipelago.Archipelago
         /// </summary>
         public void PumpMainThreadWork()
         {
+            object closed = _closedSession;
+            if (closed != null)
+            {
+                _closedSession = null;
+                if (ReferenceEquals(closed, session))
+                    Disconnect();
+            }
+
             if (_scoutReapplyPending)
             {
                 _scoutReapplyPending = false;
@@ -810,6 +821,18 @@ namespace LaMulana2Archipelago.Archipelago
 
                 ServerData.SetupSession(success.SlotData, session.RoomState.Seed);
 
+                // A socket drop only runs the lightweight Disconnect(), which
+                // leaves the dropped seed's world rewrites, patch flags and scout
+                // cache in place. That's right for a reconnect to the same seed,
+                // but connecting to a different seed/slot would build on top of
+                // them (stale chests/shops, settings like randomSoulGates that
+                // LoadFromSlotData only sets conditionally). Revert first.
+                if (ShadowSaveManager.DetachedFromDifferentSeed)
+                {
+                    Plugin.Log.LogInfo("[AP] Connecting to a different seed than the dropped session; reverting its world state first.");
+                    TearDownStandaloneState();
+                }
+
                 ApplyStandaloneFromSlotData(success.SlotData);
 
                 bool deathLinkEnabled = ServerData.GetSlotBool("death_link", false);
@@ -834,6 +857,7 @@ namespace LaMulana2Archipelago.Archipelago
                 // SeedKey to "noseed"). Subsequent OnFileLoad calls will
                 // reload from the correct ..._<seed>_* files.
                 ShadowSaveManager.InvalidateCaches();
+                ShadowSaveManager.OnSessionAttached();
 
                 // Populate CheckedLocations from the server's authoritative list.
                 // Needed so VirtualFlagManager can correctly identify already-collected
@@ -849,6 +873,8 @@ namespace LaMulana2Archipelago.Archipelago
                     }
                     Plugin.Log.LogInfo($"[AP] Restored {alreadyChecked.Count} checked locations from server.");
                 }
+
+                FlushUnsentChecks();
 
                 SetPhase(ConnectionPhase.Scouting);
                 Patches.ShopDialogPatch.Reapply();
@@ -891,6 +917,10 @@ namespace LaMulana2Archipelago.Archipelago
         public void Disconnect()
         {
             Plugin.Log.LogDebug("disconnecting from server...");
+
+            // Before Authenticated/RoomSeed/Index are cleared below.
+            ShadowSaveManager.OnSessionDropped();
+
             SetPhase(ConnectionPhase.Idle);
             session?.Socket.Disconnect();
             session = null;
@@ -969,6 +999,49 @@ namespace LaMulana2Archipelago.Archipelago
             private set { _scoutCacheReady = value; }
         }
 
+        // Checks whose send failed on a live-looking socket (worker thread).
+        // CheckedLocations already claims them, so they're re-sent after the
+        // next connect, which rebuilds CheckedLocations from the server.
+        private static readonly object _failedChecksLock = new object();
+        private static readonly List<long> _failedChecks = new List<long>();
+
+        private static void RememberFailedCheck(long locationId, Exception e)
+        {
+            lock (_failedChecksLock)
+            {
+                if (!_failedChecks.Contains(locationId))
+                    _failedChecks.Add(locationId);
+            }
+            Plugin.Log.LogError($"[AP] Location check {locationId} failed to send; will retry on reconnect."
+                + (e != null ? " " + e : ""));
+        }
+
+        /// <summary>
+        /// Re-send checks made while disconnected or whose send failed. Call after
+        /// CheckedLocations has been rebuilt from the server, so anything that did
+        /// reach it is skipped.
+        /// </summary>
+        private void FlushUnsentChecks()
+        {
+            var ids = ShadowSaveManager.TakeUnsentChecks();
+            lock (_failedChecksLock)
+            {
+                ids.AddRange(_failedChecks);
+                _failedChecks.Clear();
+            }
+
+            int sent = 0;
+            foreach (long id in ids.Distinct())
+            {
+                if (ServerData.CheckedLocations.Contains(id)) continue;
+                SendLocationCheck(id);
+                sent++;
+            }
+
+            if (ids.Count > 0)
+                Plugin.Log.LogInfo($"[AP] Re-sent {sent} location check(s) made while disconnected.");
+        }
+
         public void SendLocationCheck(long locationId)
         {
             // Offline autotracking. Deliberately ABOVE the guard below, which
@@ -981,8 +1054,25 @@ namespace LaMulana2Archipelago.Archipelago
             // so a location offered twice is harmless.
             UAT.UATServer.AddCheckedLocation(locationId);
 
-            if (!Authenticated || session == null)
+            if (OfflineMode)
+            {
+                // No server to own the checked set, so keep it ourselves. Online
+                // it doubles as "this location is done" for persistent-inventory
+                // replay, VirtualFlagManager and the shop/sprite gates; without
+                // this, offline persistent_inventory never replayed anything.
+                // In-session only: DeactivateOffline clears it.
+                ServerData.CheckedLocations.Add(locationId);
                 return;
+            }
+
+            if (!Authenticated || session == null)
+            {
+                // Socket dropped mid-run: the chest's flag is already in the save,
+                // so it will never report again. Keep it for the next connect.
+                if (!OfflineMode && ShadowSaveManager.HasDetachedSession)
+                    ShadowSaveManager.AddUnsentCheck(locationId);
+                return;
+            }
 
             if (ServerData.CheckedLocations.Contains(locationId))
                 return;
@@ -991,15 +1081,19 @@ namespace LaMulana2Archipelago.Archipelago
 
             // Offload the AP library's socket logic to a background worker thread.
             // This guarantees zero frame drops on the Unity main thread when grabbing an item.
+            var s = session;
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
                 {
-                    session?.Locations?.CompleteLocationChecksAsync(null, locationId);
+                    s?.Locations?.CompleteLocationChecksAsync(ok =>
+                    {
+                        if (!ok) RememberFailedCheck(locationId, null);
+                    }, locationId);
                 }
                 catch (Exception e)
                 {
-                    Plugin.Log.LogError($"[AP] Error sending location check: {e}");
+                    RememberFailedCheck(locationId, e);
                 }
             });
 
@@ -1424,10 +1518,18 @@ namespace LaMulana2Archipelago.Archipelago
             ArchipelagoConsole.LogMessage(message);
         }
 
+        // SocketClosed is raised on the websocket thread. Disconnect() clears
+        // lists and state the main thread iterates every frame (CheckedLocations,
+        // VirtualFlagManager, CheckManager, the shadow caches, Index), so it is
+        // handed to PumpMainThreadWork instead of run here. Tagged with the
+        // session that closed: Disconnect() closes the socket itself, and that
+        // echo must not tear down a newer session.
+        private volatile object _closedSession;
+
         private void OnSessionSocketClosed(string reason)
         {
             Plugin.Log.LogError($"Connection to Archipelago lost: {reason}");
-            Disconnect();
+            _closedSession = session;
         }
 
         public static void ResetSession()

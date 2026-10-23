@@ -44,22 +44,45 @@ namespace LaMulana2Archipelago.Utils
             UpdateWindow();
         }
 
+        // LogMessage is called from the AP socket thread (MessageLog, socket
+        // errors) as well as the main thread. logLines and the Unity calls in
+        // UpdateWindow are main-thread only, so messages are handed over here
+        // and drained at the top of OnGUI.
+        private static readonly object pendingLock = new object();
+        private static readonly List<string> pendingLines = new List<string>();
+
         public static void LogMessage(string message)
         {
             if (message.IsNullOrWhiteSpace()) return;
 
-            if (logLines.Count == MaxLogLines)
+            Plugin.Log.LogMessage(message); // BepInEx logging is thread-safe
+            lock (pendingLock) pendingLines.Add(message);
+        }
+
+        private static void DrainPending()
+        {
+            string[] lines;
+            lock (pendingLock)
             {
-                logLines.RemoveAt(0);
+                if (pendingLines.Count == 0) return;
+                lines = pendingLines.ToArray();
+                pendingLines.Clear();
             }
-            logLines.Add(message);
-            Plugin.Log.LogMessage(message);
+
+            foreach (string line in lines)
+            {
+                if (logLines.Count >= MaxLogLines)
+                    logLines.RemoveAt(0);
+                logLines.Add(line);
+            }
             lastUpdateTime = Time.time;
             UpdateWindow();
         }
 
         public static void OnGUI()
         {
+            DrainPending();
+
             // F11 master toggle (check in OnGUI so it works even when Update isn't called)
             if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.F11)
             {
