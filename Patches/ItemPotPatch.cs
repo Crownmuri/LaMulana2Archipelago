@@ -41,6 +41,11 @@ namespace LaMulana2Archipelago.Patches
         private static bool _potsanityEnabled;
         private static bool _initialized;
 
+        // Pickup currently lying outside each broken pot (not yet collected).
+        // Removed again when the pot respawns, so the item goes "back in the pot".
+        private static readonly Dictionary<ItemPotScript, AbstractItemBase> SpawnedPickups =
+            new Dictionary<ItemPotScript, AbstractItemBase>();
+
         /// <summary>
         /// Set before NotifyLocation when the pot reward is own filler (or a
         /// popup-only glossary delivery), so CheckManager skips the item dialog
@@ -117,11 +122,112 @@ namespace LaMulana2Archipelago.Patches
             Plugin.Log.LogInfo($"[POT] Potsanity initialized: {PotFlagToLocation.Count} pot locations mapped");
         }
 
+        /// <summary>
+        /// True when this pot holds an AP location that hasn't been checked yet:
+        /// not reported this session, not in the server's checked set, and the
+        /// pot flag isn't set in the save. Drives <see cref="PotMarkerPatch"/>.
+        /// </summary>
+        internal static bool IsUncheckedApPot(L2System sys, int seetNo, int potFlagNo)
+        {
+            if (!_initialized || !_potsanityEnabled || PotFlagToLocation == null)
+                return false;
+
+            LocationID locId;
+            if (!PotFlagToLocation.TryGetValue(potFlagNo, out locId))
+                return false;
+
+            long apLocationId = 430000L + (int)locId;
+            if (CheckManager.IsLocationReported(apLocationId))
+                return false;
+
+            var checkedSet = ArchipelagoClient.ServerData?.CheckedLocations;
+            if (checkedSet != null && checkedSet.Contains(apLocationId))
+                return false;
+
+            short flagVal = 0;
+            if (sys != null && sys.getFlag(seetNo, potFlagNo, ref flagVal) && flagVal != 0)
+                return false;
+
+            return true;
+        }
+
         public static void Reset()
         {
             _initialized = false;
             _potsanityEnabled = false;
             PotFlagToLocation = null;
+            SpawnedPickups.Clear();
+        }
+
+        /// <summary>
+        /// Removes the uncollected pickup a pot spawned earlier, using the same
+        /// path vanilla drops (coins/ammo) use to end themselves: dropItem +
+        /// finished makes groundFirst return false, which ends the task.
+        /// No-op if the pickup was collected or is already gone.
+        /// </summary>
+        internal static void DespawnPickup(ItemPotScript pot)
+        {
+            if (pot == null) return;
+
+            AbstractItemBase item;
+            if (!SpawnedPickups.TryGetValue(pot, out item))
+                return;
+            SpawnedPickups.Remove(pot);
+
+            if (item == null) // destroyed with the scene
+                return;
+
+            try
+            {
+                item.dropItem = true;
+                Traverse t = Traverse.Create(item);
+                t.Field("finished").SetValue(true);
+                item.gameObject.SetActive(false); // what hideItemSymbol does
+                Plugin.Log.LogDebug($"[POT] Pot {pot.potFlagNo} respawned, pickup put back inside");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[POT] DespawnPickup failed: {ex.Message}");
+            }
+        }
+
+        private static void TrackPickup(ItemPotScript pot, AbstractItemBase item)
+        {
+            // Drop entries whose pot or pickup died with a previous scene.
+            if (SpawnedPickups.Count > 0)
+            {
+                var dead = new List<ItemPotScript>();
+                foreach (var kvp in SpawnedPickups)
+                    if (kvp.Key == null || kvp.Value == null)
+                        dead.Add(kvp.Key);
+                foreach (var k in dead)
+                    SpawnedPickups.Remove(k);
+            }
+            SpawnedPickups[pot] = item;
+        }
+
+        /// <summary>
+        /// When a broken pot comes back (resetActionCharacter leaves it with HP),
+        /// its uncollected pickup goes back inside so it can be broken out again.
+        /// </summary>
+        [HarmonyPatch(typeof(ItemPotScript), "resetActionCharacter")]
+        internal static class ResetPatch
+        {
+            [HarmonyPostfix]
+            static void Postfix(ItemPotScript __instance)
+            {
+                try
+                {
+                    if (SpawnedPickups.Count == 0 || !SpawnedPickups.ContainsKey(__instance))
+                        return;
+                    if (Traverse.Create(__instance).Field("nowHp").GetValue<int>() > 0)
+                        DespawnPickup(__instance);
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Log.LogWarning($"[POT] Reset pickup check failed: {ex.Message}");
+                }
+            }
         }
 
         [HarmonyPrefix]
@@ -202,6 +308,8 @@ namespace LaMulana2Archipelago.Patches
             else
             {
                 // === ITEM PATH: spawn pickup with correct sprite, defer AP check ===
+                // Never leave two copies of the same pickup lying around.
+                DespawnPickup(__instance);
                 bool spawned = TrySpawnItemPickup(__instance, inst, sys, seetNo, potFlagNo, locId, scouted);
 
                 if (spawned)
@@ -351,6 +459,7 @@ namespace LaMulana2Archipelago.Patches
 
             spawnedItem.initTask();
             spawnedItem.setTreasureBoxOut();
+            TrackPickup(pot, spawnedItem);
 
             return true;
         }
