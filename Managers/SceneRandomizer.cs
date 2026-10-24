@@ -1449,6 +1449,41 @@ namespace LaMulana2Archipelago.Managers
                     RemoveCorridorSealers(flagWatcher);
                 }
             }
+
+            ChangeXelpudMails();
+        }
+
+        /// <summary>
+        /// The "fL04open" Xelpud mail (object "skyTower 081", placed in every field) is what
+        /// opens Spring in the Sky: its effect (5,21)=1 ("fL04keepout") removes the Gate of
+        /// Guidance fence (sharedassets19 "fL00keepouttofL04", startflag (5,21)==0).
+        /// Vanilla awakes it on storyChecker (3,30) >= 180, which item pickups feed (+4 per
+        /// skull/jewel/story item), so randomized runs crossed it long before Heimdall.
+        /// Rekey it to the Heimdall kill (6,26) "B4_roomguarder" to match the apworld's
+        /// IsDead(Heimdall) gate on GateofGuidanceRightLadder.
+        /// </summary>
+        private void ChangeXelpudMails()
+        {
+            foreach (XeleputterSetterScript mail in FindObjectsOfType<XeleputterSetterScript>())
+            {
+                if (mail.sheetName == null || mail.sheetName.Trim() != "fL04open" || mail.awakeFlags == null)
+                    continue;
+
+                foreach (L2FlagBoxParent flagBoxParent in mail.awakeFlags)
+                {
+                    foreach (L2FlagBox flagBox in flagBoxParent.BOX)
+                    {
+                        if (flagBox.seet_no1 == 3 && flagBox.flag_no1 == 30)
+                        {
+                            flagBox.seet_no1 = 6;
+                            flagBox.flag_no1 = 26;
+                            flagBox.seet_no2 = -1;
+                            flagBox.flag_no2 = 1;
+                            flagBox.comp = COMPARISON.GreaterEq;
+                        }
+                    }
+                }
+            }
         }
 
         private void RemoveCorridorSealers(FlagWatcherScript flagWatcher)
