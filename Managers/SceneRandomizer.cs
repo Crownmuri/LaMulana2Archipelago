@@ -2676,9 +2676,9 @@ namespace LaMulana2Archipelago.Managers
             talkDataBase.cellData[0][11][1][0] = ChangeTalkString(LocationID.NeburItem,
                 "[@anim,thanks,1]\n{0}[@setf,2,127,=,1]\n[@setf,2,128,=,1]\n[@setf,2,129,=,1]\n[@setf,2,130,=,1]\n[@setf,5,3,=,1]\n[@out]");
 
-            // Nebur's map -> Xelpud gives it instead
-            talkDataBase.cellData[1][70][1][0] = ChangeTalkString(LocationID.NeburItem,
-                "{0}[@setf,2,127,=,1]\n[@setf,5,4,=,2]\n[@anim,talk,1]");
+            // Prevent Xelpud from giving Nebur's item 
+            talkDataBase.cellData[1][3][1][0] = talkDataBase.cellData[1][3][1][0]
+                .Replace("[@iff,5,4,=,1,xelpud,maps]\n", string.Empty);
 
             // Alsedana's item
             talkDataBase.cellData[2][13][1][0] = ChangeTalkString(LocationID.AlsedanaItem,
