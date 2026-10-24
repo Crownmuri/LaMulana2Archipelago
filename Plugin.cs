@@ -43,6 +43,10 @@ namespace LaMulana2Archipelago
         // Trigger (triple-tap a direction). See Patches/QuickToggleGaleFibulaPatch.cs.
         private static ConfigEntry<Patches.QuickGaleMode> _cfgGaleFibulaMode;
 
+        // Quality-of-life: a sub-weapon starting weapon never uses up ammo.
+        // See Patches/InfiniteStartingAmmoPatch.cs.
+        private static ConfigEntry<bool> _cfgInfiniteStartingAmmo;
+
         private Harmony _harmony;
         private L2System _cachedSys;
         private DevUI _devUI;
@@ -193,6 +197,13 @@ namespace LaMulana2Archipelago
                 + "enough for the dash to engage and then taken back off, exactly as "
                 + "doing it by hand would.");
             Patches.QuickToggleGaleFibulaPatch.Mode = _cfgGaleFibulaMode.Value;
+
+
+            _cfgInfiniteStartingAmmo = Config.Bind("Gameplay", "InfiniteStartingAmmo", false,
+                "If the starting weapon is a sub-weapon, firing it never uses up its ammo "
+                + "(Pistol: never needs reloading). The ammo still has to be picked up once. "
+                + "Other sub-weapons use ammo as normal.");
+            Patches.InfiniteStartingAmmoPatch.Enabled = _cfgInfiniteStartingAmmo.Value;
 
             ArchipelagoClient = new ArchipelagoClient();
             ArchipelagoClient.ServerData.Uri = _cfgHost.Value;
@@ -713,7 +724,7 @@ namespace LaMulana2Archipelago
         }
 
         /// <summary>
-        /// The two input-shortcut toggles, in the left-hand button column above the
+        /// The QoL toggles (infinite starting ammo + two input shortcuts), in the left-hand button column above the
         /// Difficulty button.
         ///
         /// Flips are written straight back to the BepInEx config so they survive a
@@ -725,6 +736,17 @@ namespace LaMulana2Archipelago
         private static void DrawQolToggles()
         {
             Color oldColor = GUI.color;
+
+            Rect ammoRect = new Rect(16, 390, 125, 20);
+            bool ammoOn = Patches.InfiniteStartingAmmoPatch.Enabled;
+            GUI.color = ammoOn ? Color.green : Color.red;
+            if (GUI.Button(ammoRect, ammoOn ? "∞ Start Ammo: ON" : "∞ Start Ammo: OFF"))
+            {
+                ammoOn = !ammoOn;
+                Patches.InfiniteStartingAmmoPatch.Enabled = ammoOn;
+                if (_cfgInfiniteStartingAmmo != null) _cfgInfiniteStartingAmmo.Value = ammoOn;
+                Log.LogInfo($"[QOL] Infinite Starting Ammo -> {ammoOn}");
+            }
 
             Rect claydollRect = new Rect(16, 410, 125, 20);
             bool claydollOn = Patches.QuickToggleClaydollSuitPatch.Enabled;
