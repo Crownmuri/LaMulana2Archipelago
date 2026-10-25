@@ -44,6 +44,9 @@ namespace LaMulana2Archipelago.Managers
         // Settings
         private bool randomSoulGates;
         private bool randomDissonance;
+
+        /// <summary>random_dissonance slot option (dissonances are chest checks, not Beherit absorbs).</summary>
+        public bool RandomDissonance => randomDissonance;
         private bool autoPlaceSkull;
         private bool greedyCharon;
         private int echidna;
