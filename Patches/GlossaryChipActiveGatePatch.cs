@@ -207,7 +207,7 @@ namespace LaMulana2Archipelago.Patches
         }
 
         // Same derivation as MonsterChipGlossaryPatch/MonsterChipSpritePatch.
-        private static bool TryResolve(MonsterChipScript chip, out LocationID loc)
+        internal static bool TryResolve(MonsterChipScript chip, out LocationID loc)
         {
             int chipId = Traverse.Create(chip).Field("chipId").GetValue<int>();
             int bookFlag = chipId > -1 ? chipId : chip.itemValue;

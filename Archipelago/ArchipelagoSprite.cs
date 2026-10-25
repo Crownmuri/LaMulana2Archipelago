@@ -64,6 +64,12 @@ namespace LaMulana2Archipelago
         /// </summary>
         public static Sprite ShopSpriteTrap { get; private set; }
 
+        /// <summary>
+        /// Plain AP icon with trilinear filtering and mipmaps, for drawing the
+        /// 512px logo very small (enemy markers) without point-sampling jaggies.
+        /// </summary>
+        public static Sprite MarkerSprite { get; private set; }
+
         /// <summary>True once at least the map sprite has been created successfully.</summary>
         public static bool IsLoaded => MapSprite != null;
 
@@ -139,9 +145,11 @@ namespace LaMulana2Archipelago
             // Trap variants — optional, same clean-degrade behaviour via "ap-icont.png".
             MapSpriteTrap = LoadSprite(pluginDir, "ap-icont.png", "AP_Icon_Map_Trap", 25f);
             ShopSpriteTrap = LoadSprite(pluginDir, "ap-icont.png", "AP_Icon_Shop_Trap", 100f);
+
+            MarkerSprite = LoadSprite(pluginDir, "ap-icon.png", "AP_Icon_Marker", 25f, smooth: true);
         }
 
-        private static Sprite LoadSprite(string dir, string fileName, string spriteName, float ppu)
+        private static Sprite LoadSprite(string dir, string fileName, string spriteName, float ppu, bool smooth = false)
         {
             string path = Path.Combine(dir, fileName);
 
@@ -155,9 +163,9 @@ namespace LaMulana2Archipelago
             {
                 byte[] pngData = File.ReadAllBytes(path);
 
-                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false)
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, smooth)
                 {
-                    filterMode = FilterMode.Point,
+                    filterMode = smooth ? FilterMode.Trilinear : FilterMode.Point,
                     wrapMode = TextureWrapMode.Clamp
                 };
 
@@ -166,6 +174,11 @@ namespace LaMulana2Archipelago
                     Plugin.Log.LogWarning($"[AP] Failed to decode {fileName}");
                     UnityEngine.Object.Destroy(tex);
                     return null;
+                }
+                if (smooth)
+                {
+                    tex.filterMode = FilterMode.Trilinear; // LoadImage can reset it
+                    tex.Apply(true, false);                // (re)build the mip chain
                 }
 
                 UnityEngine.Object.DontDestroyOnLoad(tex);

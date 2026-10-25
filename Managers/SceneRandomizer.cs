@@ -2835,6 +2835,13 @@ namespace LaMulana2Archipelago.Managers
             talkDataBase.cellData[49][7][1][0] = "[@iff,13,199,=,2,f09-3,5th]\n[@setf,13,199,=,2]\n[@anim,talk,1]\n[@p,lastC]";
             talkDataBase.cellData[49][8][1][0] = "[@setf,13,199,=,1]\n[@anim,talk,1]\n[@p,lastC]";
 
+            // Starting shop reuses BTK's "f04-1e" sheet. Its s-welcome sets BTK's talker
+            // flag (22,117), which is what spawns BTK's glossary chip in Icefire Treetop
+            // (field04 shadow startflag (22,117)==1) — so visiting the starting shop
+            // "met" BTK. Keep the greeting animation, drop the flag write. BTK's real
+            // shop (sheet 9 "f04-1") still sets it.
+            shopDataBase.cellData[10][4][1][0] = "[@anim,talk,1]";
+
             // Charon will always accept all your money (opt-in via greedy_charon)
             if (greedyCharon)
             {

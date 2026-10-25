@@ -202,6 +202,10 @@ namespace LaMulana2Archipelago
                 "Potsanity: tint pots red while their location hasn't been checked yet.").Value;
             Patches.PotMarkerPatch.OutlineEnabled = Config.Bind("Gameplay", "OutlineUncheckedPots", true,
                 "Potsanity: draw a red outline on pots whose location hasn't been checked yet.").Value;
+            Patches.GlossaryEnemyMarkerPatch.Enabled = Config.Bind("Gameplay", "MarkGlossaryEnemies", true,
+                "Glossanity: show a small AP logo above enemies whose glossary drop hasn't been checked yet.").Value;
+            Patches.NpcDoorGlossaryMarkerPatch.Enabled = Config.Bind("Gameplay", "MarkGlossaryNpcDoors", true,
+                "Glossanity: show a small AP logo in NPC/shop doors whose glossary entry hasn't been checked yet.").Value;
 
             _cfgInfiniteStartingAmmo = Config.Bind("Gameplay", "InfiniteStartingAmmo", false,
                 "If the starting weapon is a sub-weapon, firing it never uses up its ammo "
