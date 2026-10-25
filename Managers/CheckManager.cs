@@ -143,6 +143,7 @@ namespace LaMulana2Archipelago.Managers
             client.SendLocationCheck(apLocationId);
             TryDeliverOwnGlossaryRom(apLocationId);
             TryDeliverOwnCostume(apLocationId);
+            GuardianSoulManager.TryDeliverOwnSoulOnCheck(apLocationId);
         }
 
         /// <summary>
@@ -298,7 +299,10 @@ namespace LaMulana2Archipelago.Managers
                 // across the death fanfare, so a label primed for a queued AP item
                 // routinely outlives the frame it was primed on and its dialog only
                 // opens after the auto-return. Treating it as stale here would eat it.
-                if (BossKillTracker.IsGuardianLocation(location))
+                // Same for the Obliterated check sent alongside it: nothing drops.
+                // GuardianSoulManager primes its own label when it grants the item.
+                if (BossKillTracker.IsGuardianLocation(location)
+                    || GuardianSoulManager.IsObliteratedLocation(location))
                 {
                     Plugin.Log.LogDebug("[CHECK] Skipping dialog prime — guardian kill");
                 }
@@ -326,6 +330,11 @@ namespace LaMulana2Archipelago.Managers
                     // state so it can't leak into this pickup's dialog.
                     if (ItemDialogPatch.PendingDisplayLabel != null)
                         DiscardStaleDialogPrime();
+
+                    // Tell the dialog which location it is for, so own glossary ROMs /
+                    // Guardian Souls get their icon. Chip and NPC glossary checks open a
+                    // bare "AP Item" dialog with no sheet-31 suffix to resolve from.
+                    ItemDialogApItemPatch.PendingApLocationId = apLocation;
 
                     var scouted = client.GetItemAtLocation(apLocation);
 
@@ -379,6 +388,7 @@ namespace LaMulana2Archipelago.Managers
             client.SendLocationCheck(apLocation);
             TryDeliverOwnGlossaryRom(apLocation);
             TryDeliverOwnCostume(apLocation);
+            GuardianSoulManager.TryDeliverOwnSoulOnCheck(apLocation);
         }
 
         /// <summary>
@@ -395,6 +405,7 @@ namespace LaMulana2Archipelago.Managers
             ItemDialogPatch.PendingRecipientName = null;
             ItemDialogPatch.PendingRecipientColorHex = null;
             ItemDialogPatch.PendingRecipientIconClass = null;
+            ItemDialogApItemPatch.PendingApLocationId = -1L;
         }
 
         // =====================================================================
@@ -534,6 +545,7 @@ namespace LaMulana2Archipelago.Managers
             HarpShopPriceTracker.Reset();
             DlcBossGoalTracker.Reset();
             GlossaryGoalTracker.Reset();
+            GuardianSoulManager.Reset();
             Plugin.Log.LogInfo("[CHECK] CheckManager reset");
         }
     }

@@ -41,7 +41,7 @@ namespace LaMulana2Archipelago.Patches
         public static bool OutlineEnabled = true;
 
         /// <summary>Multiplied into the pot colours: keeps red, dims green/blue.</summary>
-        internal static readonly Color TintColor = new Color(1f, 0.75f, 0.75f, 1f);
+        internal static readonly Color TintColor = new Color(1f, 0.70f, 0.70f, 1f);
 
         private static readonly Color32 OutlineColor = new Color32(170, 0, 0, 255); // 70% red
         private const int Thickness = 1; // outline width in pixels

@@ -58,8 +58,9 @@ namespace LaMulana2Archipelago.Managers
         // the per-pool potsanity/glossanity partitions plus oannesanity
         // and gate_entrances, plus own_placeholder_items (the real own-world
         // ItemID behind each per-location AP placeholder).
+        // v6 appends the shuffle_guardian_souls bool after own_placeholder_items.
         // All versions remain readable: missing sections fall back to defaults.
-        private const int Lm2apSupportedVersion = 5;
+        private const int Lm2apSupportedVersion = 6;
 
         public static string SeedPath
         {
@@ -458,6 +459,17 @@ namespace LaMulana2Archipelago.Managers
                                 ownItems[loc.ToString()] = item;
                             }
                             dict["own_placeholder_items"] = ownItems;
+                        }
+
+                        // --- v6: Shuffle Guardian Souls. Placements on the
+                        //     Obliterated checks (730-738) and own souls
+                        //     (placeholders) already arrived above.
+                        if (version >= 6)
+                        {
+                            int souls = br.ReadBoolean() ? 1 : 0;
+                            dict["shuffle_guardian_souls"] = souls;
+                            if (dict["options"] is Dictionary<string, object> opts)
+                                opts["shuffle_guardian_souls"] = souls;
                         }
                     }
                 }

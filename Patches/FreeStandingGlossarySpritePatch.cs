@@ -25,12 +25,14 @@ namespace LaMulana2Archipelago.Patches
         private static readonly Dictionary<int, bool> _isGlossary = new Dictionary<int, bool>();
         // instanceId → glossary ROM game_id, so the floor sprite can pick the N/R/SR/UR tier.
         private static readonly Dictionary<int, int> _romGameId = new Dictionary<int, int>();
+        // instanceId → own Guardian Soul game_id (shuffle_guardian_souls), for its portrait.
+        private static readonly Dictionary<int, int> _soulGameId = new Dictionary<int, int>();
 
         static void Postfix(AbstractItemBase __instance)
         {
             try
             {
-                if (!GlossaryManager.Enabled || __instance == null) return;
+                if ((!GlossaryManager.Enabled && !GuardianSoulManager.Enabled) || __instance == null) return;
                 if (__instance is MonsterChipScript) return; // handled by MonsterChipSpritePatch
 
                 int id = __instance.GetInstanceID();
@@ -47,16 +49,24 @@ namespace LaMulana2Archipelago.Patches
                     if (TreasureBoxSpritePatch.TryGetApLocation(__instance, out LocationID loc))
                     {
                         var sc = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)loc);
-                        gloss = GlossaryManager.IsOwnGlossaryRom(sc);
+                        gloss = GlossaryManager.Enabled && GlossaryManager.IsOwnGlossaryRom(sc);
                         if (gloss) _romGameId[id] = GlossaryManager.RomGameId(sc.ItemId);
+                        else if (GuardianSoulManager.TryGetOwnSoulAt(loc, out int soulId))
+                        {
+                            _soulGameId[id] = soulId;
+                            gloss = true; // "has a custom floor sprite"
+                        }
                     }
                     _isGlossary[id] = gloss;
-                    if (!gloss) { _skip.Add(id); return; } // resolved as non-glossary → stop checking
+                    if (!gloss) { _skip.Add(id); return; } // resolved as neither → stop checking
                 }
                 if (!gloss) return;
 
-                int gameId = _romGameId.TryGetValue(id, out int gid) ? gid : -1;
-                var chip = GlossaryChipSprite.FloorIcon(gameId);
+                Sprite chip;
+                if (_soulGameId.TryGetValue(id, out int soul))
+                    chip = GuardianSoulSprite.FloorIcon(soul);
+                else
+                    chip = GlossaryChipSprite.FloorIcon(_romGameId.TryGetValue(id, out int gid) ? gid : -1);
                 if (chip == null) return;
 
                 var sr = __instance.GetComponent<SpriteRenderer>()

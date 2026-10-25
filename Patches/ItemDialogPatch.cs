@@ -217,6 +217,7 @@ namespace LaMulana2Archipelago.Patches
                     PendingRecipientColorHex = null;
                     PendingRecipientIconClass = null;
                     CheckManager.PendingAnkhJewelName = null;
+                    GuardianSoulSprite.PendingDialogSoul = -1;
                 }
             }
         }
@@ -284,6 +285,23 @@ namespace LaMulana2Archipelago.Patches
                     : ApSpriteLoader.GetMapSprite(iconClass);
                 con.Icon.gameObject.SetActive(true);
             }
+
+            // Guardian Soul → the guardian's glossary portrait. Own souls picked up
+            // behind a placeholder resolve at dialog setup; directly granted souls
+            // (network / Obliterated) open as an "Ankh Jewel" dialog and flag it.
+            // A "Sent … to …" dialog is someone else's item, so never swap there.
+            int soul = ItemDialogApItemPatch.CurrentApPickupSoulGameId >= 0
+                ? ItemDialogApItemPatch.CurrentApPickupSoulGameId
+                : GuardianSoulSprite.PendingDialogSoul;
+            if (soul >= 0 && string.IsNullOrEmpty(recipientName) && con.Icon != null)
+            {
+                var soulIcon = GuardianSoulSprite.DialogIcon(soul);
+                if (soulIcon != null)
+                {
+                    con.Icon.sprite = soulIcon;
+                    con.Icon.gameObject.SetActive(true);
+                }
+            }
         }
 
         // ===============================================================
@@ -327,6 +345,7 @@ namespace LaMulana2Archipelago.Patches
             PendingRecipientIconClass = null;
             DialogHandled = false;
             CheckManager.PendingAnkhJewelName = null;
+            GuardianSoulSprite.PendingDialogSoul = -1;
             _activeCon = null;
             _activeSys = null;
         }

@@ -177,6 +177,10 @@ namespace LaMulana2Archipelago.Managers
                 // name, published as a UAT variable instead of a slot key.
                 UAT.UATServer.AddGuardianKill(guardian.ToString());
 
+                // shuffle_guardian_souls: the kill also sends its "<Guardian>
+                // Obliterated" check, a real location that can hold an item.
+                GuardianSoulManager.OnGuardianKillConfirmed(guardian);
+
                 // Hand the window's tail half to memSaveRequested. The AP check above
                 // is already server-side durable regardless of the local save.
                 memSaveRequested = true;

@@ -84,6 +84,13 @@ namespace LaMulana2RandomizerShared
         FakeScan06, FakeScan07, FakeScan08, FakeScan09, FakeScan10,
         FakeScan11, FakeScan12, FakeScan13, FakeScan14, FakeScan15,
 
+        // ── Guardian Souls (shuffle_guardian_souls) ───────────────────
+        // AP-only, no in-game item. Received souls drive the soul gates
+        // instead of guardian kills — see GuardianSoulManager. Own souls
+        // ride the per-location AP placeholder (like glossary ROMs).
+        FafnirSoul = 610, VritraSoul = 611, KujataSoul = 612, AtenRaSoul = 613, JormungandSoul = 614,
+        AnuSoul = 615, SurtrSoul = 616, EchidnaSoul = 617, HelSoul = 618,
+
         // DLC
         RebirthSigil = 811,
         FishSuit = 812,

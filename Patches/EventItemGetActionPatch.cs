@@ -302,10 +302,15 @@ namespace LaMulana2Archipelago.Patches
                 || !item.itemLabel.StartsWith("AP Item", System.StringComparison.Ordinal))
                 return;
 
-            ApIconClass iconClass =
-                TreasureBoxSpritePatch.TryGetApLocation(item, out LocationID location)
-                    ? CheckManager.GetApIconClassAt(location)
-                    : ApIconClass.Plain;
+            bool resolved = TreasureBoxSpritePatch.TryGetApLocation(item, out LocationID location);
+            ApIconClass iconClass = resolved
+                ? CheckManager.GetApIconClassAt(location)
+                : ApIconClass.Plain;
+
+            // The dialog can only parse a sheet-31 index out of "AP Item N", which is
+            // wrong for pots (N is a pot-sheet flag); hand it the resolved location.
+            ItemDialogApItemPatch.PendingApPickupLocationId =
+                resolved ? 430000L + (int)location : -1L;
 
             // Current drives the pickup animation, which plays before the dialog opens.
             // Pending hands the same answer to the dialog, which cannot re-derive it for
@@ -329,11 +334,15 @@ namespace LaMulana2Archipelago.Patches
         internal static void FixHoldupIcon(AbstractItemBase item)
         {
             if (!IsApHoldup(item)) return;
-            ApIconClass iconClass =
-                TreasureBoxSpritePatch.TryGetApLocation(item, out LocationID loc)
-                    ? CheckManager.GetApIconClassAt(loc)
-                    : ApIconClass.Plain;
-            ApplyHoldupSprite(item, iconClass);
+            if (TreasureBoxSpritePatch.TryGetApLocation(item, out LocationID loc))
+            {
+                if (TryApplySoulHoldup(item, loc)) return;
+                ApplyHoldupSprite(item, CheckManager.GetApIconClassAt(loc));
+            }
+            else
+            {
+                ApplyHoldupSprite(item, ApIconClass.Plain);
+            }
         }
 
         /// <summary>
@@ -343,7 +352,22 @@ namespace LaMulana2Archipelago.Patches
         internal static void FixHoldupIconAt(AbstractItemBase item, LocationID loc)
         {
             if (!IsApHoldup(item)) return;
+            if (TryApplySoulHoldup(item, loc)) return;
             ApplyHoldupSprite(item, CheckManager.GetApIconClassAt(loc));
+        }
+
+        // Own Guardian Soul behind the placeholder → hold up the guardian's portrait.
+        private static bool TryApplySoulHoldup(AbstractItemBase item, LocationID loc)
+        {
+            if (!GuardianSoulManager.TryGetOwnSoulAt(loc, out int soulId)) return false;
+            var sprite = GuardianSoulSprite.FloorIcon(soulId);
+            if (sprite == null) return false;
+
+            var pl = Traverse.Create(item).Field("pl").GetValue<NewPlayer>();
+            var renderer = pl != null ? Traverse.Create(pl).Field("itemRenderer").GetValue<SpriteRenderer>() : null;
+            if (renderer == null) return false;
+            renderer.sprite = sprite;
+            return true;
         }
 
         // Only AP placeholders get the AP icon; own items (label = BoxName) and silent

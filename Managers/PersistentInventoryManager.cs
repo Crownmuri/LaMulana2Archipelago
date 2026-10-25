@@ -204,7 +204,7 @@ namespace LaMulana2Archipelago.Managers
         /// cache. Offline is solo, so a non-placeholder placement is by
         /// definition ours.
         /// </summary>
-        private static long ResolveOwnApItemId(LocationID location, long apLocation)
+        internal static long ResolveOwnApItemId(LocationID location, long apLocation)
         {
             var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(apLocation);
             if (scouted != null)

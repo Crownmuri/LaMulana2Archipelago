@@ -253,6 +253,10 @@ namespace LaMulana2Archipelago.Managers
             startingWeapon = (ItemID)serverData.GetSlotInt("starting_weapon", 0);
             startingArea = (AreaID)serverData.GetSlotInt("starting_area", 0);
             randomDissonance = serverData.GetSlotBool("random_dissonance", true);
+            // The apworld forces this off without random_dissonance; mirror that.
+            GuardianSoulManager.Enabled = randomDissonance
+                && serverData.GetSlotBool("shuffle_guardian_souls", false);
+            Plugin.Log.LogInfo($"[SceneRando] Shuffle Guardian Souls {(GuardianSoulManager.Enabled ? "enabled" : "disabled")}");
             echidna = serverData.GetSlotInt("echidna", 4);
             autoPlaceSkull = serverData.GetSlotBool("auto_place_skull", true);
             greedyCharon = serverData.GetSlotBool("greedy_charon", true);
@@ -1451,6 +1455,7 @@ namespace LaMulana2Archipelago.Managers
             }
 
             ChangeXelpudMails();
+            GuardianSoulManager.RewriteSceneSoulGates();
         }
 
         /// <summary>
@@ -2022,10 +2027,12 @@ namespace LaMulana2Archipelago.Managers
                             if (soul != null)
                                 soul.transform.SetParent(gate.transform.parent);
 
+                            // Guardian kills (3,0), or souls received when
+                            // shuffle_guardian_souls is on (GuardianSoulManager).
                             flagBoxes.Add(new L2FlagBox()
                             {
-                                seet_no1 = 3,
-                                flag_no1 = 0,
+                                seet_no1 = GuardianSoulManager.GateCountSheet,
+                                flag_no1 = GuardianSoulManager.GateCountFlag,
                                 seet_no2 = -1,
                                 flag_no2 = soulValue,
                                 logic = LOGIC.AND,

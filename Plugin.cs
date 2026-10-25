@@ -504,6 +504,11 @@ namespace LaMulana2Archipelago
             if (Managers.PersistentInventoryManager.Update(sys, pl))
                 return;
 
+            // Shuffle Guardian Souls: hand over the own item at an Obliterated
+            // check (nothing physically drops) and restore souls a rewind lost.
+            if (Managers.GuardianSoulManager.Update(sys, pl))
+                return;
+
             // One item at a time; dequeue only if successful. Peek/Dequeue are
             // individually locked, and only this thread ever dequeues, so an
             // item the socket enqueues in between just lands behind this one.
@@ -908,6 +913,10 @@ namespace LaMulana2Archipelago
             // session the (25,0) ladder write is never replayed, so re-check it
             // here and stamp (25,2)=1 if it is still missing.
             Managers.IxtabRespawnSync.NotifySceneLoaded();
+
+            // Souls / Obliterated items live in the save state; after a load or
+            // death rewind, re-check what the completed checks still owe us.
+            Managers.GuardianSoulManager.RequestScan();
 
             if (ArchipelagoClient == null) return;
 

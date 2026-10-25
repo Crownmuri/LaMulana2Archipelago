@@ -200,6 +200,28 @@ namespace LaMulana2Archipelago.Managers
                     return true;
                 }
 
+                // Guardian Souls (610-618): AP-only, no in-game item. Record the soul
+                // (drives the soul gates) and show the get-item dialog; the Ankh
+                // Jewel icon stands in, and Plugin.Update's label names the soul.
+                if (GuardianSoulManager.IsSoul(gameId))
+                {
+                    if (ShowPresentation)
+                    {
+                        TryPlayGetItemPresentation(sys, pl, "Ankh Jewel");
+
+                        // Swap the Ankh Jewel stand-in for the guardian's glossary
+                        // portrait: hold-up now, dialog icon when it opens.
+                        var soulSprite = Patches.GuardianSoulSprite.FloorIcon(gameId);
+                        var holdup = HarmonyLib.Traverse.Create(pl).Field("itemRenderer").GetValue<SpriteRenderer>();
+                        if (soulSprite != null && holdup != null)
+                            holdup.sprite = soulSprite;
+                        Patches.GuardianSoulSprite.PendingDialogSoul = gameId;
+                    }
+                    GuardianSoulManager.MarkReceived(sys, gameId);
+                    FinishGrant(queueIndex, now);
+                    return true;
+                }
+
                 if (gameId <= 0)
                 {
                     Plugin.Log.LogWarning("[ITEM] AP item id out of range (base=" + BaseApItemId + "): " + apItemId);

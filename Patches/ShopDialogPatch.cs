@@ -302,6 +302,27 @@ namespace LaMulana2Archipelago.Patches
             return true;
         }
 
+        /// <summary>True if the given shop slot holds one of this player's Guardian Souls
+        /// (shuffle_guardian_souls). Same slot → AP location lookup as IsGlossarySlot.</summary>
+        public static bool IsSoulSlot(ShopScript instance, int slot, out int gameId)
+        {
+            gameId = -1;
+            if (!GuardianSoulManager.Enabled || _slotApLocationIds.Count == 0 || instance == null) return false;
+
+            var t = Traverse.Create(instance);
+            var sys = t.Field("sys").GetValue<L2System>();
+            string sheetName = t.Field("sheet_name").GetValue<string>();
+            if (sys == null || string.IsNullOrEmpty(sheetName)) return false;
+
+            var shopDb = sys.getMojiScript(mojiScriptType.shop);
+            if (shopDb == null) return false;
+
+            int shopId = sys.mojiSheetNameToNo(sheetName, shopDb);
+            if (!_slotApLocationIds.TryGetValue(shopId + ":" + slot, out long apLoc)) return false;
+
+            return GuardianSoulManager.TryGetOwnSoulAt((LocationID)(int)(apLoc - 430000L), out gameId);
+        }
+
         // ── Helper ───────────────────────────────────────────────────────────
 
         private static string GetApItemText(ArchipelagoClient client, string locationName)

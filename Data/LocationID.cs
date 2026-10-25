@@ -296,6 +296,22 @@ namespace LaMulana2RandomizerShared
         GarmStatuePuzzle,
         SakitPuzzle,
 
+        // ── Guardian "Obliterated" checks (shuffle_guardian_souls) ──
+        // Explicit: the apworld puts 4 fish checks at 310-313, which this enum
+        // doesn't define. Sent by BossKillTracker on a confirmed kill (the kill
+        // events stay on Fafnir..Hel above). Unlike the rest of 253-399 these are
+        // real checks with placements. Nothing drops, so GuardianSoulManager
+        // grants an own item here directly.
+        FafnirObliterated = 314,     // [ROY F-3] Fafnir Obliterated
+        VritraObliterated = 315,     // [VAL E-2] Vritra Obliterated
+        KujataObliterated = 316,     // [ANN F-2] Kujata Obliterated
+        AtenRaObliterated = 317,     // [DSLM C-8] Aten-Ra Obliterated
+        JormungandObliterated = 318, // [IB E-5] Jormungand Obliterated
+        AnuObliterated = 319,        // [AC D-1] Anu Obliterated
+        SurtrObliterated = 320,      // [IT C-2] Surtr Obliterated
+        EchidnaObliterated = 321,    // [HOM C-5] Echidna Obliterated
+        HelObliterated = 322,        // [EPD A-3] Hel Obliterated
+
         // ── Potsanity ──────────────────────────────
         // Village of Departure
         field01_2G = 400,     // Starting Coin Pot

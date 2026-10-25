@@ -452,6 +452,10 @@ namespace LaMulana2Archipelago.Managers
         /// tier), or -1 when not an own glossary ROM. Set alongside CurrentApPickupIsGlossary.</summary>
         public static int CurrentApPickupGlossaryGameId { get; set; } = -1;
 
+        /// <summary>game_id of this player's Guardian Soul behind the AP placeholder in the
+        /// current dialog (shows the guardian's glossary portrait), or -1.</summary>
+        public static int CurrentApPickupSoulGameId { get; set; } = -1;
+
         /// <summary>AP location id primed by flows that open the item dialog with a bare
         /// "AP Item" (no sheet-31 suffix to resolve from): murals (SnapMenuPatch) and NPCs
         /// (KataribeDialogPatch). Lets StartSwitch resolve the glossary chip icon for those.
@@ -466,6 +470,12 @@ namespace LaMulana2Archipelago.Managers
         /// dialog that has nothing to do with it.</summary>
         public static ApIconClass? PendingApPickupIconClass { get; set; }
 
+        /// <summary>AP location id resolved from the picked-up item's itemActiveFlag by
+        /// <see cref="Patches.ApPickupProgressionCapture"/> (covers pots, whose "AP Item N"
+        /// index is a pot-sheet flag, not sheet 31). -1 when none; consumed like
+        /// <see cref="PendingApPickupIconClass"/>.</summary>
+        public static long PendingApPickupLocationId { get; set; } = -1L;
+
         /// <summary>
         /// Prefix: for AP/filler items, skip the vanilla StartSwitch entirely
         /// and set up the dialog manually (vanilla crashes on unknown item names
@@ -476,12 +486,17 @@ namespace LaMulana2Archipelago.Managers
             WasApPlaceholder = false;
             CurrentApPickupIsGlossary = false;
             CurrentApPickupGlossaryGameId = -1;
+            CurrentApPickupSoulGameId = -1;
             CurrentApPickupIconClass = ApIconClass.Plain;
 
             // Consume the pickup's captured answer up front, so it is dropped even on the
             // early-outs below and can never be read by a later, unrelated dialog.
             ApIconClass? pickupIconClass = PendingApPickupIconClass;
             PendingApPickupIconClass = null;
+            long pickupApLoc = PendingApPickupLocationId;
+            PendingApPickupLocationId = -1L;
+            long primedApLoc = PendingApLocationId;
+            PendingApLocationId = -1L;
 
             string[] messString = Traverse.Create(__instance)
                 .Field("MessString")
@@ -501,18 +516,25 @@ namespace LaMulana2Archipelago.Managers
                 // chip icon (id-based, rename-proof) instead of the generic AP icon:
                 //   • "AP Item N" (freestanding/chest/pot/shop) carries the sheet-31 flag
                 //     index N in its name.
-                //   • bare "AP Item" (murals, NPCs) has no index — those flows prime
-                //     PendingApLocationId just before opening the dialog.
+                //   • bare "AP Item" (murals, NPCs, glossary chips) has no index.
+                // Preferred: PendingApLocationId, primed fresh for this dialog by
+                // CheckManager's label prime / murals / Kataribe. Then the location the
+                // pickup capture resolved from the item (pots: "AP Item N" is a pot-sheet
+                // flag, not sheet 31), then the sheet-31 suffix.
                 long glossaryApLoc = -1L;
                 int sp = messString[0].LastIndexOf(' ');
-                if (sp > 0 && int.TryParse(messString[0].Substring(sp + 1), out int flagIdx)
+                if (primedApLoc >= 0)
+                {
+                    glossaryApLoc = primedApLoc;
+                }
+                else if (pickupApLoc >= 0)
+                {
+                    glossaryApLoc = pickupApLoc;
+                }
+                else if (sp > 0 && int.TryParse(messString[0].Substring(sp + 1), out int flagIdx)
                     && LocationFlagMap.TryGetNumeric(31, flagIdx, out LocationID gloc))
                 {
                     glossaryApLoc = 430000L + (int)gloc;
-                }
-                else if (PendingApLocationId >= 0)
-                {
-                    glossaryApLoc = PendingApLocationId;
                 }
 
                 if (glossaryApLoc >= 0)
@@ -521,6 +543,8 @@ namespace LaMulana2Archipelago.Managers
                     CurrentApPickupIsGlossary = GlossaryManager.IsOwnGlossaryRom(sc);
                     if (CurrentApPickupIsGlossary)
                         CurrentApPickupGlossaryGameId = GlossaryManager.RomGameId(sc.ItemId);
+                    else if (GuardianSoulManager.TryGetOwnSoulAt((LocationID)(glossaryApLoc - 430000L), out int soulId))
+                        CurrentApPickupSoulGameId = soulId;
                 }
 
                 // Prefer the pickup's own captured answer; flows that skip the capture
@@ -530,8 +554,6 @@ namespace LaMulana2Archipelago.Managers
                     ?? (glossaryApLoc >= 0
                         ? CheckManager.GetApIconClassAt((LocationID)(glossaryApLoc - 430000L))
                         : ApIconClass.Plain);
-
-                PendingApLocationId = -1L; // consume — never carry over to the next dialog
             }
             else if (messString[0] == "Nothing" || messString[0] == "Fake" || messString[0] == "Money")
             {
@@ -650,7 +672,9 @@ namespace LaMulana2Archipelago.Managers
                 // the manual-setup path taken by murals ("snap") and NPCs ("kataribe"),
                 // which arrive as a bare "AP Item"; mirrors Patches.ItemDialogPatch.
                 var chip = CurrentApPickupIsGlossary
-                    ? Patches.GlossaryChipSprite.DialogIcon(CurrentApPickupGlossaryGameId) : null;
+                    ? Patches.GlossaryChipSprite.DialogIcon(CurrentApPickupGlossaryGameId)
+                    : CurrentApPickupSoulGameId >= 0
+                        ? Patches.GuardianSoulSprite.DialogIcon(CurrentApPickupSoulGameId) : null;
                 con.Icon.sprite = chip ?? ApSpriteLoader.GetMapSprite(CurrentApPickupIconClass);
                 con.Icon.gameObject.SetActive(true);
             }
@@ -886,6 +910,11 @@ namespace LaMulana2Archipelago.Managers
                         if (Patches.ShopDialogPatch.IsGlossarySlot(__instance, idx, out int glossGameId))
                         {
                             chosenSprite = Patches.GlossaryChipSprite.ShopIcon(glossGameId);
+                        }
+                        else if (Patches.ShopDialogPatch.IsSoulSlot(__instance, idx, out int soulGameId)
+                                 && (chosenSprite = Patches.GuardianSoulSprite.ShopIcon(soulGameId)) != null)
+                        {
+                            // Own Guardian Soul → the guardian's glossary portrait.
                         }
                         else
                         {

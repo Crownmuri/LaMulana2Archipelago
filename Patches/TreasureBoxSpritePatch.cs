@@ -41,6 +41,13 @@ namespace LaMulana2Archipelago.Patches
                         var chip = GlossaryChipSprite.FloorIcon(Managers.GlossaryManager.RomGameId(scouted.ItemId));
                         if (chip != null) { sr.sprite = chip; return; }
                     }
+
+                    // Own Guardian Soul → the guardian's glossary portrait.
+                    if (GuardianSoulManager.TryGetOwnSoulAt(gloc, out int soulId))
+                    {
+                        var soul = GuardianSoulSprite.FloorIcon(soulId);
+                        if (soul != null) { sr.sprite = soul; return; }
+                    }
                 }
 
                 if (ApSpriteLoader.IsLoaded)

@@ -146,6 +146,13 @@ namespace LaMulana2Archipelago.Patches
                 }
             }
 
+            // Own Guardian Soul → the guardian's glossary portrait.
+            if (GuardianSoulManager.TryGetOwnSoulAt(locId, out int soulId))
+            {
+                var soul = GuardianSoulSprite.FloorIcon(soulId);
+                if (soul != null) return soul;
+            }
+
             // AP / foreign → AP placeholder icon (progression/trap-aware, matching
             // every other floor call-site — otherwise a foreign progression item
             // dropped on a chip location shows the plain icon while its dialog is right).
