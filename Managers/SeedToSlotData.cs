@@ -470,6 +470,18 @@ namespace LaMulana2Archipelago.Managers
                             dict["shuffle_guardian_souls"] = souls;
                             if (dict["options"] is Dictionary<string, object> opts)
                                 opts["shuffle_guardian_souls"] = souls;
+
+                            // --- v6 tail: client-side QoL options. Appended
+                            //     inside v6 before it shipped, so guarded on
+                            //     remaining length like own_placeholder_items:
+                            //     earlier v6 files end at the souls bool and
+                            //     keep the player's local button choices.
+                            if (br.BaseStream.Length - br.BaseStream.Position >= 3)
+                            {
+                                dict["unchecked_pot_indicators"]      = br.ReadBoolean() ? 1 : 0;
+                                dict["unchecked_glossary_indicators"] = br.ReadBoolean() ? 1 : 0;
+                                dict["infinite_starting_ammo"]        = br.ReadBoolean() ? 1 : 0;
+                            }
                         }
                     }
                 }

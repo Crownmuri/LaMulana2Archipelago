@@ -95,7 +95,8 @@ namespace LaMulana2Archipelago.Patches
                 _unchecked = IsUnchecked();
             }
 
-            bool show = _unchecked && GlossaryEnemyMarkerPatch.Enabled && IsDrawn() && EnsureIcon();
+            bool show = _unchecked && HintIndicators.GlossaryHints && GlossaryEnemyMarkerPatch.Enabled
+                && IsDrawn() && EnsureIcon();
             if (show)
             {
                 UpdatePosition();

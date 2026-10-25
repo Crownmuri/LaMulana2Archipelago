@@ -506,6 +506,10 @@ namespace LaMulana2Archipelago.Archipelago
             }
             Plugin.Log.LogInfo($"[AP] Standalone mode = {standaloneMode}");
 
+            // YAML defaults for the unchecked-pot / unchecked-glossary indicators
+            // (title-screen Pot Hints / Glossary Hints can still flip them).
+            Managers.HintIndicators.ApplySlotData(ServerData);
+
             bool guardianAnkhs = ServerData.GetSlotBool("guardian_specific_ankhs");
             Patches.GuardianSpecificAnkhPatch.GuardianSpecificAnkhsEnabled = guardianAnkhs;
 

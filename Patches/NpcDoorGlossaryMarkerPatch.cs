@@ -102,7 +102,7 @@ namespace LaMulana2Archipelago.Patches
             }
 
             bool show = false;
-            if (NpcDoorGlossaryMarkerPatch.Enabled)
+            if (HintIndicators.GlossaryHints && NpcDoorGlossaryMarkerPatch.Enabled)
             {
                 for (int i = 0; i < _locations.Count && !show; i++)
                     show = !GlossaryManager.IsLocationCollected(_locations[i]);

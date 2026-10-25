@@ -46,6 +46,8 @@ namespace LaMulana2Archipelago
         // Quality-of-life: a sub-weapon starting weapon never uses up ammo.
         // See Patches/InfiniteStartingAmmoPatch.cs.
         private static ConfigEntry<bool> _cfgInfiniteStartingAmmo;
+        private static ConfigEntry<bool> _cfgPotHints;
+        private static ConfigEntry<bool> _cfgGlossaryHints;
 
         private Harmony _harmony;
         private L2System _cachedSys;
@@ -197,6 +199,20 @@ namespace LaMulana2Archipelago
                 + "enough for the dash to engage and then taken back off, exactly as "
                 + "doing it by hand would.");
             Patches.QuickToggleGaleFibulaPatch.Mode = _cfgGaleFibulaMode.Value;
+
+            // Master switches behind the title-screen "Pot Hints" / "Glossary Hints"
+            // buttons. The YAML options unchecked_pot_indicators /
+            // unchecked_glossary_indicators replace them on connect (HintIndicators).
+            _cfgPotHints = Config.Bind("Gameplay", "PotHints", true,
+                "Potsanity: mark pots whose location hasn't been checked yet (red tint + outline). "
+                + "The seed's unchecked_pot_indicators option overrides this on connect; the "
+                + "title-screen Pot Hints button can flip it again.");
+            Managers.HintIndicators.PotHints = _cfgPotHints.Value;
+            _cfgGlossaryHints = Config.Bind("Gameplay", "GlossaryHints", true,
+                "Glossanity: show a small AP logo over enemies and in NPC doors whose glossary "
+                + "entry hasn't been checked yet. The seed's unchecked_glossary_indicators option "
+                + "overrides this on connect; the title-screen Glossary Hints button can flip it again.");
+            Managers.HintIndicators.GlossaryHints = _cfgGlossaryHints.Value;
 
             Patches.PotMarkerPatch.TintEnabled = Config.Bind("Gameplay", "TintUncheckedPots", true,
                 "Potsanity: tint pots red while their location hasn't been checked yet.").Value;
@@ -795,6 +811,32 @@ namespace LaMulana2Archipelago
                 Patches.QuickToggleGaleFibulaPatch.Mode = galeMode;
                 if (_cfgGaleFibulaMode != null) _cfgGaleFibulaMode.Value = galeMode;
                 Log.LogInfo($"[QOL] Quick Gale -> {galeMode}");
+            }
+
+            // Unchecked-location indicators (Turok 2 style "hints" buttons). On
+            // connect the seed's YAML options set these (HintIndicators.ApplySlotData);
+            // a flip here wins for the session and is remembered for offline play
+            // and for seeds whose apworld predates the options.
+            Rect potRect = new Rect(16, 350, 125, 20);
+            bool potOn = Managers.HintIndicators.PotHints;
+            GUI.color = potOn ? Color.green : Color.red;
+            if (GUI.Button(potRect, potOn ? "Pot Hints: ON" : "Pot Hints: OFF"))
+            {
+                potOn = !potOn;
+                Managers.HintIndicators.PotHints = potOn;
+                if (_cfgPotHints != null) _cfgPotHints.Value = potOn;
+                Log.LogInfo($"[QOL] Pot Hints -> {potOn}");
+            }
+
+            Rect glossRect = new Rect(16, 370, 125, 20);
+            bool glossOn = Managers.HintIndicators.GlossaryHints;
+            GUI.color = glossOn ? Color.green : Color.red;
+            if (GUI.Button(glossRect, glossOn ? "Glossary Hints: ON" : "Glossary Hints: OFF"))
+            {
+                glossOn = !glossOn;
+                Managers.HintIndicators.GlossaryHints = glossOn;
+                if (_cfgGlossaryHints != null) _cfgGlossaryHints.Value = glossOn;
+                Log.LogInfo($"[QOL] Glossary Hints -> {glossOn}");
             }
 
             GUI.color = oldColor;

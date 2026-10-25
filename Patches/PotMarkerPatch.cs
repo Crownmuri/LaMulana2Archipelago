@@ -289,8 +289,9 @@ namespace LaMulana2Archipelago.Patches
             _nextCheckFrame = Time.frameCount + RecheckInterval;
 
             bool isUnchecked = IsUnchecked();
-            bool tint = isUnchecked && PotMarkerPatch.TintEnabled;
-            bool outline = isUnchecked && PotMarkerPatch.OutlineEnabled && EnsureOutline();
+            bool hints = isUnchecked && Managers.HintIndicators.PotHints;
+            bool tint = hints && PotMarkerPatch.TintEnabled;
+            bool outline = hints && PotMarkerPatch.OutlineEnabled && EnsureOutline();
             if (tint == _tinted && outline == _outlineShown)
                 return;
             _tinted = tint;
