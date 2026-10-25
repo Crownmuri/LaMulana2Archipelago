@@ -16,11 +16,17 @@ namespace LaMulana2Archipelago.Patches
     ///   - Tint: Sprites/Default's _Color multiplies the texture. The material is
     ///     shared by every pot in the field, so it goes through a per-renderer
     ///     MaterialPropertyBlock.
-    ///   - Outline: the textures aren't CPU-readable (and a RenderTexture copy
-    ///     came back flipped), so the alpha masks of all 12 pot textures are
-    ///     baked in below, decoded from the level files with UnityPy (alpha &gt; 0
-    ///     counts as solid). The outline is a child sprite just in front of the
-    ///     pot quad, cached per texture name.
+    ///   - Outline: an outlined copy of the pot texture, swapped in through the
+    ///     same property block (_MainTex). The pot keeps rendering in a single
+    ///     draw, exactly like vanilla. Two earlier approaches had sorting bugs:
+    ///     a separate sprite in front of the pot drew over hit sparks, and a
+    ///     second material on the pot mesh (same depth) sometimes drew *under*
+    ///     the pot, flickering during screen transitions.
+    ///     The pot textures aren't CPU-readable, so the copy goes through a
+    ///     RenderTexture. That readback can come back upside down, so it's
+    ///     checked against the alpha masks baked in below (decoded from the level
+    ///     files with UnityPy, alpha &gt; 0 = solid) and flipped if needed. The
+    ///     same masks decide where the outline goes.
     ///
     /// <see cref="PotMarker"/> re-evaluates a few times a second and clears both
     /// once the pot is checked, potsanity is off or AP disconnects.
@@ -35,9 +41,9 @@ namespace LaMulana2Archipelago.Patches
         public static bool OutlineEnabled = true;
 
         /// <summary>Multiplied into the pot colours: keeps red, dims green/blue.</summary>
-        internal static readonly Color TintColor = new Color(1f, 0.7f, 0.7f, 1f);
+        internal static readonly Color TintColor = new Color(1f, 0.75f, 0.75f, 1f);
 
-        private static readonly Color32 OutlineColor = new Color32(150, 0, 0, 255); // 70% red
+        private static readonly Color32 OutlineColor = new Color32(170, 0, 0, 255); // 70% red
         private const int Thickness = 1; // outline width in pixels
 
         internal const string OutlineObjectName = "AP_PotOutline";
@@ -64,63 +70,55 @@ namespace LaMulana2Archipelago.Patches
         }
 
         // =================================================================
-        // Outline sprite
+        // Outlined texture
         // =================================================================
 
-        internal sealed class OutlineInfo
-        {
-            public Sprite Sprite;
-            public Vector2 Center; // quad centre in mesh-local space
-            public bool FlipX;
-            public bool FlipY;
-        }
-
         // Keyed by texture name + UV rect (scene textures get new instances on
-        // every load; the names are stable).
-        private static readonly Dictionary<string, OutlineInfo> Cache = new Dictionary<string, OutlineInfo>();
+        // every load; the names are stable). A null value = failed, don't retry.
+        private static readonly Dictionary<string, Texture2D> Cache = new Dictionary<string, Texture2D>();
 
         /// <summary>
-        /// Returns the (cached) outline for this pot mesh, or null if the mesh
-        /// isn't one of the known pot quads.
+        /// Returns the (cached) outlined copy of this pot's texture, or null if
+        /// the mesh isn't one of the known pot quads or the copy failed.
         /// </summary>
-        internal static OutlineInfo GetOutline(MeshRenderer mesh)
+        internal static Texture2D GetOutlinedTexture(MeshRenderer mesh)
         {
             MeshFilter mf = mesh.GetComponent<MeshFilter>();
-            Material mat = mesh.sharedMaterial;
-            Texture tex = mat != null ? mat.mainTexture : null;
+            Material potMat = mesh.sharedMaterial;
+            Texture tex = potMat != null ? potMat.mainTexture : null;
             if (mf == null || mf.sharedMesh == null || tex == null)
                 return null;
 
-            Vector3[] verts = mf.sharedMesh.vertices;
             Vector2[] uvs = mf.sharedMesh.uv;
-            if (verts == null || uvs == null || verts.Length < 3 || uvs.Length != verts.Length)
+            if (uvs == null || uvs.Length < 3)
                 return null;
 
-            float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
             float minU = float.MaxValue, maxU = float.MinValue, minV = float.MaxValue, maxV = float.MinValue;
-            int minXIdx = 0, minYIdx = 0;
-            for (int i = 0; i < verts.Length; i++)
+            for (int i = 0; i < uvs.Length; i++)
             {
-                if (verts[i].x < minX) { minX = verts[i].x; minXIdx = i; }
-                if (verts[i].y < minY) { minY = verts[i].y; minYIdx = i; }
-                maxX = Mathf.Max(maxX, verts[i].x);
-                maxY = Mathf.Max(maxY, verts[i].y);
                 minU = Mathf.Min(minU, uvs[i].x); maxU = Mathf.Max(maxU, uvs[i].x);
                 minV = Mathf.Min(minV, uvs[i].y); maxV = Mathf.Max(maxV, uvs[i].y);
             }
 
-            int x0 = Mathf.RoundToInt(minU * tex.width), x1 = Mathf.RoundToInt(maxU * tex.width);
-            int y0 = Mathf.RoundToInt(minV * tex.height), y1 = Mathf.RoundToInt(maxV * tex.height);
+            int texW = tex.width, texH = tex.height;
+            int x0 = Mathf.RoundToInt(minU * texW), x1 = Mathf.RoundToInt(maxU * texW);
+            int y0 = Mathf.RoundToInt(minV * texH), y1 = Mathf.RoundToInt(maxV * texH);
             int w = x1 - x0, h = y1 - y0;
-            float quadW = maxX - minX;
-            if (w <= 0 || h <= 0 || quadW <= 0f)
+            if (w <= 0 || h <= 0 || x0 < 0 || y0 < 0 || x1 > texW || y1 > texH)
                 return null;
 
             string key = tex.name + "|" + x0 + "," + y0 + "," + w + "," + h;
-            OutlineInfo info;
-            if (Cache.TryGetValue(key, out info) && info.Sprite != null)
-                return info;
+            Texture2D result;
+            if (Cache.TryGetValue(key, out result))
+                return result; // may be null (known failure)
 
+            result = BuildOutlinedTexture(tex, x0, y0, w, h);
+            Cache[key] = result;
+            return result;
+        }
+
+        private static Texture2D BuildOutlinedTexture(Texture tex, int x0, int y0, int w, int h)
+        {
             bool[] solid = LookupMask(tex.name, x0, y0, w, h);
             if (solid == null)
             {
@@ -128,44 +126,97 @@ namespace LaMulana2Archipelago.Patches
                 return null;
             }
 
-            Texture2D outTex = BuildOutline(solid, w, h);
-            Sprite sprite = Sprite.Create(outTex, new Rect(0, 0, outTex.width, outTex.height),
-                new Vector2(0.5f, 0.5f), w / quadW);
-            sprite.name = OutlineObjectName + " " + tex.name;
-            sprite.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            int texW = tex.width, texH = tex.height;
+            Color32[] px = ReadPixels(tex);
+            if (px == null)
+                return null;
 
-            info = new OutlineInfo
+            // Work out the readback orientation from the alpha mask.
+            int upright = 0, flipped = 0;
+            for (int y = 0; y < h; y++)
             {
-                Sprite = sprite,
-                Center = new Vector2((minX + maxX) * 0.5f, (minY + maxY) * 0.5f),
-                // The left-most vertex should carry the smallest U (bottom-most the
-                // smallest V); if not, the art is mirrored on that axis.
-                FlipX = uvs[minXIdx].x > (minU + maxU) * 0.5f,
-                FlipY = uvs[minYIdx].y > (minV + maxV) * 0.5f,
-            };
-            Cache[key] = info;
-            return info;
+                for (int x = 0; x < w; x++)
+                {
+                    bool want = solid[y * w + x];
+                    if ((px[(y0 + y) * texW + x0 + x].a > 0) == want) upright++;
+                    if ((px[(texH - 1 - (y0 + y)) * texW + x0 + x].a > 0) == want) flipped++;
+                }
+            }
+            int needed = w * h * 95 / 100;
+            if (upright < needed && flipped < needed)
+            {
+                Plugin.Log.LogWarning($"[POT] Pot texture '{tex.name}' readback doesn't match its mask " +
+                                      $"(upright {upright}, flipped {flipped} of {w * h}); no outline");
+                return null;
+            }
+            if (flipped > upright)
+            {
+                Color32[] fixedPx = new Color32[px.Length];
+                for (int y = 0; y < texH; y++)
+                    Array.Copy(px, (texH - 1 - y) * texW, fixedPx, y * texW, texW);
+                px = fixedPx;
+            }
+
+            // Paint the outline: every solid pixel within Thickness steps
+            // (Manhattan) of a transparent one; the region edge counts as
+            // transparent.
+            Func<int, int, bool> at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && solid[y * w + x];
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (!at(x, y))
+                        continue;
+                    bool edge = false;
+                    for (int dy = -Thickness; dy <= Thickness && !edge; dy++)
+                        for (int dx = -Thickness; dx <= Thickness && !edge; dx++)
+                            if (Math.Abs(dx) + Math.Abs(dy) <= Thickness && !at(x + dx, y + dy))
+                                edge = true;
+                    if (edge)
+                        px[(y0 + y) * texW + x0 + x] = OutlineColor;
+                }
+            }
+
+            Texture2D outTex = new Texture2D(texW, texH, TextureFormat.ARGB32, false);
+            outTex.name = OutlineObjectName + " " + tex.name;
+            outTex.filterMode = FilterMode.Point;
+            outTex.wrapMode = tex.wrapMode;
+            outTex.SetPixels32(px);
+            outTex.Apply(false, true);
+            outTex.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            return outTex;
         }
 
-        // Outline materials keyed by render queue.
-        private static readonly Dictionary<int, Material> OutlineMaterials = new Dictionary<int, Material>();
-
-        /// <summary>Sprite material copy drawn in the same render queue as the pot.</summary>
-        internal static Material GetOutlineMaterial(Material spriteMat, Material potMat)
+        /// <summary>Copies a non-readable texture's pixels via a RenderTexture.</summary>
+        private static Color32[] ReadPixels(Texture tex)
         {
-            if (spriteMat == null || potMat == null)
-                return spriteMat;
-
-            int queue = potMat.renderQueue;
-            Material m;
-            if (OutlineMaterials.TryGetValue(queue, out m) && m != null)
-                return m;
-
-            m = new Material(spriteMat) { renderQueue = queue, name = OutlineObjectName + " q" + queue };
-            m.hideFlags = HideFlags.DontUnloadUnusedAsset;
-            OutlineMaterials[queue] = m;
-            Plugin.Log.LogDebug($"[POT] Outline material: pot '{potMat.name}' shader '{potMat.shader?.name}' queue {queue}, sprite queue {spriteMat.renderQueue}");
-            return m;
+            int texW = tex.width, texH = tex.height;
+            RenderTexture rt = RenderTexture.GetTemporary(texW, texH, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+            RenderTexture prev = RenderTexture.active;
+            FilterMode prevFilter = tex.filterMode;
+            try
+            {
+                tex.filterMode = FilterMode.Point; // exact texels
+                Graphics.Blit(tex, rt);
+                RenderTexture.active = rt;
+                Texture2D tmp = new Texture2D(texW, texH, TextureFormat.ARGB32, false);
+                tmp.ReadPixels(new Rect(0, 0, texW, texH), 0, 0, false);
+                tmp.Apply(false, false);
+                Color32[] px = tmp.GetPixels32();
+                UnityEngine.Object.Destroy(tmp);
+                return px;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogWarning($"[POT] Pot texture '{tex.name}' readback failed: {ex.Message}");
+                return null;
+            }
+            finally
+            {
+                tex.filterMode = prevFilter;
+                RenderTexture.active = prev;
+                RenderTexture.ReleaseTemporary(rt);
+            }
         }
 
         // Baked region every vanilla pot quad maps (texels, origin bottom-left).
@@ -201,63 +252,28 @@ namespace LaMulana2Archipelago.Patches
                     solid[y * w + x] = (rows[y] & (1 << x)) != 0;
             return solid;
         }
-
-        /// <summary>
-        /// Builds a w x h texture that is red on every opaque pixel within
-        /// Thickness steps of a transparent one (Manhattan distance, quad edge
-        /// counts as transparent). Everything else is transparent.
-        /// </summary>
-        private static Texture2D BuildOutline(bool[] solid, int w, int h)
-        {
-            Func<int, int, bool> at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && solid[y * w + x];
-
-            Color32 clear = new Color32(0, 0, 0, 0);
-            Color32[] dst = new Color32[w * h];
-            for (int y = 0; y < h; y++)
-            {
-                for (int x = 0; x < w; x++)
-                {
-                    bool edge = false;
-                    if (at(x, y))
-                    {
-                        for (int dy = -Thickness; dy <= Thickness && !edge; dy++)
-                            for (int dx = -Thickness; dx <= Thickness && !edge; dx++)
-                                if (Math.Abs(dx) + Math.Abs(dy) <= Thickness && !at(x + dx, y + dy))
-                                    edge = true;
-                    }
-                    dst[y * w + x] = edge ? OutlineColor : clear;
-                }
-            }
-
-            Texture2D tex = new Texture2D(w, h, TextureFormat.ARGB32, false);
-            tex.filterMode = FilterMode.Point;
-            tex.wrapMode = TextureWrapMode.Clamp;
-            tex.SetPixels32(dst);
-            tex.Apply(false, true);
-            tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
-            return tex;
-        }
     }
 
     /// <summary>
-    /// Lives on a pot's mesh object. Applies/clears the tint and shows/hides the
-    /// outline child (which also follows the pot mesh's visibility, so it
-    /// disappears while the pot is broken).
+    /// Lives on a pot's mesh object. Applies/clears the tint and the outlined
+    /// texture through one per-renderer property block (both vanish with the
+    /// pot mesh while it's broken).
     /// </summary>
     internal class PotMarker : MonoBehaviour
     {
         private const int RecheckInterval = 10; // frames
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
 
         private ItemPotScript _pot;
         private MeshRenderer _mesh;
         private MaterialPropertyBlock _block;
-        private SpriteRenderer _outline;
+        private Texture2D _outlined;
         private bool _outlineBuilt;
         private L2System _sys;
         private int _seetNo = -1;
-        private bool _unchecked;
         private bool _tinted;
+        private bool _outlineShown;
         private int _nextCheckFrame;
 
         public void Setup(ItemPotScript pot, MeshRenderer mesh)
@@ -268,82 +284,51 @@ namespace LaMulana2Archipelago.Patches
 
         private void LateUpdate()
         {
-            if (_pot == null || _mesh == null)
+            if (_pot == null || _mesh == null || Time.frameCount < _nextCheckFrame)
                 return;
+            _nextCheckFrame = Time.frameCount + RecheckInterval;
 
-            if (Time.frameCount >= _nextCheckFrame)
-            {
-                _nextCheckFrame = Time.frameCount + RecheckInterval;
-                _unchecked = IsUnchecked();
-                UpdateTint(_unchecked && PotMarkerPatch.TintEnabled);
-            }
-
-            bool showOutline = _unchecked && PotMarkerPatch.OutlineEnabled && _mesh.enabled && EnsureOutline();
-            if (_outline != null && _outline.enabled != showOutline)
-                _outline.enabled = showOutline;
-        }
-
-        private void UpdateTint(bool want)
-        {
-            if (want == _tinted)
+            bool isUnchecked = IsUnchecked();
+            bool tint = isUnchecked && PotMarkerPatch.TintEnabled;
+            bool outline = isUnchecked && PotMarkerPatch.OutlineEnabled && EnsureOutline();
+            if (tint == _tinted && outline == _outlineShown)
                 return;
-            _tinted = want;
+            _tinted = tint;
+            _outlineShown = outline;
 
-            if (want)
+            if (!tint && !outline)
             {
-                if (_block == null) _block = new MaterialPropertyBlock();
-                _mesh.GetPropertyBlock(_block);
-                _block.SetColor(ColorId, PotMarkerPatch.TintColor);
-                _mesh.SetPropertyBlock(_block);
-            }
-            else
-            {
-                // Back to the shared material's own colour.
+                // Back to the shared material's own colour and texture.
                 _mesh.SetPropertyBlock(null);
+                return;
             }
+
+            if (_block == null) _block = new MaterialPropertyBlock();
+            _block.Clear();
+            if (tint)
+                _block.SetColor(ColorId, PotMarkerPatch.TintColor);
+            if (outline)
+                _block.SetTexture(MainTexId, _outlined);
+            _mesh.SetPropertyBlock(_block);
         }
 
-        /// <summary>Creates the outline child on first use. One attempt per pot.</summary>
+        /// <summary>Fetches the outlined texture on first use. One attempt per pot.</summary>
         private bool EnsureOutline()
         {
             if (_outlineBuilt)
-                return _outline != null;
+                return _outlined != null;
             _outlineBuilt = true;
 
             try
             {
-                var info = PotMarkerPatch.GetOutline(_mesh);
-                if (info == null)
-                    return false;
-
-                GameObject go = new GameObject(PotMarkerPatch.OutlineObjectName);
-                go.layer = _mesh.gameObject.layer;
-                go.transform.SetParent(_mesh.transform, false);
-                // Slightly nearer the camera (world -z) than the pot quad so the
-                // line paints over the pot's edge pixels. Done in world space: the
-                // pot mesh object is rotated 180° about Y, so a local -z offset
-                // would push the outline behind the pot.
-                go.transform.position = _mesh.transform.TransformPoint(info.Center.x, info.Center.y, 0f)
-                    + new Vector3(0f, 0f, -0.25f);
-
-                SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
-                sr.sprite = info.Sprite;
-                sr.flipX = info.FlipX;
-                sr.flipY = info.FlipY;
-                sr.sortingLayerID = _mesh.sortingLayerID;
-                sr.sortingOrder = _mesh.sortingOrder;
-                // Keep the outline in the pot's render queue so depth alone decides
-                // the order (both are 3000 in vanilla; this guards against changes).
-                sr.sharedMaterial = PotMarkerPatch.GetOutlineMaterial(sr.sharedMaterial, _mesh.sharedMaterial);
-                sr.enabled = false;
-                _outline = sr;
-                return true;
+                _outlined = PotMarkerPatch.GetOutlinedTexture(_mesh);
             }
             catch (Exception ex)
             {
                 Plugin.Log.LogWarning($"[POT] Outline build failed: {ex.Message}");
-                return false;
+                _outlined = null;
             }
+            return _outlined != null;
         }
 
         private bool IsUnchecked()
