@@ -491,9 +491,10 @@ namespace LaMulana2Archipelago.Managers
         /// its inherited prefab visual state, as the original intended.
         /// </summary>
         /// <summary>
-        /// Chest color by item type. Own glossary ROMs / pot filler are written as AP
-        /// placeholders (≥410000) so the location machinery fires their check, but they are
-        /// OUR items — show them in the filler color, not the AP (other-world) color. A genuine
+        /// Chest color by item type. Own glossary ROMs / pot filler / guardian souls are written
+        /// as AP placeholders (≥410000) so the location machinery fires their check, but they are
+        /// OUR items — show them in the item color when progression, else the filler color,
+        /// never the AP (other-world) color. A genuine
         /// foreign item is also a placeholder but scouts as NOT-own → AP color. Offline the
         /// seed's own_placeholder_items resolves the same distinction, so both modes agree;
         /// only a pre-own_placeholder_items seed still falls back to the AP color.
@@ -503,11 +504,25 @@ namespace LaMulana2Archipelago.Managers
             if ((int)itemID >= 410000)
             {
                 var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(430000L + (int)locationID);
-                return (scouted != null && scouted.IsOwnItem) ? weightChestColour : apChestColour;
+                if (scouted == null || !scouted.IsOwnItem) return apChestColour;
+                return IsOwnPlaceholderProgression(scouted) ? itemChestColour : weightChestColour;
             }
             if (itemID >= ItemID.ChestWeight01)
                 return weightChestColour;
             return itemChestColour;
+        }
+
+        /// <summary>
+        /// Own item behind a placeholder that the logic needs (guardian souls, glossary ROMs
+        /// under the glossary-hunt goal) takes the item colour, not the filler colour. Online
+        /// the scout's Advancement flag decides; offline scouts carry no classification, so
+        /// fall back to the item id.
+        /// </summary>
+        private static bool IsOwnPlaceholderProgression(ArchipelagoClient.ScoutedItem scouted)
+        {
+            if (scouted.IsProgression) return true;
+            if (GuardianSoulManager.IsSoul((int)(scouted.ItemId - 420000L))) return true;
+            return GlossaryGoalTracker.IsGlossaryHuntGoal && GlossaryManager.IsGlossaryRomId(scouted.ItemId);
         }
 
         private TreasureBoxScript CreateChest(int colour, Vector3 position, Quaternion rotation)
