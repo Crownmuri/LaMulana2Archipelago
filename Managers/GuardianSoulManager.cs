@@ -25,8 +25,11 @@ namespace LaMulana2Archipelago.Managers
     ///
     /// Only the soul-gate machinery is redirected to (13,191) — SceneRandomizer's
     /// randomized gates plus the vanilla "sgateCheck" FlagWatchers and the two
-    /// PlayerHitAreas that arm them. Every other (3,0) reader (jewel mails, ankh
-    /// shop, funeral, hints) keeps counting real kills.
+    /// PlayerHitAreas that arm them. SceneRandomizer also routes its own
+    /// GuardianKills(N) checks through <see cref="GateCountSheet"/>/<see cref="GateCountFlag"/>:
+    /// the funeral watcher "sougiOn" (Alsedana/Giltoriyo, 6), the Hiner restock (5,96)
+    /// watcher (3), Mulbruk's (10,47) script (4) and the IB Tent 2 research box (7).
+    /// Remaining (3,0) readers (jewel mails, Mulbruk hint, lore NPCs) keep real kills.
     /// </summary>
     public static class GuardianSoulManager
     {

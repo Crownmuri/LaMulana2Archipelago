@@ -971,7 +971,9 @@ namespace LaMulana2Archipelago.Managers
                     {
                         flags.Add(new L2FlagBox()
                         {
-                            seet_no1 = 3, flag_no1 = 0, seet_no2 = -1, flag_no2 = 7,
+                            seet_no1 = GuardianSoulManager.GateCountSheet,
+                            flag_no1 = GuardianSoulManager.GateCountFlag,
+                            seet_no2 = -1, flag_no2 = 7,
                             comp = COMPARISON.GreaterEq, logic = LOGIC.AND
                         });
                     }
@@ -1372,9 +1374,12 @@ namespace LaMulana2Archipelago.Managers
                     {
                         foreach (L2FlagBox flagBox in flagBoxParent.BOX)
                         {
+                            // Funeral → Alsedana/Giltoriyo items: logic GuardianKills(6),
+                            // so it counts souls under shuffle_guardian_souls.
                             if (flagBox.seet_no1 == 3 && flagBox.flag_no1 == 30)
                             {
-                                flagBox.flag_no1 = 0;
+                                flagBox.seet_no1 = GuardianSoulManager.GateCountSheet;
+                                flagBox.flag_no1 = GuardianSoulManager.GateCountFlag;
                                 flagBox.flag_no2 = 6;
                                 flagBox.comp = COMPARISON.GreaterEq;
                             }
@@ -1408,6 +1413,13 @@ namespace LaMulana2Archipelago.Managers
                             {
                                 flagBox.flag_no2 = 1;
                                 flagBox.comp = COMPARISON.GreaterEq;
+                            }
+                            // Hiner restock (5,96) watcher: (3,0)>=3. Logic is GuardianKills(3)
+                            // (Hiner Shop 4), so count souls under shuffle_guardian_souls.
+                            else if (flagBox.seet_no1 == 3 && flagBox.flag_no1 == 0)
+                            {
+                                flagBox.seet_no1 = GuardianSoulManager.GateCountSheet;
+                                flagBox.flag_no1 = GuardianSoulManager.GateCountFlag;
                             }
                             else if (flagBox.seet_no1 == 2 && flagBox.flag_no1 == 131)
                             {
@@ -2833,7 +2845,9 @@ namespace LaMulana2Archipelago.Managers
             talkDataBase.cellData[7][14][1][0] = "[@anim,talk,1]\n[@setf,5,12,=,1]\n[@setf,3,29,=,1]\n[@setf,3,39,=,1]\n[@setf,9,38,=,1]";
 
             // Mulbruk 4-guardian check for item
-            talkDataBase.cellData[10][47][1][0] = "[@exit]\n[@anim,talk,1]\n[@setf,3,33,=,10]\n[@iff,3,0,&gt;,3,mulbruk2,3rd-1]\n[@p,lastC]";
+            // (souls received under shuffle_guardian_souls — logic is GuardianKills(4))
+            talkDataBase.cellData[10][47][1][0] = "[@exit]\n[@anim,talk,1]\n[@setf,3,33,=,10]\n" +
+                $"[@iff,{GuardianSoulManager.GateCountSheet},{GuardianSoulManager.GateCountFlag},&gt;,3,mulbruk2,3rd-1]\n[@p,lastC]";
 
             // Remove Giltoriyo check on his item
             talkDataBase.cellData[3][3][1][0] = "[@iff,5,62,=,7,giltoriyo,9th]\n[@iff,5,62,=,6,giltoriyo,7th]\n[@iff,5,62,=,5,giltoriyo,6th]\n" +
