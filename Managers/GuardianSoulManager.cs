@@ -183,7 +183,11 @@ namespace LaMulana2Archipelago.Managers
             int gameId = (int)(apItemId - BaseApItemId);
             if (apItemId <= BaseApItemId || !IsSoul(gameId)) return;
 
-            MarkReceived(UnityEngine.Object.FindObjectOfType<L2System>(), gameId);
+            // Also runs on repeat reports (CheckManager dedup); skip quietly if already held.
+            var sys = UnityEngine.Object.FindObjectOfType<L2System>();
+            if (sys == null || (ReadFlag(sys, SoulMaskFlag) & (1 << SoulIndex(gameId))) != 0) return;
+
+            MarkReceived(sys, gameId);
         }
 
         // =====================================================================

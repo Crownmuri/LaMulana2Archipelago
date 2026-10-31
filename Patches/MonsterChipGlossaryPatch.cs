@@ -104,6 +104,13 @@ namespace LaMulana2Archipelago.Patches
                 return false;
             }
 
+            // Banked but not collected = the check already fired, then a death/load rewound
+            // the item away (see IsLocationCollected). This pickup re-grants without
+            // re-sending the check (NotifyLocation dedupes).
+            bool regrant = GlossaryManager.IsLocationBanked(locId);
+            if (regrant)
+                Plugin.Log.LogInfo($"[GLOSSARY] {locId}: check already banked but item missing from save → re-granting");
+
             var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(apLoc);
 
             // === FILLER PATH: own coins/weights/ammo dropped physically ===
@@ -121,6 +128,9 @@ namespace LaMulana2Archipelago.Patches
                 // (reuse the pot-filler skip path in CheckManager.ReportLocation).
                 ItemPotPatch.PotFillerDialog = true;
                 CheckManager.NotifyLocation(locId);
+                // The drop doesn't set the location's save flag; stamp it so the location
+                // reads collected again until the next rewind (else it reopens forever).
+                PersistentInventoryManager.StampLocationProbe(sys, locId);
                 __instance.itemLabel = "Nothing";
                 __instance.itemGetFlags = new L2FlagBoxEnd[0];
                 return false;
@@ -173,6 +183,7 @@ namespace LaMulana2Archipelago.Patches
             __instance.itemValue = 1;
             __instance.itemGetFlags = getFlags.ToArray();
 
+            // On a re-grant this dedupes, and the dedup path re-delivers costumes/souls.
             CheckManager.NotifyLocation(locId);
 
             int slot = core.seManager.playSE(__instance.gameObject, 39);

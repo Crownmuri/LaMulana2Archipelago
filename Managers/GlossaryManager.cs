@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using L2Base;
 using LaMulana2Archipelago.Archipelago;
 using LaMulana2RandomizerShared;
 
@@ -89,18 +90,55 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
-        /// True once a glossary location's AP check has fired (this session or on the server).
+        /// True when a glossary location is spent: its chip must not appear or drop again.
         /// In the decoupled model this — never the sheet-20 book flag — is the "location
         /// collected" marker, so every gate that decides whether a glossary chip may still be
         /// obtained must ask this.
+        ///
+        /// Spent = check banked (this session or on the server) AND the item is not lost.
+        /// The check outlives a death/load but an own-world item granted at the chip lives in
+        /// the save state, which memLoad rewinds. Without persistent_inventory nothing gives it
+        /// back, so in that case the location reopens and the chip can be picked up again
+        /// (re-pickup re-grants without re-sending the check). Chests behave the same way
+        /// natively, because their opened flag rewinds with the save.
         /// </summary>
         public static bool IsLocationCollected(LocationID loc)
+        {
+            if (!IsLocationBanked(loc))
+                return false;
+
+            // Persistent inventory restores the item itself — keep the location spent.
+            if (PersistentInventoryManager.Enabled)
+                return true;
+
+            return !PersistentInventoryManager.IsOwnItemMissingFromSave(GetSys(), loc);
+        }
+
+        /// <summary>True once the location's AP check has fired (this session or on the server).</summary>
+        public static bool IsLocationBanked(LocationID loc)
         {
             long apLoc = 430000L + (int)loc;
             return CheckManager.IsLocationReported(apLoc)
                 || (ArchipelagoClient.ServerData != null
                     && ArchipelagoClient.ServerData.CheckedLocations != null
                     && ArchipelagoClient.ServerData.CheckedLocations.Contains(apLoc));
+        }
+
+        // IsLocationCollected runs from per-frame marker gates; cache the system and only
+        // search for it once per frame while it's missing (e.g. on the title screen).
+        private static L2System _sys;
+        private static int _sysMissFrame = -1;
+
+        private static L2System GetSys()
+        {
+            if (_sys != null) return _sys;
+
+            int frame = UnityEngine.Time.frameCount;
+            if (frame == _sysMissFrame) return null;
+
+            _sys = UnityEngine.Object.FindObjectOfType<L2System>();
+            if (_sys == null) _sysMissFrame = frame;
+            return _sys;
         }
 
         /// <summary>

@@ -147,6 +147,24 @@ namespace LaMulana2Archipelago.Managers
         }
 
         /// <summary>
+        /// Re-run the direct own-item deliveries (glossary ROM, costume, guardian soul) for a
+        /// location whose check was already reported. These items exist only through the
+        /// report (no grant flags on the pickup), so without this a pot, chest, shop slot or
+        /// chip picked again after a death/load rewound the item would give nothing. All
+        /// three are idempotent — a no-op when the save still has the item.
+        ///
+        /// Deliberately NOT called from NotifyApLocationId: its callers (shop refill
+        /// auto-collect on display, collapsed-item claims) never hold these item classes,
+        /// and the shop one fires without a purchase.
+        /// </summary>
+        private static void RedeliverOwnDirectItems(long apLocation)
+        {
+            TryDeliverOwnGlossaryRom(apLocation);
+            TryDeliverOwnCostume(apLocation);
+            GuardianSoulManager.TryDeliverOwnSoulOnCheck(apLocation);
+        }
+
+        /// <summary>
         /// Glossary ROMs at NON-chip locations (shops, chests, NPC/Kataribe item-gives, puzzle
         /// rewards) suppress the local grant and would otherwise rely on the AP echo of our own
         /// item — which doesn't arrive for own-world finds, because ArchipelagoClient connects
@@ -195,6 +213,10 @@ namespace LaMulana2Archipelago.Managers
 
                 var sys = UnityEngine.Object.FindObjectOfType<L2Base.L2System>();
                 if (sys == null) return;
+
+                // Also runs on repeat reports (dedup re-delivery); skip quietly if already held.
+                if (CostumeManager.IsReceived(sys, System.Array.IndexOf(CostumeManager.Costumes, costumeId)))
+                    return;
 
                 CostumeManager.MarkReceived(sys, costumeId);
                 Plugin.Log.LogInfo("[COSTUME] Own costume persisted on check: " + costumeId
@@ -250,6 +272,9 @@ namespace LaMulana2Archipelago.Managers
             if (reportedLocations.Contains(apLocation))
             {
                 Plugin.Log.LogDebug("[CHECK] Already reported: " + location);
+                // A repeat pickup after a death/load: the check is already sent, but the
+                // rewind may have taken away an item only the first report delivered.
+                RedeliverOwnDirectItems(apLocation);
                 return;
             }
 

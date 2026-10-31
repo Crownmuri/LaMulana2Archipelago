@@ -204,7 +204,7 @@ namespace LaMulana2Archipelago.Managers
         /// cache. Offline is solo, so a non-placeholder placement is by
         /// definition ours.
         /// </summary>
-        internal static long ResolveOwnApItemId(LocationID location, long apLocation)
+        internal static long ResolveOwnApItemId(LocationID location, long apLocation, bool quiet = false)
         {
             var scouted = ArchipelagoClientProvider.Client?.GetItemAtLocation(apLocation);
             if (scouted != null)
@@ -227,7 +227,8 @@ namespace LaMulana2Archipelago.Managers
                 // resolver's "consume another placement" path. Skip and say so.
                 if (CollapsedItemResolver.IsCollapsedFamily(scoutedGameId))
                 {
-                    Plugin.Log.LogWarning($"[Persist] {location} holds collapsed AP item {scouted.ItemId} "
+                    if (!quiet)
+                        Plugin.Log.LogWarning($"[Persist] {location} holds collapsed AP item {scouted.ItemId} "
                         + "but the seed map has no numbered instance for it; not replaying.");
                     return 0;
                 }
@@ -293,6 +294,57 @@ namespace LaMulana2Archipelago.Managers
                 return true; // unreadable flag: assume present rather than risk a double grant
 
             return data >= owned;
+        }
+
+        // ==========================
+        // Save-state probe (shared)
+        // ==========================
+
+        /// <summary>
+        /// True when this location holds one of OUR items and the save state no longer
+        /// has it — i.e. the check is banked on the server but a death/load rewound the
+        /// grant away. Uses the same probe as replay. False for foreign items, for
+        /// locations with no usable probe, and for unreadable flags (all "assume present").
+        ///
+        /// Called from per-frame gates (glossary markers), so it never logs.
+        /// </summary>
+        internal static bool IsOwnItemMissingFromSave(L2System sys, LocationID location)
+        {
+            if (sys == null) return false;
+
+            long apItemId = ResolveOwnApItemId(location, BaseApLocationId + (int)location, quiet: true);
+            if (apItemId <= BaseApItemId) return false;
+
+            if (!TryGetProbeFlag(location, apItemId, out int sheet, out int flag, out short value))
+                return false;
+
+            return !HasFlag(sys, sheet, flag, value);
+        }
+
+        /// <summary>
+        /// Set this location's probe flag after a grant path that doesn't set it itself
+        /// (filler dropped physically from a glossary chip). Without it the probe stays 0
+        /// and <see cref="IsOwnItemMissingFromSave"/> would reopen the location forever.
+        /// No-op for foreign items or when the flag is already set.
+        /// </summary>
+        internal static void StampLocationProbe(L2System sys, LocationID location)
+        {
+            if (sys == null) return;
+
+            long apItemId = ResolveOwnApItemId(location, BaseApLocationId + (int)location, quiet: true);
+            if (apItemId <= BaseApItemId) return;
+
+            if (!TryGetProbeFlag(location, apItemId, out int sheet, out int flag, out short value))
+                return;
+
+            StampProbeFlag(sys, new ReplayEntry
+            {
+                Location = location,
+                ApItemId = apItemId,
+                Sheet = sheet,
+                Flag = flag,
+                Value = value
+            });
         }
 
         // ==========================
