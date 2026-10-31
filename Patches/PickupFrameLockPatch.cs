@@ -57,11 +57,29 @@ namespace LaMulana2Archipelago.Patches
     [HarmonyPatch(typeof(AbstractItemBase), nameof(AbstractItemBase.groundBack))]
     internal static class AbstractItemBaseGroundBackPatch
     {
-        // Sheet-20 book flags of NPC chips whose talk script starts a cutscene.
-        private static readonly HashSet<int> CutsceneNpcChipFlags = new HashSet<int>
+        // Sheet-20 book flags of NPC chips whose talk script can start a cutscene,
+        // each with a check for "this talk is about to start it". When the check is
+        // false the chip behaves like any other NPC glossary drop.
+        private static readonly Dictionary<int, System.Func<L2System, bool>> CutsceneNpcChipFlags =
+            new Dictionary<int, System.Func<L2System, bool>>
         {
-            198, // Brihaspathi (talk50) → Vritra door cutscene
+            // Brihaspathi (talk50, talk sheet f10-3). Only the "2nd" page starts
+            // the Vritra door cutscene: firstTalk picks it when Vritra (3,11) <= 3
+            // and Roki3 (14,30) > 1, and it runs [@setf,14,12,=,1] (D2_slide).
+            // In field10 a FlagWatcher then sets D2_event (14,47)=1, and a
+            // PlayerActionController plays the scene and sets (14,47)=2 when done.
+            { 198, BrihaspathiDoorCutscenePending },
         };
+
+        // True from "this talk will start the door cutscene" until it has finished.
+        private static bool BrihaspathiDoorCutscenePending(L2System sys)
+        {
+            short vritra = 0, roki3 = 0, d2Event = 0;
+            sys.getFlag(3, 11, ref vritra);
+            sys.getFlag(14, 30, ref roki3);
+            sys.getFlag(14, 47, ref d2Event);
+            return vritra <= 3 && roki3 > 1 && d2Event < 2;
+        }
 
         static bool Prefix(AbstractItemBase __instance, ref bool __result, out bool __state,
                            bool ___finished, L2System ___sys, NewPlayer ___pl)
@@ -88,12 +106,14 @@ namespace LaMulana2Archipelago.Patches
             // grabbed while that NPC's talk script is kicking off a cutscene (Vritra
             // door) → dialog and cutscene both hold player control → softlock. Leave
             // the chip on the ground until the player is back in free control.
-            // Only for CutsceneNpcChipFlags: IsSafe includes the post-talk grace
-            // window, which would needlessly delay every other NPC's chip.
+            // Only for CutsceneNpcChipFlags, and only while that NPC's cutscene is
+            // still pending: IsSafe includes the post-talk grace window, which would
+            // needlessly delay the chip on every other talk.
             if (__instance is MonsterChipScript chip
                 && GlossaryManager.Enabled
                 && ___sys != null && ___pl != null
-                && CutsceneNpcChipFlags.Contains(MonsterChipGlossaryPatch.GetChipBookFlag(chip))
+                && CutsceneNpcChipFlags.TryGetValue(MonsterChipGlossaryPatch.GetChipBookFlag(chip), out var cutscenePending)
+                && cutscenePending(___sys)
                 && MonsterChipGlossaryPatch.TryGetChipLocation(chip, out LocationID locId)
                 && !GlossaryManager.IsLocationCollected(locId)
                 && !ItemGrantStateGuard.IsSafe(___sys, ___pl))
