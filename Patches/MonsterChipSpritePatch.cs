@@ -131,7 +131,12 @@ namespace LaMulana2Archipelago.Patches
             // Own glossary ROM with no scout (offline) → also keep the chip sprite.
             if ((int)placed >= 2000 && (int)placed <= 2251)
                 return null;
-            if (placed != ItemID.None && (int)placed < (int)ItemID.ChestWeight01)
+            // DLC / extra-orb items (RebirthSigil..SacredOrb19, e.g. the bonus Sacred Orbs) sit
+            // ABOVE the filler ranges, so "< ChestWeight01" alone sent them to the AP icon.
+            // Same guard as SceneRandomizer.ChangeTreasureChests' hasExistingSprite.
+            bool isRealItem = (int)placed < (int)ItemID.ChestWeight01
+                           || (placed >= ItemID.RebirthSigil && placed <= ItemID.SacredOrb19);
+            if (placed != ItemID.None && isRealItem)
             {
                 ItemInfo info = ItemDB.GetItemInfo(placed);
                 if (info != null && !string.IsNullOrEmpty(info.BoxName))
