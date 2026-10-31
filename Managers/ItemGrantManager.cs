@@ -53,6 +53,9 @@ namespace LaMulana2Archipelago.Managers
         // If false: restore is silent (recommended default).
         private const bool RestoreWithAnimations = true;
 
+        /// <summary>Time.frameCount of the last GETITEM presentation order.</summary>
+        public static int LastPresentationFrame = -100;
+
         /// <summary>
         /// Set for the duration of a grant that must produce no GETITEM animation,
         /// SFX or dialog. PersistentInventoryManager raises this while replaying
@@ -953,6 +956,9 @@ namespace LaMulana2Archipelago.Managers
 
                 PlayPickupSFX(39);
 
+                // The order is applied on the player's next update, so state
+                // still reads normal this frame (see ScriptedPlayerControlPatch).
+                LastPresentationFrame = Time.frameCount;
                 pl.setActionOder(PLAYERACTIONODER.getitem);
 
                 if (itemLabel.Contains("Whip"))

@@ -71,6 +71,14 @@ namespace LaMulana2Archipelago.Managers
                 return false;
             }
 
+            // PlayerActionController cutscenes (fake key input, no ANIME_MODE),
+            // including the 1-frame gaps between chained controllers.
+            if (Patches.ScriptedPlayerControlGuard.IsBlocking(sys))
+            {
+            //    Plugin.Log.LogDebug("[GRANT] Blocked: scripted player control");
+                return false;
+            }
+
             // Post-[@exit] NPC talk session: the dialog window closed but the NPC
             // script is still running. Player state is WALK and no system flag is set,
             // but the script may be suspended at [@anifla,mnext,wait2] waiting for a
