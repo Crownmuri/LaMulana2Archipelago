@@ -22,7 +22,7 @@ namespace LaMulana2RandomizerShared
         DSLMMain, DSLMTop, DSLMPyramid,
         Nibiru,
         ACBottom, ACWind, ACTablet, ACMain, ACBlood,
-        HoMTop, HoM, HoMAwoken,
+        HoMTop, HoMLeft, HoMAwoken,
         EPDEntrance, EPDMain, EPDTop, EPDHel,
         EPG, SpiralHell,
         // --- DLC areas (aligned with ids.py AreaID enum values 93+) ---
@@ -36,6 +36,7 @@ namespace LaMulana2RandomizerShared
         TowerOfOannesLeftCTop      = 110,
         GateofGuidanceRightLadder  = 111,
         // --- Pot / Glossary sub-region ---
-        HLStatue                   = 112
+        HLStatue                   = 112,
+        HoMRight                   = 113
     }
 }
