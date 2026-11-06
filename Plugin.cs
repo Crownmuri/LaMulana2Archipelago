@@ -181,6 +181,9 @@ namespace LaMulana2Archipelago
                 "Archipelago server host and port. Remembered between sessions.");
             _cfgSlotName = Config.Bind("Connection", "SlotName", "Lumisa",
                 "Slot (player) name used when connecting. Remembered between sessions.");
+            ArchipelagoClient.AutoReconnectEnabled = Config.Bind("Connection", "AutoReconnect", true,
+                "If the connection drops mid-run, keep retrying the same server in the background "
+                + "until it comes back. Off: use the Reconnect button on the in-game console.").Value;
 
             _cfgClaydollQuickToggle = Config.Bind("Gameplay", "ClaydollQuickToggle", true,
                 "Press Previous Weapon + Next Weapon together to equip/remove the Claydoll "
@@ -301,6 +304,7 @@ namespace LaMulana2Archipelago
             // screen, and everything these handlers touch (GameObjects,
             // prefabs, the shop/moji script databases) is main-thread-only.
             ArchipelagoClientProvider.Client?.PumpMainThreadWork();
+            ArchipelagoClientProvider.Client?.UpdateAutoReconnect(allowed: !onTitle);
 
             // Re-scan only if cache is stale (scene transitions null it out).
             if (_cachedSys == null)
@@ -319,7 +323,7 @@ namespace LaMulana2Archipelago
             // A committed glossary-hunt credits sequence (phase 1/3 below) has
             // already blocked input and faded to black; it must finish even if the
             // socket drops, or the player is left on a black screen with no input.
-            bool apActive = ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode;
+            bool apActive = ArchipelagoClient.SeedLoaded;
             bool creditsCommitted = _creditsPhase == 1 || _creditsPhase == 3;
             if (!apActive && !creditsCommitted)
                 return;
@@ -1003,7 +1007,7 @@ namespace LaMulana2Archipelago
                 gameplayActivationTime = float.MaxValue;
             }
 
-            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode)
+            if (!ArchipelagoClient.SeedLoaded)
                 return;
 
             // Standalone scene randomization (chests, entrances, NPCs, etc.)

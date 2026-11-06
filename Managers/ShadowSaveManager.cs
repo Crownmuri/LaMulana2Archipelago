@@ -86,6 +86,13 @@ namespace LaMulana2Archipelago.Managers
             {
                 ArchipelagoClient.ServerData.Index = _detachedIndex;
                 Plugin.Log.LogInfo($"[Shadow] Reattached to {_detachedKey}; Index -> {_detachedIndex}.");
+
+                // The server's full ReceivedItems burst lands on the socket thread
+                // before this runs, while Index was still 0, so every item the
+                // player already has is sitting in the queue. A title-screen
+                // reconnect clears those on the following file load; a mid-run
+                // reconnect has no load, so drop them here or they re-grant.
+                DrainProcessedItems(_detachedIndex);
             }
             ClearDetached();
         }

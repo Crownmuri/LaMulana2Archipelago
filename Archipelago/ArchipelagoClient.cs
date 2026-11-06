@@ -131,6 +131,100 @@ namespace LaMulana2Archipelago.Archipelago
             }
         }
 
+        // =============================
+        // Mid-run reconnect
+        // =============================
+
+        /// <summary>
+        /// Set from the BepInEx config. When on, a socket drop mid-run retries
+        /// the same host/slot on a backoff until the server comes back.
+        /// </summary>
+        public static bool AutoReconnectEnabled = true;
+
+        // Backoff between automatic attempts, in seconds. Index advances per
+        // failed attempt and sticks at the last entry.
+        private static readonly float[] ReconnectBackoff = { 3f, 5f, 10f, 20f, 30f };
+        private int _reconnectAttempt;
+        private float _nextReconnectTime = float.MaxValue;
+
+        /// <summary>True while the socket is being re-established (manual or auto).</summary>
+        public bool IsConnecting => attemptingConnection;
+
+        /// <summary>
+        /// A session dropped mid-run and the player is still on that seed.
+        /// The in-game console shows DISCONNECTED + Reconnect while this holds.
+        /// </summary>
+        public static bool ReconnectAvailable =>
+            !Authenticated && !OfflineMode && ShadowSaveManager.HasDetachedSession;
+
+        /// <summary>
+        /// A seed is in play: connected, offline, or dropped mid-run and waiting
+        /// to reconnect. Gameplay-side seed logic (scene randomization, pot and
+        /// glossary contents, shops, difficulty) keys off this, not Authenticated,
+        /// so a socket drop doesn't turn the world back to vanilla.
+        /// </summary>
+        public static bool SeedLoaded =>
+            Authenticated || OfflineMode || ShadowSaveManager.HasDetachedSession;
+
+        /// <summary>Seconds until the next automatic attempt, or -1 if none is scheduled.</summary>
+        public float SecondsUntilAutoReconnect()
+        {
+            if (!AutoReconnectEnabled || _nextReconnectTime == float.MaxValue) return -1f;
+            return UnityEngine.Mathf.Max(0f, _nextReconnectTime - UnityEngine.Time.realtimeSinceStartup);
+        }
+
+        /// <summary>Reconnect now to the host/slot/password the dropped session used.</summary>
+        public void Reconnect()
+        {
+            if (!ReconnectAvailable || attemptingConnection) return;
+            Plugin.Log.LogInfo("[AP] Reconnecting to " + ServerData.NormalizedUri);
+            Connect();
+            ScheduleNextReconnect();
+        }
+
+        private void ScheduleNextReconnect()
+        {
+            float delay = ReconnectBackoff[Math.Min(_reconnectAttempt, ReconnectBackoff.Length - 1)];
+            _reconnectAttempt++;
+            _nextReconnectTime = UnityEngine.Time.realtimeSinceStartup + delay;
+        }
+
+        private void ResetReconnectBackoff()
+        {
+            _reconnectAttempt = 0;
+            _nextReconnectTime = float.MaxValue;
+        }
+
+        /// <summary>
+        /// Called every frame. Fires the next automatic attempt when one is due.
+        /// Off on the title screen: there the player may be editing the host
+        /// fields, and the Connect button does the same job.
+        /// </summary>
+        public void UpdateAutoReconnect(bool allowed)
+        {
+            if (!ReconnectAvailable)
+            {
+                if (Authenticated) ResetReconnectBackoff();
+                return;
+            }
+            if (!allowed || !AutoReconnectEnabled || attemptingConnection) return;
+
+            if (_nextReconnectTime == float.MaxValue)
+            {
+                // First frame after the drop: schedule, don't fire immediately.
+                ScheduleNextReconnect();
+                return;
+            }
+            if (UnityEngine.Time.realtimeSinceStartup < _nextReconnectTime) return;
+
+            Reconnect();
+        }
+
+        // Player-side toggles from the dropped session, re-applied on a
+        // reconnect to the same seed so a drop doesn't silently undo them.
+        private static bool? _keptDeathLink;
+        private static bool? _keptHardMode;
+
         public static ArchipelagoData ServerData = new();
         private ArchipelagoSession session;
 
@@ -307,6 +401,15 @@ namespace LaMulana2Archipelago.Archipelago
                 return false;
             }
 
+            // A dropped online run still holds its seed state (see Disconnect);
+            // leave it before the offline seed builds on top.
+            if (ShadowSaveManager.HasDetachedSession)
+            {
+                TearDownStandaloneState();
+                WipeSlotState(clearSlotData: true);
+                ResetReconnectBackoff();
+            }
+
 
             // Remembered so the "Enable UAT" button can publish the seed even
             // when it is switched on after offline mode is already live.
@@ -459,9 +562,16 @@ namespace LaMulana2Archipelago.Archipelago
 
             TearDownStandaloneState();
 
+            // Disconnect() kept the slot state (it was a live session); a manual
+            // disconnect is leaving the seed, so drop it now.
+            WipeSlotState(clearSlotData: true);
+
             // A manual disconnect is a clean slate: any deferred goal belonged to
             // the server we just left and must not be re-sent to the next one.
             GoalPending = false;
+            _keptDeathLink = null;
+            _keptHardMode = null;
+            ResetReconnectBackoff();
 
             Plugin.Log.LogInfo("[AP] Disconnected and reverted to pre-connection state");
         }
@@ -607,7 +717,9 @@ namespace LaMulana2Archipelago.Archipelago
                         result = ManualConnectAndLogin(
                             ServerData.SlotName,
                             ServerData.Password,
-                            ServerData.NeedSlotData);
+                            // Always: a mid-run drop keeps the old slot_data
+                            // cached, and HandleConnectResult needs a fresh copy.
+                            true);
                     }
                     catch (Exception e)
                     {
@@ -643,7 +755,16 @@ namespace LaMulana2Archipelago.Archipelago
             {
                 _closedSession = null;
                 if (ReferenceEquals(closed, session))
+                {
+                    bool wasLive = Authenticated;
                     Disconnect();
+                    if (wasLive)
+                    {
+                        ArchipelagoConsole.LogMessage(AutoReconnectEnabled
+                            ? "Lost connection to the Archipelago server. Retrying automatically..."
+                            : "Lost connection to the Archipelago server. Press Reconnect to retry.");
+                    }
+                }
             }
 
             if (_scoutReapplyPending)
@@ -825,6 +946,10 @@ namespace LaMulana2Archipelago.Archipelago
 
                 ServerData.SetupSession(success.SlotData, session.RoomState.Seed);
 
+                // Read before OnSessionAttached clears the detached state.
+                bool reattachSameSeed = ShadowSaveManager.HasDetachedSession
+                    && !ShadowSaveManager.DetachedFromDifferentSeed;
+
                 // A socket drop only runs the lightweight Disconnect(), which
                 // leaves the dropped seed's world rewrites, patch flags and scout
                 // cache in place. That's right for a reconnect to the same seed,
@@ -835,6 +960,9 @@ namespace LaMulana2Archipelago.Archipelago
                 {
                     Plugin.Log.LogInfo("[AP] Connecting to a different seed than the dropped session; reverting its world state first.");
                     TearDownStandaloneState();
+                    // The drop kept the old seed's slot state alive; keep the
+                    // new slot_data SetupSession just stored.
+                    WipeSlotState(clearSlotData: false);
                 }
 
                 ApplyStandaloneFromSlotData(success.SlotData);
@@ -852,6 +980,21 @@ namespace LaMulana2Archipelago.Archipelago
                 GameDifficultyHandler = new GameDifficultyHandler(
                     ServerData.GetSlotInt("game_difficulty", 0));
                 Plugin.Log.LogInfo($"[AP] Game difficulty initial = {GameDifficultyHandler.State} (offset={GameDifficultyHandler.Level})");
+
+                // Same seed as the dropped session: keep the player's DeathLink and
+                // difficulty toggles instead of resetting them to the slot_data
+                // defaults. ToggleHardMode is a no-op on a save already at that
+                // difficulty, so this never shifts G_Difficulty twice.
+                if (reattachSameSeed)
+                {
+                    if (_keptDeathLink.HasValue && _keptDeathLink.Value != DeathLinkHandler.IsEnabled)
+                        DeathLinkHandler.ToggleDeathLink();
+                    if (_keptHardMode.HasValue && _keptHardMode.Value != GameDifficultyHandler.IsHardMode)
+                        GameDifficultyHandler.ToggleHardMode();
+                }
+                _keptDeathLink = null;
+                _keptHardMode = null;
+                ResetReconnectBackoff();
 
                 Authenticated = true;
                 GoalReported = false;
@@ -922,6 +1065,20 @@ namespace LaMulana2Archipelago.Archipelago
         {
             Plugin.Log.LogDebug("disconnecting from server...");
 
+            // Mid-run: a live session dropping, or a reconnect attempt failing
+            // while we're still on the dropped seed. The player keeps playing that
+            // seed, so its slot state must survive; DisconnectAndRevert and a
+            // connect to a different seed wipe it explicitly.
+            bool keepSeedState = Authenticated || ShadowSaveManager.HasDetachedSession;
+
+            // Remember the player's toggles so a reconnect to the same seed can
+            // restore them (see HandleConnectResult). Only a live session has any.
+            if (Authenticated)
+            {
+                _keptDeathLink = DeathLinkHandler?.IsEnabled;
+                _keptHardMode = GameDifficultyHandler?.IsHardMode;
+            }
+
             // Before Authenticated/RoomSeed/Index are cleared below.
             ShadowSaveManager.OnSessionDropped();
 
@@ -933,21 +1090,36 @@ namespace LaMulana2Archipelago.Archipelago
             GoalReported = false;
             ClearItemQueue();
 
+            // The DeathLink service is bound to the session we just dropped; a
+            // stale handler would keep Update()-ing against a dead socket. The
+            // next Connect() builds a fresh one from the new slot_data.
+            DeathLinkHandler = null;
+
+            // Shadow saves track the item count via _detachedIndex while
+            // detached; the reconnect restores Index from it (OnSessionAttached).
+            if (ServerData != null)
+                ServerData.Index = 0;
+
+            if (!keepSeedState)
+                WipeSlotState(clearSlotData: true);
+        }
+
+        /// <summary>
+        /// Drop everything tied to the current seed/slot: slot_data, scout
+        /// readiness, in-memory location state. Not run on a mid-run drop, where
+        /// pots, glossary drops, costumes and AP shop slots must keep resolving to
+        /// the seed's items while the player waits for the server.
+        /// </summary>
+        private static void WipeSlotState(bool clearSlotData)
+        {
             // The next Connect() re-runs ScoutAllLocations; until its async
             // callback lands, scout answers belong to the previous session.
             ScoutCacheReady = false;
 
             GameDifficultyHandler = null;
 
-            // The DeathLink service is bound to the session we just dropped; a
-            // stale handler would keep Update()-ing against a dead socket. The
-            // next Connect() builds a fresh one from the new slot_data.
-            DeathLinkHandler = null;
-
-            // Ensure next Connect() re-requests slot_data. Without this, slotData
-            // from the previous session is still non-null, so NeedSlotData=false,
-            // and the new server returns empty SlotData → NRE in HandleConnectResult.
-            ServerData?.ClearSessionCache();
+            if (clearSlotData)
+                ServerData?.ClearSessionCache();
 
             // Wipe slot-specific state so reconnecting as a different slot in the
             // same game session doesn't leak the previous slot's progress.

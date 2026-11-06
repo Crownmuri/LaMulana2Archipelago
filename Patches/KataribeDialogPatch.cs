@@ -35,7 +35,7 @@ namespace LaMulana2Archipelago.Patches
         [HarmonyPatch(typeof(KataribeScript), "calldialog")]
         private static void CalldialogPrefix(KataribeScript __instance)
         {
-            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode) return;
+            if (!ArchipelagoClient.SeedLoaded) return;
 
             // Mirror the game's own condition — only act when the player confirms.
             // calldialog is called every frame; without this gate we prime on every frame.

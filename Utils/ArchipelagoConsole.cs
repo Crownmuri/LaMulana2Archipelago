@@ -91,20 +91,30 @@ namespace LaMulana2Archipelago.Utils
             }
 
             if (!Visible) return;
-            if (logLines.Count == 0) return;
 
-            if (!Hidden || Time.time - lastUpdateTime < HideTimeout)
+            // A run whose server dropped: a red status bar and a Reconnect
+            // button in place of Show/Hide, until the session is back.
+            if (ArchipelagoClient.ReconnectAvailable)
             {
-                scrollView = GUI.BeginScrollView(window, scrollView, scroll);
-                GUI.Box(text, "");
-                GUI.Box(text, scrollText, textStyle);
-                GUI.EndScrollView();
+                DrawDisconnectedBar();
             }
-
-            if (GUI.Button(hideShowButton, Hidden ? "Show" : "Hide"))
+            else
             {
-                Hidden = !Hidden;
-                UpdateWindow();
+                if (logLines.Count == 0) return;
+
+                if (!Hidden || Time.time - lastUpdateTime < HideTimeout)
+                {
+                    scrollView = GUI.BeginScrollView(window, scrollView, scroll);
+                    GUI.Box(text, "");
+                    GUI.Box(text, scrollText, textStyle);
+                    GUI.EndScrollView();
+                }
+
+                if (GUI.Button(hideShowButton, Hidden ? "Show" : "Hide"))
+                {
+                    Hidden = !Hidden;
+                    UpdateWindow();
+                }
             }
 
             // Disabled (greyed out) outside gameplay and whenever the in-game
@@ -135,6 +145,45 @@ namespace LaMulana2Archipelago.Utils
                 CommandText = "";
                 if (enterPressed) Event.current.Use();
             }
+        }
+
+        private static GUIStyle disconnectedStyle;
+
+        private static void DrawDisconnectedBar()
+        {
+            var client = Plugin.ArchipelagoClient;
+            bool connecting = client != null && client.IsConnecting;
+
+            string status;
+            if (connecting)
+                status = "reconnecting...";
+            else
+            {
+                float wait = client != null ? client.SecondsUntilAutoReconnect() : -1f;
+                status = wait >= 0f ? $"retrying in {Mathf.CeilToInt(wait)}s" : "";
+                if (ArchipelagoClient.Phase == ArchipelagoClient.ConnectionPhase.Failed
+                    && !ArchipelagoClient.PhaseDetail.IsNullOrWhiteSpace())
+                    status = ArchipelagoClient.PhaseDetail + (status.Length > 0 ? " - " + status : "");
+            }
+
+            disconnectedStyle ??= new GUIStyle { alignment = TextAnchor.MiddleLeft, fontStyle = FontStyle.Bold };
+            disconnectedStyle.fontSize = (int)(Screen.height * 0.018f);
+            disconnectedStyle.normal.textColor = Color.red;
+            disconnectedStyle.wordWrap = false;
+            disconnectedStyle.clipping = TextClipping.Clip;
+            int pad = (int)(Screen.width * 0.005f);
+            disconnectedStyle.padding = new RectOffset(pad, pad, 0, 0);
+
+            var width = (int)(Screen.width * 0.4f);
+            var height = (int)(Screen.height * 0.03f);
+            var bar = new Rect(Screen.width / 2 - width / 2, 0, width, height);
+            GUI.Box(bar, "");
+            GUI.Label(bar, status.Length > 0 ? "DISCONNECTED  (" + status + ")" : "DISCONNECTED", disconnectedStyle);
+
+            GUI.enabled = !connecting;
+            if (GUI.Button(hideShowButton, connecting ? "Reconnecting..." : "Reconnect"))
+                client?.Reconnect();
+            GUI.enabled = true;
         }
 
         public static void UpdateWindow()

@@ -57,7 +57,7 @@ namespace LaMulana2Archipelago.Patches
         {
             _cachedInstance = __instance;
 
-            if (ArchipelagoClient.Authenticated || ArchipelagoClient.OfflineMode)
+            if (ArchipelagoClient.SeedLoaded)
                 Apply(__instance);
         }
 

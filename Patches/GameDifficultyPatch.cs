@@ -17,7 +17,7 @@ namespace LaMulana2Archipelago.Patches
         public static void Apply(L2System sys, string source)
         {
             if (sys == null) return;
-            if (!ArchipelagoClient.Authenticated && !ArchipelagoClient.OfflineMode) return;
+            if (!ArchipelagoClient.SeedLoaded) return;
 
             var handler = ArchipelagoClient.GameDifficultyHandler;
             if (handler == null) return;
