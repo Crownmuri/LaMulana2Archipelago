@@ -1030,6 +1030,7 @@ namespace LaMulana2Archipelago.Archipelago
                 SetPhase(ConnectionPhase.Connected);
                 outText = $"Successfully connected to {ServerData.NormalizedUri} as {ServerData.SlotName}!";
                 ArchipelagoConsole.LogMessage(outText);
+                WarnIfModOutdated();
 
                 // If a previous CLIENT_GOAL send failed (socket dropped at credits),
                 // retry now that we're authenticated again.
@@ -1103,6 +1104,36 @@ namespace LaMulana2Archipelago.Archipelago
             if (!keepSeedState)
                 WipeSlotState(clearSlotData: true);
         }
+
+        /// <summary>
+        /// The mod may be newer than the apworld, never older. Warn when the
+        /// seed was generated with a newer apworld than this mod.
+        /// </summary>
+        private void WarnIfModOutdated()
+        {
+            string raw = ServerData.GetSlotRaw("world_version")?.ToString();
+            if (string.IsNullOrEmpty(raw)) return; // seed predates the field
+
+            Version world, mod;
+            try
+            {
+                world = new Version(raw);
+                mod = new Version(Plugin.PluginVersion);
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[AP] Could not parse world_version '{raw}': {e.Message}");
+                return;
+            }
+
+            if (world > mod)
+            {
+                string msg = $"Version mismatch: APWorld = v{world}. Mod = v{mod}. Please update to v{world} or newer.";
+                Plugin.Log.LogWarning("[AP] " + msg);
+                ArchipelagoConsole.LogMessage(msg);
+            }
+        }
+
 
         /// <summary>
         /// Drop everything tied to the current seed/slot: slot_data, scout
